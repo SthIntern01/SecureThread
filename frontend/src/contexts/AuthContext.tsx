@@ -61,7 +61,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const verifyToken = async (token: string) => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/v1/auth/me`,
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/auth/me`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -96,6 +98,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem("access_token");
     localStorage.removeItem("user");
+    // Redirect to login page
+    window.location.href = "/signin";
   };
 
   const value: AuthContextType = {
