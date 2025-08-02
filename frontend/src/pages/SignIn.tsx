@@ -1,32 +1,74 @@
-import React, { useState } from 'react';
-import { EtherealBackground } from '../components/ui/ethereal-background';
-import { 
-  IconMail, 
-  IconLock, 
-  IconEye, 
-  IconEyeOff, 
-  IconBrandGithub, 
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { EtherealBackground } from "../components/ui/ethereal-background";
+import {
+  IconMail,
+  IconLock,
+  IconEye,
+  IconEyeOff,
+  IconBrandGithub,
   IconBrandGoogle,
   IconArrowRight,
-  IconShield
-} from '@tabler/icons-react';
+  IconShield,
+} from "@tabler/icons-react";
 
 const SignInPage = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const from = location.state?.from?.pathname || "/";
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
+
+  const handleGitHubLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+
+      // Get GitHub authorization URL from backend
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/github/authorize`
+      );
+      const data = await response.json();
+
+      if (data.authorization_url) {
+        // Redirect to GitHub OAuth
+        window.location.href = data.authorization_url;
+      } else {
+        setError("Failed to get GitHub authorization URL");
+      }
+    } catch (error) {
+      console.error("GitHub login error:", error);
+      setError("Failed to initiate GitHub login");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle sign in logic here
-    console.log('Sign in:', { email, password, rememberMe });
+    // For now, we'll focus on GitHub OAuth
+    // Regular email/password login can be implemented later
+    setError("Please use GitHub login for now");
   };
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center p-4">
       {/* Ethereal Shadows Background */}
-      <EtherealBackground 
+      <EtherealBackground
         color="rgba(255, 255, 255, 0.6)"
         animation={{ scale: 100, speed: 90 }}
         noise={{ opacity: 0.8, scale: 1.2 }}
@@ -49,16 +91,27 @@ const SignInPage = () => {
         {/* Sign In Form Card */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/20">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-brand-black mb-2">Sign In</h1>
+            <h1 className="text-2xl font-bold text-brand-black mb-2">
+              Sign In
+            </h1>
             <p className="text-brand-gray text-sm">
               Enter your credentials to access your dashboard
             </p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-brand-black">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-brand-black"
+              >
                 Email Address
               </label>
               <div className="relative">
@@ -70,49 +123,61 @@ const SignInPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white/70 backdrop-blur-sm"
                   placeholder="Enter your email"
-                  required
+                  disabled
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-brand-black">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-brand-black"
+              >
                 Password
               </label>
               <div className="relative">
                 <IconLock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-brand-gray" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white/70 backdrop-blur-sm"
                   placeholder="Enter your password"
-                  required
+                  disabled
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-brand-gray hover:text-brand-black transition-colors"
+                  disabled
                 >
-                  {showPassword ? <IconEyeOff className="h-5 w-5" /> : <IconEye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <IconEyeOff className="h-5 w-5" />
+                  ) : (
+                    <IconEye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 cursor-pointer">
+              <label className="flex items-center space-x-2 cursor-pointer opacity-50">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-accent bg-white border-gray-300 rounded focus:ring-accent focus:ring-2"
+                  disabled
                 />
                 <span className="text-sm text-brand-gray">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-accent hover:text-accent/80 transition-colors">
+              <a
+                href="#"
+                className="text-sm text-accent hover:text-accent/80 transition-colors opacity-50"
+              >
                 Forgot password?
               </a>
             </div>
@@ -120,10 +185,11 @@ const SignInPage = () => {
             {/* Sign In Button */}
             <button
               type="submit"
-              className="w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 group"
+              disabled={true}
+              className="w-full bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 group opacity-50 cursor-not-allowed"
             >
               <span>Sign In</span>
-              <IconArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              <IconArrowRight className="h-4 w-4" />
             </button>
           </form>
 
@@ -134,28 +200,45 @@ const SignInPage = () => {
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white/80 text-brand-gray">Or continue with</span>
+                <span className="px-4 bg-white/80 text-brand-gray">
+                  Continue with
+                </span>
               </div>
             </div>
           </div>
 
           {/* Social Sign In */}
-          <div className="grid grid-cols-2 gap-3">
-            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm">
-              <IconBrandGoogle className="h-5 w-5 text-red-500" />
-              <span className="text-sm font-medium text-brand-black">Google</span>
-            </button>
-            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm">
+          <div className="space-y-3">
+            <button
+              onClick={handleGitHubLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <IconBrandGithub className="h-5 w-5 text-brand-black" />
-              <span className="text-sm font-medium text-brand-black">GitHub</span>
+              <span className="text-sm font-medium text-brand-black">
+                {isLoading ? "Connecting..." : "Continue with GitHub"}
+              </span>
+            </button>
+
+            <button
+              disabled={true}
+              className="w-full flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg transition-colors bg-white/50 backdrop-blur-sm opacity-50 cursor-not-allowed"
+            >
+              <IconBrandGoogle className="h-5 w-5 text-red-500" />
+              <span className="text-sm font-medium text-brand-black">
+                Google (Coming Soon)
+              </span>
             </button>
           </div>
 
           {/* Sign Up Link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-brand-gray">
-              Don't have an account?{' '}
-              <a href="/signup" className="text-accent hover:text-accent/80 font-medium transition-colors">
+              Don't have an account?{" "}
+              <a
+                href="/signup"
+                className="text-accent hover:text-accent/80 font-medium transition-colors"
+              >
                 Sign up here
               </a>
             </p>
@@ -165,10 +248,20 @@ const SignInPage = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-400">
-            By signing in, you agree to our{' '}
-            <a href="#" className="text-white hover:text-gray-300 transition-colors">Terms of Service</a>
-            {' '}and{' '}
-            <a href="#" className="text-white hover:text-gray-300 transition-colors">Privacy Policy</a>
+            By signing in, you agree to our{" "}
+            <a
+              href="#"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a
+              href="#"
+              className="text-white hover:text-gray-300 transition-colors"
+            >
+              Privacy Policy
+            </a>
           </p>
         </div>
       </div>
