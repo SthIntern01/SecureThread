@@ -1,0 +1,106 @@
+# ---------------------------
+# Python / FastAPI Backend
+# ---------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+env/
+venv/
+ENV/
+.venv/
+*.log
+*.sqlite3
+*.db
+
+# FastAPI environment & secrets
+.env
+.env.*
+secrets/
+config.json
+config.yaml
+settings.json
+
+# Pydantic and cache
+*.cache/
+__pypackages__/
+
+# pytest and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# ---------------------------
+# Node / React Frontend
+# ---------------------------
+frontend/node_modules/
+frontend/.env
+frontend/.env.*
+frontend/build/
+frontend/dist/
+frontend/.cache/
+frontend/.next/
+frontend/.turbo/
+frontend/coverage/
+frontend/yarn.lock
+frontend/package-lock.json
+
+# npm debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React asset protection
+frontend/public/*.key
+frontend/public/*.pem
+frontend/public/secrets/
+frontend/public/config.json
+
+# ---------------------------
+# Common & Editor files
+# ---------------------------
+*.swp
+*~
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Git and CI/CD files to review manually
+# ---------------------------
+# Ignore local GitHub workflows (security-sensitive)
+.github/secrets.yaml
+.github/workflows/dev-only.yml
+# Allow main CI/CD scripts
+!github/workflows/prod.yml
+
+# ---------------------------
+# Optional: lock your LLM/AI model outputs or data
+# ---------------------------
+models/
+*.pt
+*.onnx
+*.pkl
+*.h5
+*.tflite
+
+# ---------------------------
+# Optional: block test artifacts
+# ---------------------------
+test-results/
+logs/
+debug/
