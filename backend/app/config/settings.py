@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     GITHUB_REDIRECT_URI: str
     
     # Frontend
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = "http://localhost:8080"
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
-        "http://localhost:5173",
         "http://localhost:8080",
+        "http://localhost:5173",
     ]
     
     # Environment

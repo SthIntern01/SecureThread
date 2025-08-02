@@ -6,16 +6,39 @@ from app.api.deps import get_current_active_user
 from app.models.user import User
 from app.models.repository import Repository
 from app.services.github_service import GitHubService
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
-@router.get("/")
-async def get_user_repositories(
+class ImportRepositoryRequest(BaseModel):
+    repository_ids: List[int]
+
+
+class RepositoryResponse(BaseModel):
+    id: int
+    github_id: int
+    name: str
+    full_name: str
+    description: str
+    html_url: str
+    clone_url: str
+    default_branch: str
+    language: str
+    is_private: bool
+    is_fork: bool
+    is_imported: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/github/available")
+async def get_available_github_repositories(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's GitHub repositories"""
+    """Get user's GitHub repositories that can be imported"""
     if not current_user.github_access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -25,10 +48,49 @@ async def get_user_repositories(
     github_service = GitHubService()
     repos = github_service.get_user_repositories(current_user.github_access_token)
     
-    # Update local database with repositories
-    for repo_data in repos:
+    # Get already imported repositories
+    imported_repo_ids = set(
+        repo.github_id for repo in db.query(Repository).filter(
+            Repository.owner_id == current_user.id
+        ).all()
+    )
+    
+    # Mark which repositories are already imported
+    for repo in repos:
+        repo["is_imported"] = repo["id"] in imported_repo_ids
+    
+    return {"repositories": repos}
+
+
+@router.post("/import")
+async def import_repositories(
+    import_request: ImportRepositoryRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Import selected GitHub repositories for scanning"""
+    if not current_user.github_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub access token not found"
+        )
+    
+    github_service = GitHubService()
+    all_repos = github_service.get_user_repositories(current_user.github_access_token)
+    
+    # Filter repositories to import
+    repos_to_import = [
+        repo for repo in all_repos 
+        if repo["id"] in import_request.repository_ids
+    ]
+    
+    imported_repos = []
+    
+    for repo_data in repos_to_import:
+        # Check if repository already exists
         existing_repo = db.query(Repository).filter(
-            Repository.github_id == repo_data["id"]
+            Repository.github_id == repo_data["id"],
+            Repository.owner_id == current_user.id
         ).first()
         
         if not existing_repo:
@@ -46,10 +108,34 @@ async def get_user_repositories(
                 owner_id=current_user.id
             )
             db.add(new_repo)
+            imported_repos.append(new_repo)
     
     db.commit()
     
-    return {"repositories": repos}
+    return {
+        "message": f"Successfully imported {len(imported_repos)} repositories",
+        "imported_repositories": [
+            {
+                "id": repo.id,
+                "name": repo.name,
+                "full_name": repo.full_name
+            }
+            for repo in imported_repos
+        ]
+    }
+
+
+@router.get("/")
+async def get_user_repositories(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's imported repositories"""
+    repositories = db.query(Repository).filter(
+        Repository.owner_id == current_user.id
+    ).all()
+    
+    return {"repositories": repositories}
 
 
 @router.get("/{repo_id}")
@@ -71,6 +157,30 @@ async def get_repository(
         )
     
     return repository
+
+
+@router.delete("/{repo_id}")
+async def remove_repository(
+    repo_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Remove repository from scanning"""
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    
+    db.delete(repository)
+    db.commit()
+    
+    return {"message": "Repository removed successfully"}
 
 
 @router.get("/{repo_id}/content")

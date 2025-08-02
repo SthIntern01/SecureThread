@@ -33,8 +33,6 @@ import {
   Eye,
   Star,
   Activity,
-  TrendingUp,
-  Upload,
   Github,
 } from "lucide-react";
 import {
@@ -50,9 +48,7 @@ import {
   IconUser,
   IconBrandGitlab,
   IconBrandDocker,
-  IconShield,
   IconLogout,
-  IconPlus,
 } from "@tabler/icons-react";
 
 interface Repository {
@@ -74,24 +70,45 @@ interface Repository {
 
 interface Project {
   id: number;
+  github_id: number;
   name: string;
+  full_name: string;
   description: string;
+  html_url: string;
+  clone_url: string;
+  default_branch: string;
+  language: string;
+  is_private: boolean;
+  is_fork: boolean;
   owner: string;
   repository: string;
   source: "github" | "gitlab" | "docker";
-  status: "active" | "scanning" | "failed" | "completed";
-  lastScan: string;
+  status: "active" | "scanning" | "failed" | "completed" | "pending";
+  lastScan: string | null;
   vulnerabilities: {
     critical: number;
     high: number;
     medium: number;
     low: number;
-  };
-  coverage: number;
+  } | null;
+  coverage: number | null;
   isStarred: boolean;
   branch: string;
-  scanDuration: string;
+  scanDuration: string | null;
+  created_at: string;
+  updated_at: string;
 }
+
+const Logo = () => {
+  return (
+    <a
+      href="#"
+      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
+    >
+      <span className="font-medium text-brand-light">SECURE THREAD</span>
+    </a>
+  );
+};
 
 const ResponsiveSidebar = ({
   sidebarOpen,
@@ -222,17 +239,6 @@ const ResponsiveSidebar = ({
   );
 };
 
-const Logo = () => {
-  return (
-    <a
-      href="#"
-      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
-    >
-      <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </a>
-  );
-};
-
 const ImportRepositoriesModal = ({
   isOpen,
   onClose,
@@ -251,6 +257,7 @@ const ImportRepositoriesModal = ({
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedRepos([]);
       fetchAvailableRepositories();
     }
   }, [isOpen]);
@@ -283,6 +290,7 @@ const ImportRepositoriesModal = ({
       if (response.ok) {
         const data = await response.json();
         console.log("Repository data:", data);
+        console.log("First repository structure:", data.repositories?.[0]);
         setRepositories(data.repositories || []);
       } else {
         const errorData = await response.text();
@@ -300,11 +308,17 @@ const ImportRepositoriesModal = ({
   };
 
   const handleRepoToggle = (repoId: number) => {
-    setSelectedRepos((prev) =>
-      prev.includes(repoId)
+    console.log("Toggling repo:", repoId);
+    console.log("Current selected:", selectedRepos);
+
+    setSelectedRepos((prev) => {
+      const newSelection = prev.includes(repoId)
         ? prev.filter((id) => id !== repoId)
-        : [...prev, repoId]
-    );
+        : [...prev, repoId];
+
+      console.log("New selection:", newSelection);
+      return newSelection;
+    });
   };
 
   const handleImport = async () => {
@@ -387,19 +401,53 @@ const ImportRepositoriesModal = ({
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {filteredRepos.map((repo) => (
+                    {filteredRepos.map((repo, index) => (
                       <div
-                        key={repo.id}
+                        key={`repo-${repo.github_id}-${index}`}
                         className="p-4 hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex items-start space-x-3">
-                          <Checkbox
-                            checked={selectedRepos.includes(repo.github_id)}
-                            onCheckedChange={() =>
-                              handleRepoToggle(repo.github_id)
-                            }
-                            className="mt-1"
-                          />
+                          <div className="flex items-center mt-1">
+                            <input
+                              type="checkbox"
+                              id={`repo-checkbox-${repo.id}`}
+                              checked={selectedRepos.includes(repo.id)}
+                              onChange={(e) => {
+                                const repoId = repo.id; // Changed from repo.github_id to repo.id
+                                const isChecked = e.target.checked;
+
+                                console.log(
+                                  `Repository ${repoId} (${repo.name}) checkbox changed to:`,
+                                  isChecked
+                                );
+                                console.log("Repo object:", repo); // Add this to see the full repo structure
+                                console.log(
+                                  "Current selectedRepos before change:",
+                                  selectedRepos
+                                );
+
+                                setSelectedRepos((prevSelected) => {
+                                  let newSelected;
+                                  if (isChecked) {
+                                    newSelected = prevSelected.includes(repoId)
+                                      ? prevSelected
+                                      : [...prevSelected, repoId];
+                                  } else {
+                                    newSelected = prevSelected.filter(
+                                      (id) => id !== repoId
+                                    );
+                                  }
+
+                                  console.log(
+                                    "New selectedRepos after change:",
+                                    newSelected
+                                  );
+                                  return newSelected;
+                                });
+                              }}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                            />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2 mb-1">
                               <h3 className="text-sm font-medium text-brand-black truncate">
@@ -486,13 +534,13 @@ const ProjectCard = ({ project }: { project: Project }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
+      case "completed":
         return <CheckCircle className="w-4 h-4 text-green-500" />;
       case "scanning":
         return <Activity className="w-4 h-4 text-blue-500 animate-pulse" />;
       case "failed":
         return <XCircle className="w-4 h-4 text-red-500" />;
-      case "completed":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "pending":
       default:
         return <Clock className="w-4 h-4 text-gray-500" />;
     }
@@ -501,13 +549,13 @@ const ProjectCard = ({ project }: { project: Project }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
+      case "completed":
         return "bg-green-100 text-green-800";
       case "scanning":
         return "bg-blue-100 text-blue-800";
       case "failed":
         return "bg-red-100 text-red-800";
-      case "completed":
-        return "bg-green-100 text-green-800";
+      case "pending":
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -526,11 +574,15 @@ const ProjectCard = ({ project }: { project: Project }) => {
     }
   };
 
-  const totalVulnerabilities =
-    project.vulnerabilities.critical +
-    project.vulnerabilities.high +
-    project.vulnerabilities.medium +
-    project.vulnerabilities.low;
+  const totalVulnerabilities = project.vulnerabilities
+    ? project.vulnerabilities.critical +
+      project.vulnerabilities.high +
+      project.vulnerabilities.medium +
+      project.vulnerabilities.low
+    : null;
+
+  const hasScanned =
+    project.vulnerabilities !== null && project.coverage !== null;
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
@@ -575,64 +627,100 @@ const ProjectCard = ({ project }: { project: Project }) => {
           <GitBranch className="w-4 h-4" />
           <span>{project.branch}</span>
         </div>
+        {project.language && (
+          <Badge
+            variant="secondary"
+            className="text-xs bg-blue-100 text-blue-800"
+          >
+            {project.language}
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-brand-gray mb-1">Vulnerabilities</div>
-          <div className="text-lg font-semibold text-brand-black">
-            {totalVulnerabilities}
-          </div>
-          {totalVulnerabilities > 0 && (
-            <div className="flex space-x-1 mt-1">
-              {project.vulnerabilities.critical > 0 && (
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+          {hasScanned ? (
+            <>
+              <div className="text-lg font-semibold text-brand-black">
+                {totalVulnerabilities}
+              </div>
+              {totalVulnerabilities && totalVulnerabilities > 0 && (
+                <div className="flex space-x-1 mt-1">
+                  {project.vulnerabilities!.critical > 0 && (
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  )}
+                  {project.vulnerabilities!.high > 0 && (
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                  )}
+                  {project.vulnerabilities!.medium > 0 && (
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  )}
+                  {project.vulnerabilities!.low > 0 && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </div>
               )}
-              {project.vulnerabilities.high > 0 && (
-                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-              )}
-              {project.vulnerabilities.medium > 0 && (
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              )}
-              {project.vulnerabilities.low > 0 && (
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              )}
-            </div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-semibold text-gray-400">N/A</div>
+              <div className="text-xs text-gray-500">Scan to get details</div>
+            </>
           )}
         </div>
         <div>
           <div className="text-xs text-brand-gray mb-1">Coverage</div>
-          <div className="text-lg font-semibold text-brand-black">
-            {project.coverage}%
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-            <div
-              className="bg-accent h-1 rounded-full"
-              style={{ width: `${project.coverage}%` }}
-            ></div>
-          </div>
+          {hasScanned ? (
+            <>
+              <div className="text-lg font-semibold text-brand-black">
+                {project.coverage}%
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                <div
+                  className="bg-accent h-1 rounded-full"
+                  style={{ width: `${project.coverage}%` }}
+                ></div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-semibold text-gray-400">N/A</div>
+              <div className="text-xs text-gray-500">Scan to get details</div>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-brand-gray">
+      <div className="flex items-center justify-between text-xs text-brand-gray mb-4">
         <div className="flex items-center space-x-1">
           <Clock className="w-3 h-3" />
-          <span>Last scan: {project.lastScan}</span>
+          <span>
+            {project.lastScan
+              ? `Last scan: ${project.lastScan}`
+              : "Never scanned"}
+          </span>
         </div>
-        <div className="flex items-center space-x-1">
-          <Activity className="w-3 h-3" />
-          <span>{project.scanDuration}</span>
-        </div>
+        {project.scanDuration && (
+          <div className="flex items-center space-x-1">
+            <Activity className="w-3 h-3" />
+            <span>{project.scanDuration}</span>
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center space-x-2 mt-4 pt-4 border-t border-gray-200/50">
+      <div className="flex items-center space-x-2 pt-4 border-t border-gray-200/50">
         <Button size="sm" variant="outline" className="flex-1">
           <Eye className="w-4 h-4 mr-2" />
           View Details
         </Button>
-        <Button size="sm" className="flex-1">
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={project.status === "scanning"}
+        >
           <Play className="w-4 h-4 mr-2" />
-          Run Scan
+          {project.status === "scanning" ? "Scanning..." : "Run Scan"}
         </Button>
       </div>
     </div>
@@ -648,87 +736,77 @@ const Projects = () => {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [showImportModal, setShowImportModal] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Mock data for demonstration
-  const mockProjects: Project[] = [
-    {
-      id: 1,
-      name: "E-commerce Platform",
-      description: "Modern e-commerce platform built with React and Node.js",
-      owner: "acme-corp",
-      repository: "ecommerce-platform",
-      source: "github",
-      status: "active",
-      lastScan: "2 hours ago",
-      vulnerabilities: { critical: 2, high: 5, medium: 8, low: 12 },
-      coverage: 87,
-      isStarred: true,
-      branch: "main",
-      scanDuration: "5m 32s",
-    },
-    {
-      id: 2,
-      name: "Mobile Banking App",
-      description:
-        "Secure mobile banking application with advanced security features",
-      owner: "fintech-solutions",
-      repository: "mobile-banking",
-      source: "gitlab",
-      status: "scanning",
-      lastScan: "1 hour ago",
-      vulnerabilities: { critical: 0, high: 2, medium: 4, low: 6 },
-      coverage: 94,
-      isStarred: false,
-      branch: "develop",
-      scanDuration: "3m 45s",
-    },
-    {
-      id: 3,
-      name: "Admin Dashboard",
-      description:
-        "Internal admin dashboard for managing user accounts and analytics",
-      owner: "internal-tools",
-      repository: "admin-dashboard",
-      source: "github",
-      status: "completed",
-      lastScan: "6 hours ago",
-      vulnerabilities: { critical: 1, high: 3, medium: 2, low: 1 },
-      coverage: 76,
-      isStarred: false,
-      branch: "main",
-      scanDuration: "2m 18s",
-    },
-    {
-      id: 4,
-      name: "API Gateway",
-      description:
-        "Microservices API gateway with authentication and rate limiting",
-      owner: "backend-team",
-      repository: "api-gateway",
-      source: "docker",
-      status: "failed",
-      lastScan: "12 hours ago",
-      vulnerabilities: { critical: 5, high: 8, medium: 12, low: 15 },
-      coverage: 45,
-      isStarred: true,
-      branch: "production",
-      scanDuration: "8m 12s",
-    },
-  ];
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setProjects(mockProjects);
-      setFilteredProjects(mockProjects);
-      setLoading(false);
-    }, 1000);
+    fetchProjects();
   }, []);
+
+  const fetchProjects = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const repositories = data.repositories || [];
+
+        const transformedProjects: Project[] = repositories.map(
+          (repo: any) => ({
+            id: repo.id,
+            github_id: repo.github_id,
+            name: repo.name,
+            full_name: repo.full_name,
+            description: repo.description || "No description available",
+            html_url: repo.html_url,
+            clone_url: repo.clone_url,
+            default_branch: repo.default_branch || "main",
+            language: repo.language,
+            is_private: repo.is_private,
+            is_fork: repo.is_fork,
+            owner: repo.full_name.split("/")[0],
+            repository: repo.name,
+            source: "github" as const,
+            status: "pending" as const,
+            lastScan: null,
+            vulnerabilities: null,
+            coverage: null,
+            isStarred: false,
+            branch: repo.default_branch || "main",
+            scanDuration: null,
+            created_at: repo.created_at,
+            updated_at: repo.updated_at,
+          })
+        );
+
+        setProjects(transformedProjects);
+        setFilteredProjects(transformedProjects);
+      } else {
+        setError("Failed to fetch projects");
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setError("Network error occurred while fetching projects");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let filtered = projects;
 
-    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(
         (project) =>
@@ -740,12 +818,10 @@ const Projects = () => {
       );
     }
 
-    // Filter by status
     if (statusFilter !== "all") {
       filtered = filtered.filter((project) => project.status === statusFilter);
     }
 
-    // Filter by source
     if (sourceFilter !== "all") {
       filtered = filtered.filter((project) => project.source === sourceFilter);
     }
@@ -757,32 +833,33 @@ const Projects = () => {
     try {
       const token = localStorage.getItem("access_token");
 
-      for (const repoId of repoIds) {
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/repositories/import`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              github_id: repoId,
-              source: "github",
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to import repository ${repoId}`);
+      // Send all IDs in a single request instead of individual requests
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/import`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repository_ids: repoIds, // Send as array with correct field name
+          }),
         }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Import error:", errorData);
+        throw new Error(`Failed to import repositories: ${response.status}`);
       }
 
-      // Refresh projects list after import
-      // In a real app, you'd fetch the updated projects from the API
-      console.log("Successfully imported repositories:", repoIds);
+      const result = await response.json();
+      console.log("Import successful:", result);
+
+      await fetchProjects();
     } catch (error) {
       console.error("Error importing repositories:", error);
       throw error;
@@ -791,7 +868,9 @@ const Projects = () => {
 
   const stats = {
     total: projects.length,
-    active: projects.filter((p) => p.status === "active").length,
+    active: projects.filter(
+      (p) => p.status === "active" || p.status === "completed"
+    ).length,
     scanning: projects.filter((p) => p.status === "scanning").length,
     failed: projects.filter((p) => p.status === "failed").length,
   };
@@ -813,14 +892,12 @@ const Projects = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
-            {/* Breadcrumb */}
             <div className="flex items-center space-x-2 text-sm mb-4">
               <span className="font-medium text-white">SecureThread</span>
               <ChevronRight size={16} className="text-gray-300" />
               <span className="font-medium text-white">Projects</span>
             </div>
 
-            {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
               <div>
                 <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">
@@ -898,6 +975,7 @@ const Projects = () => {
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="scanning">Scanning</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="failed">Failed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -920,6 +998,22 @@ const Projects = () => {
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
                 <p className="text-white">Loading projects...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-12 border border-white/20 shadow-lg">
+                  <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-brand-black mb-2">
+                    Error Loading Projects
+                  </h3>
+                  <p className="text-red-600 mb-6">{error}</p>
+                  <Button
+                    onClick={fetchProjects}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    Try Again
+                  </Button>
+                </div>
               </div>
             ) : filteredProjects.length === 0 ? (
               <div className="text-center py-12">
