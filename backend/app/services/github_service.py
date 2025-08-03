@@ -358,6 +358,86 @@ class GitHubService:
             logger.error(f"Error fetching repository info: {e}")
             return None
 
+    def get_file_content(self, access_token: str, repo_full_name: str, file_path: str) -> Optional[Dict[str, Any]]:
+        """Get specific file content from repository"""
+        try:
+            headers = {
+                "Authorization": f"token {access_token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "SecureThread-App/1.0"
+            }
+            
+            url = f"https://api.github.com/repos/{repo_full_name}/contents/{file_path}"
+            logger.info(f"Fetching file content from: {url}")
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                file_data = response.json()
+                
+                # Decode base64 content if it's a file
+                if file_data.get("type") == "file" and file_data.get("content"):
+                    import base64
+                    try:
+                        decoded_content = base64.b64decode(file_data["content"]).decode('utf-8')
+                        return {
+                            "content": decoded_content,
+                            "encoding": "utf-8",
+                            "size": file_data.get("size"),
+                            "name": file_data.get("name"),
+                            "path": file_data.get("path"),
+                            "is_binary": False
+                        }
+                    except (UnicodeDecodeError, ValueError) as e:
+                        logger.warning(f"Could not decode file content for {file_path}: {e}")
+                        # Return indication that it's a binary file
+                        return {
+                            "content": "Binary file cannot be displayed",
+                            "encoding": "binary",
+                            "size": file_data.get("size"),
+                            "name": file_data.get("name"),
+                            "path": file_data.get("path"),
+                            "is_binary": True
+                        }
+                
+                return None
+            else:
+                logger.error(f"Failed to fetch file content: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error fetching file content: {e}")
+            return None
+
+    def get_repository_tree(self, access_token: str, repo_full_name: str, tree_sha: str = None) -> Optional[Dict[str, Any]]:
+        """Get repository tree structure"""
+        try:
+            headers = {
+                "Authorization": f"token {access_token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "SecureThread-App/1.0"
+            }
+            
+            # If no tree_sha provided, get the default branch tree
+            if not tree_sha:
+                repo_info = self.get_repository_info(access_token, repo_full_name)
+                if not repo_info:
+                    return None
+                tree_sha = repo_info.get("default_branch", "main")
+            
+            url = f"https://api.github.com/repos/{repo_full_name}/git/trees/{tree_sha}?recursive=1"
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"Failed to fetch repository tree: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error fetching repository tree: {e}")
+            return None
+    
     def validate_token(self, access_token: str) -> bool:
         """Validate if the GitHub token is still valid"""
         try:
@@ -401,6 +481,8 @@ class GitHubService:
         except Exception as e:
             logger.error(f"Error fetching rate limit info: {e}")
             return None
+        
+    
 
     @staticmethod
     def get_authorization_url() -> str:
@@ -412,3 +494,4 @@ class GitHubService:
             f"&scope=repo,user:email"
             f"&state=random_state_string"  # Add CSRF protection
         )
+        

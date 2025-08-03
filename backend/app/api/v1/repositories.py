@@ -7,8 +7,12 @@ from app.models.user import User
 from app.models.repository import Repository
 from app.services.github_service import GitHubService
 from pydantic import BaseModel
+import logging
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
+
 
 
 class ImportRepositoryRequest(BaseModel):
@@ -208,17 +212,138 @@ async def get_repository_content(
             detail="GitHub access token not found"
         )
     
-    github_service = GitHubService()
-    content = github_service.get_repository_content(
-        current_user.github_access_token,
-        repository.full_name,
-        path
-    )
+    try:
+        github_service = GitHubService()
+        content = github_service.get_repository_content(
+            current_user.github_access_token,
+            repository.full_name,
+            path
+        )
+        
+        if content is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository content not found"
+            )
+        
+        return {"content": content}
     
-    if content is None:
+    except Exception as e:
+        logger.error(f"Error fetching repository content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch repository content"
+        )
+        
+@router.post("/{repo_id}/sync")
+async def sync_repository(
+    repo_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Sync repository information with GitHub"""
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Repository content not found"
+            detail="Repository not found"
         )
     
-    return {"content": content}
+    if not current_user.github_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub access token not found"
+        )
+    
+    try:
+        github_service = GitHubService()
+        repo_info = github_service.get_repository_info(
+            current_user.github_access_token,
+            repository.full_name
+        )
+        
+        if not repo_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository not found on GitHub"
+            )
+        
+        # Update repository information
+        repository.description = repo_info.get("description", repository.description)
+        repository.default_branch = repo_info.get("default_branch", repository.default_branch)
+        repository.language = repo_info.get("language", repository.language)
+        
+        db.commit()
+        db.refresh(repository)
+        
+        return {
+            "message": "Repository synced successfully",
+            "repository": {
+                "id": repository.id,
+                "name": repository.name,
+                "full_name": repository.full_name,
+                "description": repository.description,
+                "default_branch": repository.default_branch,
+                "language": repository.language,
+                "updated_at": repository.updated_at
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"Error syncing repository: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync repository"
+        )
+        
+@router.get("/{repo_id}/file")
+async def get_file_content(
+    repo_id: int,
+    file_path: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get specific file content from repository"""
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    
+    if not current_user.github_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub access token not found"
+        )
+    
+    try:
+        github_service = GitHubService()
+        file_content = github_service.get_file_content(
+            current_user.github_access_token,
+            repository.full_name,
+            file_path
+        )
+        
+        if file_content is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found"
+            )
+        
+        return file_content
+    
+    except Exception as e:
+        logger.error(f"Error fetching file content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch file content"
+        )

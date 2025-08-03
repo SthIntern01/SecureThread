@@ -15,6 +15,7 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
 import NotFound from "./pages/NotFound";
+import RepositoryDetails from "./pages/RepositoryDetails";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects/:projectId"
+              element={
+                <ProtectedRoute>
+                  <RepositoryDetails />
                 </ProtectedRoute>
               }
             />

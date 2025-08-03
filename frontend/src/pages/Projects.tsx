@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import RepositoryDetails from "../components/RepositoryDetails";
 import {
   Select,
   SelectContent,
@@ -50,6 +52,16 @@ import {
   IconBrandDocker,
   IconLogout,
 } from "@tabler/icons-react";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+
+import { Trash2, RefreshCw } from "lucide-react";
 
 interface Repository {
   id: number;
@@ -119,6 +131,7 @@ const ResponsiveSidebar = ({
 }) => {
   const { user, logout } = useAuth();
   const [showLogout, setShowLogout] = useState(false);
+  const navigate = useNavigate();
 
   const feedLinks = [
     {
@@ -254,6 +267,7 @@ const ImportRepositoriesModal = ({
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -530,7 +544,20 @@ const ImportRepositoriesModal = ({
   );
 };
 
-const ProjectCard = ({ project }: { project: Project }) => {
+const ProjectCard = ({
+  project,
+  onDelete,
+  onSync,
+  onViewDetails,
+}: {
+  project: Project;
+  onDelete: (projectId: number) => void;
+  onSync: (projectId: number) => void;
+  onViewDetails: (project: Project) => void;
+}) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
@@ -574,6 +601,24 @@ const ProjectCard = ({ project }: { project: Project }) => {
     }
   };
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await onDelete(project.id);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await onSync(project.id);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const totalVulnerabilities = project.vulnerabilities
     ? project.vulnerabilities.critical +
       project.vulnerabilities.high +
@@ -606,9 +651,34 @@ const ProjectCard = ({ project }: { project: Project }) => {
               }`}
             />
           </button>
-          <button className="text-brand-gray hover:text-brand-black transition-colors">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-brand-gray hover:text-brand-black transition-colors p-1 rounded-md hover:bg-gray-100">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`}
+                />
+                {isSyncing ? "Syncing..." : "Sync Project"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeleting ? "Deleting..." : "Delete Project"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -710,7 +780,12 @@ const ProjectCard = ({ project }: { project: Project }) => {
       </div>
 
       <div className="flex items-center space-x-2 pt-4 border-t border-gray-200/50">
-        <Button size="sm" variant="outline" className="flex-1">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1"
+          onClick={() => onViewDetails(project)}
+        >
           <Eye className="w-4 h-4 mr-2" />
           View Details
         </Button>
@@ -737,6 +812,7 @@ const Projects = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProjects();
@@ -802,6 +878,84 @@ const Projects = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteProject = async (projectId: number) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/${projectId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        setProjects((prevProjects) =>
+          prevProjects.filter((project) => project.id !== projectId)
+        );
+      } else {
+        console.error("Failed to delete project");
+      }
+    } catch (error) {
+      console.error("Error deleting project:", error);
+    }
+  };
+
+  const handleSyncProject = async (projectId: number) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const project = projects.find((p) => p.id === projectId);
+
+      if (!project) return;
+
+      // Get updated repository info from GitHub
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/${projectId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const updatedRepo = await response.json();
+
+        // Update the project in local state
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.id === projectId
+              ? {
+                  ...p,
+                  description: updatedRepo.description || p.description,
+                  default_branch:
+                    updatedRepo.default_branch || p.default_branch,
+                  language: updatedRepo.language || p.language,
+                  updated_at: new Date().toISOString(),
+                }
+              : p
+          )
+        );
+      } else {
+        console.error("Failed to sync project");
+      }
+    } catch (error) {
+      console.error("Error syncing project:", error);
+    }
+  };
+
+  const handleViewDetails = (project: Project) => {
+    navigate(`/projects/${project.id}`);
   };
 
   useEffect(() => {
@@ -1043,7 +1197,13 @@ const Projects = () => {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
                 {filteredProjects.map((project) => (
-                  <ProjectCard key={project.id} project={project} />
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onDelete={handleDeleteProject}
+                    onSync={handleSyncProject}
+                    onViewDetails={handleViewDetails}
+                  />
                 ))}
               </div>
             )}
