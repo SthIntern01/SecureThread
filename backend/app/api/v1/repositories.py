@@ -6,6 +6,7 @@ from app.api.deps import get_current_active_user
 from app.models.user import User
 from app.models.repository import Repository
 from app.services.github_service import GitHubService
+from app.models.vulnerability import Scan
 from pydantic import BaseModel
 import logging
 
@@ -134,12 +135,62 @@ async def get_user_repositories(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's imported repositories"""
+    """Get user's imported repositories with latest scan information"""
     repositories = db.query(Repository).filter(
         Repository.owner_id == current_user.id
     ).all()
     
-    return {"repositories": repositories}
+    repo_list = []
+    for repo in repositories:
+        # Get latest scan for this repository
+        latest_scan = db.query(Scan).filter(
+            Scan.repository_id == repo.id
+        ).order_by(Scan.started_at.desc()).first()
+        
+        repo_data = {
+            "id": repo.id,
+            "github_id": repo.github_id,
+            "name": repo.name,
+            "full_name": repo.full_name,
+            "description": repo.description,
+            "html_url": repo.html_url,
+            "clone_url": repo.clone_url,
+            "default_branch": repo.default_branch,
+            "language": repo.language,
+            "is_private": repo.is_private,
+            "is_fork": repo.is_fork,
+            "created_at": repo.created_at,
+            "updated_at": repo.updated_at,
+            # Add scan information
+            "latest_scan": None,
+            "vulnerabilities": None,
+            "security_score": None,
+            "code_coverage": None
+        }
+        
+        if latest_scan:
+            repo_data.update({
+                "latest_scan": {
+                    "id": latest_scan.id,
+                    "status": latest_scan.status,
+                    "started_at": latest_scan.started_at.isoformat(),
+                    "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
+                    "scan_duration": latest_scan.scan_duration
+                },
+                "vulnerabilities": {
+                    "total": latest_scan.total_vulnerabilities,
+                    "critical": latest_scan.critical_count,
+                    "high": latest_scan.high_count,
+                    "medium": latest_scan.medium_count,
+                    "low": latest_scan.low_count
+                },
+                "security_score": latest_scan.security_score,
+                "code_coverage": latest_scan.code_coverage
+            })
+        
+        repo_list.append(repo_data)
+    
+    return {"repositories": repo_list}
 
 
 @router.get("/{repo_id}")

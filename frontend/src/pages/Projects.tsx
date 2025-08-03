@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RepositoryDetails from "../components/RepositoryDetails";
+import ScanDetailsModal from "../components/ScanDetailsModal";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ import {
   Star,
   Activity,
   Github,
+  FileText,
 } from "lucide-react";
 import {
   IconDashboard,
@@ -98,6 +100,7 @@ interface Project {
   status: "active" | "scanning" | "failed" | "completed" | "pending";
   lastScan: string | null;
   vulnerabilities: {
+    total: number;
     critical: number;
     high: number;
     medium: number;
@@ -109,6 +112,15 @@ interface Project {
   scanDuration: string | null;
   created_at: string;
   updated_at: string;
+  latest_scan?: {
+    id: number;
+    status: string;
+    started_at: string;
+    completed_at?: string;
+    scan_duration?: string;
+  } | null;
+  security_score?: number | null;
+  code_coverage?: number | null;
 }
 
 const Logo = () => {
@@ -549,11 +561,13 @@ const ProjectCard = ({
   onDelete,
   onSync,
   onViewDetails,
+  onStartScan,
 }: {
   project: Project;
   onDelete: (projectId: number) => void;
   onSync: (projectId: number) => void;
   onViewDetails: (project: Project) => void;
+  onStartScan: (projectId: number) => void;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -789,13 +803,32 @@ const ProjectCard = ({
           <Eye className="w-4 h-4 mr-2" />
           View Details
         </Button>
+        {project.latest_scan?.status === "completed" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={() => onViewScanDetails(project)}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            View Scan
+          </Button>
+        )}
         <Button
           size="sm"
           className="flex-1"
-          disabled={project.status === "scanning"}
+          onClick={() => onStartScan(project.id)}
+          disabled={
+            project.latest_scan?.status === "running" ||
+            project.latest_scan?.status === "pending"
+          }
         >
           <Play className="w-4 h-4 mr-2" />
-          {project.status === "scanning" ? "Scanning..." : "Run Scan"}
+          {project.latest_scan?.status === "running"
+            ? "Scanning..."
+            : project.latest_scan?.status === "pending"
+            ? "Starting..."
+            : "Run Scan"}
         </Button>
       </div>
     </div>
@@ -811,6 +844,9 @@ const Projects = () => {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [showImportModal, setShowImportModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
+  const [selectedRepoName, setSelectedRepoName] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -855,15 +891,35 @@ const Projects = () => {
             owner: repo.full_name.split("/")[0],
             repository: repo.name,
             source: "github" as const,
-            status: "pending" as const,
-            lastScan: null,
-            vulnerabilities: null,
-            coverage: null,
+            status:
+              repo.latest_scan?.status === "running"
+                ? ("scanning" as const)
+                : repo.latest_scan?.status === "completed"
+                ? ("completed" as const)
+                : repo.latest_scan?.status === "failed"
+                ? ("failed" as const)
+                : ("pending" as const),
+            lastScan: repo.latest_scan?.completed_at
+              ? new Date(repo.latest_scan.completed_at).toLocaleDateString()
+              : null,
+            vulnerabilities: repo.vulnerabilities
+              ? {
+                  total: repo.vulnerabilities.total,
+                  critical: repo.vulnerabilities.critical,
+                  high: repo.vulnerabilities.high,
+                  medium: repo.vulnerabilities.medium,
+                  low: repo.vulnerabilities.low,
+                }
+              : null,
+            coverage: repo.code_coverage,
             isStarred: false,
             branch: repo.default_branch || "main",
-            scanDuration: null,
+            scanDuration: repo.latest_scan?.scan_duration,
             created_at: repo.created_at,
             updated_at: repo.updated_at,
+            latest_scan: repo.latest_scan,
+            security_score: repo.security_score,
+            code_coverage: repo.code_coverage,
           })
         );
 
@@ -905,6 +961,139 @@ const Projects = () => {
       }
     } catch (error) {
       console.error("Error deleting project:", error);
+    }
+  };
+
+  const handleStartScan = async (projectId: number) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/start`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repository_id: projectId,
+            scan_config: {},
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Scan started:", data);
+
+        // Update the project status to show it's scanning
+        setProjects((prevProjects) =>
+          prevProjects.map((project) =>
+            project.id === projectId
+              ? {
+                  ...project,
+                  latest_scan: {
+                    id: data.id,
+                    status: "pending",
+                    started_at: data.started_at,
+                  },
+                  status: "scanning" as const,
+                }
+              : project
+          )
+        );
+
+        // Start polling for scan status
+        startScanPolling(data.id, projectId);
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to start scan:", errorData);
+        setError(errorData.detail || "Failed to start scan");
+      }
+    } catch (error) {
+      console.error("Error starting scan:", error);
+      setError("Network error occurred while starting scan");
+    }
+  };
+
+  const startScanPolling = (scanId: number, projectId: number) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:8000"
+          }/api/v1/scans/${scanId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const scanData = await response.json();
+
+          setProjects((prevProjects) =>
+            prevProjects.map((project) =>
+              project.id === projectId
+                ? {
+                    ...project,
+                    latest_scan: {
+                      id: scanData.id,
+                      status: scanData.status,
+                      started_at: scanData.started_at,
+                      completed_at: scanData.completed_at,
+                      scan_duration: scanData.scan_duration,
+                    },
+                    status:
+                      scanData.status === "completed"
+                        ? ("completed" as const)
+                        : scanData.status === "failed"
+                        ? ("failed" as const)
+                        : ("scanning" as const),
+                    vulnerabilities: {
+                      total: scanData.total_vulnerabilities,
+                      critical: scanData.critical_count,
+                      high: scanData.high_count,
+                      medium: scanData.medium_count,
+                      low: scanData.low_count,
+                    },
+                    security_score: scanData.security_score,
+                    code_coverage: scanData.code_coverage,
+                    scanDuration: scanData.scan_duration,
+                    lastScan: scanData.completed_at
+                      ? new Date(scanData.completed_at).toLocaleDateString()
+                      : null,
+                  }
+                : project
+            )
+          );
+
+          // Stop polling if scan is completed or failed
+          if (scanData.status === "completed" || scanData.status === "failed") {
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (error) {
+        console.error("Error polling scan status:", error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 30 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+    }, 30 * 60 * 1000);
+  };
+
+  const handleViewScanDetails = (project: Project) => {
+    if (project.latest_scan && project.latest_scan.status === "completed") {
+      setSelectedScanId(project.latest_scan.id);
+      setSelectedRepoName(project.name);
+      setShowScanModal(true);
     }
   };
 
@@ -1203,6 +1392,8 @@ const Projects = () => {
                     onDelete={handleDeleteProject}
                     onSync={handleSyncProject}
                     onViewDetails={handleViewDetails}
+                    onStartScan={handleStartScan}
+                    onViewScanDetails={handleViewScanDetails}
                   />
                 ))}
               </div>
@@ -1216,6 +1407,13 @@ const Projects = () => {
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImport={handleImportRepositories}
+      />
+      {/* Scan Details Modal */}
+      <ScanDetailsModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        scanId={selectedScanId}
+        repositoryName={selectedRepoName}
       />
     </div>
   );

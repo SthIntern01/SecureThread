@@ -50,6 +50,7 @@ import {
   IconBrandDocker,
   IconLogout,
 } from "@tabler/icons-react";
+import ScanDetailsModal from "./ScanDetailsModal";
 
 interface Project {
   id: number;
@@ -387,6 +388,9 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
+  const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     content: string;
@@ -462,6 +466,57 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     } catch (error) {
       console.error("Error fetching file content:", error);
     }
+  };
+
+  useEffect(() => {
+    if (project.latest_scan?.status === "completed") {
+      fetchVulnerabilities();
+    }
+  }, [project.latest_scan]);
+
+  const fetchVulnerabilities = async () => {
+    if (!project.latest_scan?.id) return;
+
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/${project.latest_scan.id}/vulnerabilities`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setVulnerabilities(data);
+      }
+    } catch (error) {
+      console.error("Error fetching vulnerabilities:", error);
+    }
+  };
+
+  const getVulnerabilityForFile = (filePath: string) => {
+    return vulnerabilities.filter((vuln) => vuln.file_path === filePath);
+  };
+
+  const hasVulnerabilities = (filePath: string) => {
+    return getVulnerabilityForFile(filePath).length > 0;
+  };
+
+  const getHighestSeverityForFile = (filePath: string) => {
+    const fileVulns = getVulnerabilityForFile(filePath);
+    if (fileVulns.length === 0) return null;
+
+    const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+    const highest = fileVulns.reduce((max, vuln) =>
+      severityOrder[vuln.severity] > severityOrder[max.severity] ? vuln : max
+    );
+    return highest.severity;
   };
 
   const getLanguageFromExtension = (extension: string): string => {
@@ -543,7 +598,36 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     );
   };
 
-  const getFileIcon = (fileName: string, type: string) => {
+  const getFileIcon = (
+    fileName: string,
+    type: string,
+    filePath: string = ""
+  ) => {
+    const baseIcon = getBaseFileIcon(fileName, type);
+
+    if (type === "file" && hasVulnerabilities(filePath)) {
+      const severity = getHighestSeverityForFile(filePath);
+      const severityColors = {
+        critical: "text-red-600",
+        high: "text-orange-600",
+        medium: "text-yellow-600",
+        low: "text-gray-600",
+      };
+
+      return (
+        <div className="relative">
+          {baseIcon}
+          <div
+            className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${severityColors[severity]} bg-current`}
+          ></div>
+        </div>
+      );
+    }
+
+    return baseIcon;
+  };
+
+  const getBaseFileIcon = (fileName: string, type: string) => {
     if (type === "dir") {
       return <Folder className="w-5 h-5 text-blue-500" />;
     }
@@ -670,6 +754,19 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
+                  {project.latest_scan?.status === "completed" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedScanId(project.latest_scan!.id);
+                        setShowScanModal(true);
+                      }}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View Scan Report
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -807,14 +904,27 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                           item.type === "dir" || isViewableFile(item.name)
                             ? "cursor-pointer"
                             : "cursor-default"
+                        } ${
+                          hasVulnerabilities(item.path)
+                            ? "bg-red-50 border-l-4 border-red-400"
+                            : ""
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3">
-                            {getFileIcon(item.name, item.type)}
+                            {getFileIcon(item.name, item.type, item.path)}
                             <div>
-                              <div className="font-medium text-brand-black">
-                                {item.name}
+                              <div className="font-medium text-brand-black flex items-center space-x-2">
+                                <span>{item.name}</span>
+                                {hasVulnerabilities(item.path) && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-xs"
+                                  >
+                                    {getVulnerabilityForFile(item.path).length}{" "}
+                                    issues
+                                  </Badge>
+                                )}
                               </div>
                               {item.type === "file" && item.size && (
                                 <div className="text-sm text-brand-gray">
@@ -863,6 +973,13 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
           onClose={() => setSelectedFile(null)}
         />
       )}
+      {/* Scan Details Modal */}
+      <ScanDetailsModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        scanId={selectedScanId}
+        repositoryName={project.name}
+      />
     </div>
   );
 };
