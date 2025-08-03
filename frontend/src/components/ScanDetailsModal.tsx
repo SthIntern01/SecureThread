@@ -25,6 +25,9 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  File,
+  SkipForward,
+  AlertOctagon,
 } from "lucide-react";
 
 interface Vulnerability {
@@ -48,6 +51,13 @@ interface Vulnerability {
   detected_at: string;
 }
 
+interface FileStatus {
+  file_path: string;
+  status: "scanned" | "vulnerable" | "skipped" | "error";
+  reason: string;
+  vulnerabilities: Vulnerability[];
+}
+
 interface ScanDetails {
   id: number;
   repository_id: number;
@@ -65,6 +75,14 @@ interface ScanDetails {
   code_coverage?: number;
   error_message?: string;
   vulnerabilities: Vulnerability[];
+  scan_metadata?: {
+    files_scanned: number;
+    files_skipped: number;
+    vulnerable_files_found: number;
+    scan_stopped_reason: string;
+    total_scannable_files: number;
+    file_scan_results?: FileStatus[];
+  };
 }
 
 interface ScanDetailsModalProps {
@@ -86,6 +104,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
   const [selectedSeverity, setSelectedSeverity] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedVulns, setExpandedVulns] = useState<Set<number>>(new Set());
+  const [fileStatusFilter, setFileStatusFilter] = useState("all");
 
   useEffect(() => {
     if (isOpen && scanId) {
@@ -156,6 +175,36 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
     }
   };
 
+  const getFileStatusIcon = (status: string) => {
+    switch (status) {
+      case "vulnerable":
+        return <AlertOctagon className="w-4 h-4 text-red-600" />;
+      case "scanned":
+        return <CheckCircle className="w-4 h-4 text-green-600" />;
+      case "skipped":
+        return <SkipForward className="w-4 h-4 text-gray-600" />;
+      case "error":
+        return <XCircle className="w-4 h-4 text-red-600" />;
+      default:
+        return <File className="w-4 h-4 text-gray-600" />;
+    }
+  };
+
+  const getFileStatusColor = (status: string) => {
+    switch (status) {
+      case "vulnerable":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "scanned":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "skipped":
+        return "bg-gray-100 text-gray-800 border-gray-200";
+      case "error":
+        return "bg-red-100 text-red-800 border-red-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -196,6 +245,16 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
       return matchesSearch && matchesSeverity;
     }) || [];
 
+  const filteredFileResults =
+    scanDetails?.scan_metadata?.file_scan_results?.filter((file) => {
+      const matchesSearch = file.file_path
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        fileStatusFilter === "all" || file.status === fileStatusFilter;
+      return matchesSearch && matchesStatus;
+    }) || [];
+
   const exportReport = () => {
     if (!scanDetails) return;
 
@@ -207,6 +266,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
         completed_at: scanDetails.completed_at,
         status: scanDetails.status,
         duration: scanDetails.scan_duration,
+        metadata: scanDetails.scan_metadata,
       },
       summary: {
         total_vulnerabilities: scanDetails.total_vulnerabilities,
@@ -218,6 +278,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
         code_coverage: scanDetails.code_coverage,
       },
       vulnerabilities: scanDetails.vulnerabilities,
+      file_status: scanDetails.scan_metadata?.file_scan_results || [],
     };
 
     const blob = new Blob([JSON.stringify(report, null, 2)], {
@@ -281,6 +342,10 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                 <TabsTrigger value="vulnerabilities">
                   Vulnerabilities ({scanDetails.total_vulnerabilities})
                 </TabsTrigger>
+                <TabsTrigger value="file-status">
+                  File Status (
+                  {scanDetails.scan_metadata?.file_scan_results?.length || 0})
+                </TabsTrigger>
                 <TabsTrigger value="recommendations">
                   Recommendations
                 </TabsTrigger>
@@ -325,6 +390,32 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Scan Limits Alert */}
+                  {scanDetails.scan_metadata?.scan_stopped_reason ===
+                    "vulnerability_limit_reached" && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="flex items-start space-x-3">
+                        <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-semibold text-yellow-800">
+                            Scan Limited
+                          </h4>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            Scan stopped after finding{" "}
+                            {scanDetails.scan_metadata.vulnerable_files_found}{" "}
+                            vulnerable files (limit: 15).{" "}
+                            {scanDetails.scan_metadata.files_skipped} files were
+                            not scanned due to token constraints.
+                          </p>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            Total scannable files:{" "}
+                            {scanDetails.scan_metadata.total_scannable_files}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Vulnerability Summary */}
                   <div className="bg-white rounded-lg border p-6">
@@ -491,7 +582,6 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                               <p className="text-sm text-gray-700 mb-4">
                                 {vuln.recommendation}
                               </p>
-
                               {vuln.fix_suggestion && (
                                 <>
                                   <h5 className="font-semibold text-gray-900 mb-2">
@@ -503,7 +593,6 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                                 </>
                               )}
                             </div>
-
                             {vuln.code_snippet && (
                               <div>
                                 <h5 className="font-semibold text-gray-900 mb-2">
@@ -515,7 +604,6 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                               </div>
                             )}
                           </div>
-
                           <div className="mt-4 flex items-center space-x-4 text-xs text-gray-500">
                             <span>Category: {vuln.category}</span>
                             {vuln.exploitability && (
@@ -547,6 +635,99 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                       </p>
                     </div>
                   )}
+                </div>
+              </TabsContent>
+
+              <TabsContent
+                value="file-status"
+                className="flex-1 flex flex-col overflow-hidden"
+              >
+                {/* File Status Filters */}
+                <div className="flex-shrink-0 bg-gray-50 rounded-lg p-4 mb-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search files..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 pr-4 py-2 border border-gray-200 rounded-md bg-white text-sm"
+                      />
+                    </div>
+                    <select
+                      value={fileStatusFilter}
+                      onChange={(e) => setFileStatusFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-md bg-white text-sm"
+                    >
+                      <option value="all">All Files</option>
+                      <option value="vulnerable">Vulnerable</option>
+                      <option value="scanned">Clean</option>
+                      <option value="skipped">Skipped</option>
+                      <option value="error">Error</option>
+                    </select>
+                    <div className="text-sm text-gray-600">
+                      {filteredFileResults.length} of{" "}
+                      {scanDetails.scan_metadata?.file_scan_results?.length ||
+                        0}{" "}
+                      files
+                    </div>
+                  </div>
+                </div>
+
+                {/* File Status List */}
+                <div className="flex-1 overflow-auto">
+                  <div className="space-y-2">
+                    {filteredFileResults.map((file, index) => (
+                      <div
+                        key={`${file.file_path}-${index}`}
+                        className="bg-white rounded-lg border p-4 hover:shadow-sm transition-shadow"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            {getFileStatusIcon(file.status)}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className="font-medium text-gray-900 truncate">
+                                  {file.file_path}
+                                </span>
+                                <Badge
+                                  className={`text-xs ${getFileStatusColor(
+                                    file.status
+                                  )}`}
+                                >
+                                  {file.status}
+                                </Badge>
+                                {file.vulnerabilities.length > 0 && (
+                                  <Badge
+                                    variant="destructive"
+                                    className="text-xs"
+                                  >
+                                    {file.vulnerabilities.length} issues
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600">
+                                {file.reason}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {filteredFileResults.length === 0 && (
+                      <div className="text-center py-8">
+                        <File className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          No Files Found
+                        </h3>
+                        <p className="text-gray-600">
+                          Try adjusting your search or filter criteria.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </TabsContent>
 
@@ -590,6 +771,25 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                         </div>
                       )}
 
+                      {scanDetails.scan_metadata?.scan_stopped_reason ===
+                        "vulnerability_limit_reached" && (
+                        <div className="flex items-start space-x-3">
+                          <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                          <div>
+                            <div className="font-semibold text-yellow-900">
+                              Complete Full Scan
+                            </div>
+                            <div className="text-sm text-yellow-700">
+                              This scan was limited due to token constraints.
+                              Consider running additional targeted scans on the
+                              remaining{" "}
+                              {scanDetails.scan_metadata.files_skipped} files
+                              for complete coverage.
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-start space-x-3">
                         <TrendingUp className="w-5 h-5 text-blue-600 mt-0.5" />
                         <div>
@@ -621,6 +821,13 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                         Update dependencies and libraries to latest secure
                         versions
                       </li>
+                      {scanDetails.scan_metadata?.scan_stopped_reason ===
+                        "vulnerability_limit_reached" && (
+                        <li>
+                          Run additional scans on remaining files for complete
+                          coverage
+                        </li>
+                      )}
                       <li>
                         Run another scan after implementing fixes to verify
                         improvements

@@ -391,6 +391,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   const [showScanModal, setShowScanModal] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
+  const [fileStatuses, setFileStatuses] = useState<{ [key: string]: any }>({});
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     content: string;
@@ -471,6 +472,9 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   useEffect(() => {
     if (project.latest_scan?.status === "completed") {
       fetchVulnerabilities();
+      if (project.latest_scan?.id) {
+        fetchFileScanStatuses(project.latest_scan.id);
+      }
     }
   }, [project.latest_scan]);
 
@@ -497,6 +501,40 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       }
     } catch (error) {
       console.error("Error fetching vulnerabilities:", error);
+    }
+  };
+
+  const fetchFileScanStatuses = async (scanId: number) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/${scanId}/file-status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const statusMap: { [key: string]: any } = {};
+
+        data.file_results.forEach((file: any) => {
+          statusMap[file.file_path] = {
+            status: file.status,
+            reason: file.reason,
+            vulnerabilities: file.vulnerabilities || [],
+          };
+        });
+
+        setFileStatuses(statusMap);
+      }
+    } catch (error) {
+      console.error("Error fetching file scan statuses:", error);
     }
   };
 
@@ -605,23 +643,69 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   ) => {
     const baseIcon = getBaseFileIcon(fileName, type);
 
-    if (type === "file" && hasVulnerabilities(filePath)) {
-      const severity = getHighestSeverityForFile(filePath);
-      const severityColors = {
-        critical: "text-red-600",
-        high: "text-orange-600",
-        medium: "text-yellow-600",
-        low: "text-gray-600",
-      };
+    if (type === "file") {
+      const fileStatus = fileStatuses[filePath];
 
-      return (
-        <div className="relative">
-          {baseIcon}
-          <div
-            className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${severityColors[severity]} bg-current`}
-          ></div>
-        </div>
-      );
+      if (fileStatus) {
+        switch (fileStatus.status) {
+          case "vulnerable":
+            return (
+              <div className="relative">
+                {baseIcon}
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+              </div>
+            );
+          case "scanned":
+            return (
+              <div className="relative">
+                {baseIcon}
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-600 flex items-center justify-center">
+                  <span className="text-white text-xs">✓</span>
+                </div>
+              </div>
+            );
+          case "skipped":
+            return (
+              <div className="relative">
+                {baseIcon}
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gray-400 flex items-center justify-center">
+                  <span className="text-white text-xs">-</span>
+                </div>
+              </div>
+            );
+          case "error":
+            return (
+              <div className="relative">
+                {baseIcon}
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 flex items-center justify-center">
+                  <span className="text-white text-xs">×</span>
+                </div>
+              </div>
+            );
+        }
+      }
+
+      // Show old vulnerability indicator for backward compatibility
+      if (hasVulnerabilities(filePath)) {
+        const severity = getHighestSeverityForFile(filePath);
+        const severityColors = {
+          critical: "text-red-600",
+          high: "text-orange-600",
+          medium: "text-yellow-600",
+          low: "text-gray-600",
+        };
+
+        return (
+          <div className="relative">
+            {baseIcon}
+            <div
+              className={`absolute -top-1 -right-1 w-2 h-2 rounded-full ${severityColors[severity]} bg-current`}
+            ></div>
+          </div>
+        );
+      }
     }
 
     return baseIcon;
@@ -907,6 +991,12 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                         } ${
                           hasVulnerabilities(item.path)
                             ? "bg-red-50 border-l-4 border-red-400"
+                            : fileStatuses[item.path]?.status === "vulnerable"
+                            ? "bg-red-50 border-l-4 border-red-400"
+                            : fileStatuses[item.path]?.status === "scanned"
+                            ? "bg-green-50 border-l-4 border-green-400"
+                            : fileStatuses[item.path]?.status === "skipped"
+                            ? "bg-gray-50 border-l-4 border-gray-400"
                             : ""
                         }`}
                       >
@@ -916,6 +1006,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                             <div>
                               <div className="font-medium text-brand-black flex items-center space-x-2">
                                 <span>{item.name}</span>
+                                {/* Show vulnerability badges */}
                                 {hasVulnerabilities(item.path) && (
                                   <Badge
                                     variant="destructive"
@@ -925,10 +1016,35 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                     issues
                                   </Badge>
                                 )}
+                                {/* Show scan status badges */}
+                                {fileStatuses[item.path] && (
+                                  <Badge
+                                    className={`text-xs ${
+                                      fileStatuses[item.path].status ===
+                                      "vulnerable"
+                                        ? "bg-red-100 text-red-800"
+                                        : fileStatuses[item.path].status ===
+                                          "scanned"
+                                        ? "bg-green-100 text-green-800"
+                                        : fileStatuses[item.path].status ===
+                                          "skipped"
+                                        ? "bg-gray-100 text-gray-800"
+                                        : "bg-red-100 text-red-800"
+                                    }`}
+                                  >
+                                    {fileStatuses[item.path].status}
+                                  </Badge>
+                                )}
                               </div>
                               {item.type === "file" && item.size && (
                                 <div className="text-sm text-brand-gray">
                                   {formatFileSize(item.size)}
+                                </div>
+                              )}
+                              {/* Show scan status reason */}
+                              {fileStatuses[item.path] && (
+                                <div className="text-xs text-brand-gray mt-1">
+                                  {fileStatuses[item.path].reason}
                                 </div>
                               )}
                             </div>
