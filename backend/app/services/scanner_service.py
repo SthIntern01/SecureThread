@@ -18,6 +18,10 @@ class ScannerService:
         self.github_service = GitHubService()
         self.llm_service = LLMService()
         
+        # Configuration
+        self.MAX_VULNERABLE_FILES = 15  # Stop scanning after finding this many vulnerable files
+        self.MAX_FILES_TO_SCAN = 100    # Maximum files to scan regardless
+        
         # File extensions to scan
         self.scannable_extensions = {
             '.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.php', 
@@ -39,7 +43,7 @@ class ScannerService:
         scan_config: Optional[Dict[str, Any]] = None
     ) -> Scan:
         """
-        Start a comprehensive security scan of a repository
+        Start a comprehensive security scan of a repository with vulnerability limits
         """
         # Get repository
         repository = self.db.query(Repository).filter(Repository.id == repository_id).first()
@@ -72,42 +76,42 @@ class ScannerService:
             scannable_files = self._filter_scannable_files(file_tree)
             logger.info(f"Found {len(scannable_files)} files to scan")
             
+            # Limit files for scanning
+            files_to_scan = scannable_files[:self.MAX_FILES_TO_SCAN]
+            
             # Update scan with file count
-            scan.total_files_scanned = len(scannable_files)
+            scan.total_files_scanned = len(files_to_scan)
             self.db.commit()
             
-            # Scan files in batches
-            all_vulnerabilities = []
-            batch_size = 5  # Process 5 files at a time to avoid rate limits
-            
-            for i in range(0, len(scannable_files), batch_size):
-                batch = scannable_files[i:i + batch_size]
-                batch_vulnerabilities = await self._scan_file_batch(
-                    batch, github_access_token, repository.full_name
-                )
-                all_vulnerabilities.extend(batch_vulnerabilities)
-                
-                # Small delay between batches
-                await asyncio.sleep(1)
-            
-            # Save vulnerabilities to database
-            await self._save_vulnerabilities(scan.id, all_vulnerabilities)
+            # Scan files with vulnerability limit
+            scan_results = await self._scan_files_with_limit(
+                files_to_scan, github_access_token, repository.full_name, scan.id
+            )
             
             # Calculate security metrics
             security_metrics = await self._calculate_security_metrics(
-                all_vulnerabilities, repository.full_name
+                scan_results["vulnerabilities"], repository.full_name
             )
             
             # Update scan with results
             scan.status = "completed"
             scan.completed_at = datetime.utcnow()
-            scan.total_vulnerabilities = len(all_vulnerabilities)
-            scan.critical_count = len([v for v in all_vulnerabilities if v.get('severity') == 'critical'])
-            scan.high_count = len([v for v in all_vulnerabilities if v.get('severity') == 'high'])
-            scan.medium_count = len([v for v in all_vulnerabilities if v.get('severity') == 'medium'])
-            scan.low_count = len([v for v in all_vulnerabilities if v.get('severity') == 'low'])
+            scan.total_vulnerabilities = len(scan_results["vulnerabilities"])
+            scan.critical_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'critical'])
+            scan.high_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'high'])
+            scan.medium_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'medium'])
+            scan.low_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'low'])
             scan.security_score = security_metrics.get('security_score', 0.0)
             scan.code_coverage = security_metrics.get('code_coverage', 0.0)
+            
+            # Add scan metadata
+            scan.scan_metadata = {
+                "files_scanned": scan_results["files_scanned"],
+                "files_skipped": scan_results["files_skipped"],
+                "vulnerable_files_found": scan_results["vulnerable_files_count"],
+                "scan_stopped_reason": scan_results["stop_reason"],
+                "total_scannable_files": len(scannable_files)
+            }
             
             # Calculate scan duration
             duration = scan.completed_at - scan.started_at
@@ -116,7 +120,9 @@ class ScannerService:
             self.db.commit()
             self.db.refresh(scan)
             
-            logger.info(f"Completed scan {scan.id} with {len(all_vulnerabilities)} vulnerabilities")
+            logger.info(f"Completed scan {scan.id} with {len(scan_results['vulnerabilities'])} vulnerabilities")
+            logger.info(f"Scan stopped reason: {scan_results['stop_reason']}")
+            
             return scan
             
         except Exception as e:
@@ -128,6 +134,201 @@ class ScannerService:
             
             logger.error(f"Scan {scan.id} failed: {e}")
             raise e
+    
+    async def _scan_files_with_limit(
+        self, 
+        files: List[Dict[str, Any]], 
+        github_access_token: str, 
+        repo_full_name: str,
+        scan_id: int
+    ) -> Dict[str, Any]:
+        """
+        Scan files with vulnerability limit - stop after finding MAX_VULNERABLE_FILES vulnerable files
+        """
+        all_vulnerabilities = []
+        files_scanned = 0
+        files_skipped = 0
+        vulnerable_files_count = 0
+        stop_reason = "completed"
+        
+        # Track file scan results for detailed reporting
+        file_scan_results = []
+        
+        batch_size = 3  # Smaller batch size to reduce token usage
+        
+        for i in range(0, len(files), batch_size):
+            # Check if we've reached the vulnerable files limit
+            if vulnerable_files_count >= self.MAX_VULNERABLE_FILES:
+                stop_reason = "vulnerability_limit_reached"
+                files_skipped = len(files) - files_scanned
+                logger.info(f"Reached vulnerability limit of {self.MAX_VULNERABLE_FILES}, stopping scan")
+                break
+            
+            batch = files[i:i + batch_size]
+            batch_results = await self._scan_file_batch_with_tracking(
+                batch, github_access_token, repo_full_name
+            )
+            
+            for file_result in batch_results:
+                files_scanned += 1
+                file_scan_results.append(file_result)
+                
+                if file_result["vulnerabilities"]:
+                    vulnerable_files_count += 1
+                    all_vulnerabilities.extend(file_result["vulnerabilities"])
+                    
+                    # Check if we've reached the limit after each vulnerable file
+                    if vulnerable_files_count >= self.MAX_VULNERABLE_FILES:
+                        stop_reason = "vulnerability_limit_reached"
+                        remaining_files = len(files) - files_scanned
+                        files_skipped = remaining_files
+                        logger.info(f"Found {vulnerable_files_count}th vulnerable file, stopping scan")
+                        break
+            
+            # Small delay between batches
+            await asyncio.sleep(1)
+        
+        # Mark remaining files as skipped
+        for j in range(files_scanned, len(files)):
+            file_scan_results.append({
+                "file_path": files[j]["path"],
+                "status": "skipped",
+                "reason": "Scan stopped due to vulnerability limit reached",
+                "vulnerabilities": []
+            })
+        
+        # Save file scan results to database for detailed reporting
+        await self._save_file_scan_results(scan_id, file_scan_results)
+        
+        # Save vulnerabilities to database
+        await self._save_vulnerabilities(scan_id, all_vulnerabilities)
+        
+        return {
+            "vulnerabilities": all_vulnerabilities,
+            "files_scanned": files_scanned,
+            "files_skipped": files_skipped,
+            "vulnerable_files_count": vulnerable_files_count,
+            "stop_reason": stop_reason,
+            "file_results": file_scan_results
+        }
+    
+    async def _scan_file_batch_with_tracking(
+        self, 
+        files: List[Dict[str, Any]], 
+        github_access_token: str, 
+        repo_full_name: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Scan a batch of files and track results with detailed status
+        """
+        batch_results = []
+        
+        # Create tasks for concurrent scanning
+        tasks = []
+        for file_info in files:
+            task = self._scan_single_file_with_tracking(
+                file_info, github_access_token, repo_full_name
+            )
+            tasks.append(task)
+        
+        # Execute tasks concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Collect results
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Error in file scan: {result}")
+                batch_results.append({
+                    "file_path": files[i]["path"],
+                    "status": "error",
+                    "reason": str(result),
+                    "vulnerabilities": []
+                })
+            else:
+                batch_results.append(result)
+        
+        return batch_results
+    
+    async def _scan_single_file_with_tracking(
+        self, 
+        file_info: Dict[str, Any], 
+        github_access_token: str, 
+        repo_full_name: str
+    ) -> Dict[str, Any]:
+        """
+        Scan a single file and return detailed results with status tracking
+        """
+        file_path = file_info['path']
+        
+        try:
+            logger.info(f"Scanning file: {file_path}")
+            
+            # Get file content
+            file_content_data = self.github_service.get_file_content(
+                github_access_token, repo_full_name, file_path
+            )
+            
+            if not file_content_data or file_content_data.get('is_binary'):
+                return {
+                    "file_path": file_path,
+                    "status": "skipped",
+                    "reason": "Binary file or content not available",
+                    "vulnerabilities": []
+                }
+            
+            file_content = file_content_data.get('content', '')
+            if not file_content:
+                return {
+                    "file_path": file_path,
+                    "status": "skipped",
+                    "reason": "Empty file",
+                    "vulnerabilities": []
+                }
+            
+            # Determine file extension
+            file_extension = '.' + file_path.split('.')[-1] if '.' in file_path else ''
+            
+            # Analyze with LLM
+            vulnerabilities = await self.llm_service.analyze_code_for_vulnerabilities(
+                file_content, file_path, file_extension
+            )
+            
+            status = "scanned"
+            if vulnerabilities:
+                status = "vulnerable"
+            
+            return {
+                "file_path": file_path,
+                "status": status,
+                "reason": f"Found {len(vulnerabilities)} vulnerabilities" if vulnerabilities else "No vulnerabilities found",
+                "vulnerabilities": vulnerabilities
+            }
+            
+        except Exception as e:
+            logger.error(f"Error scanning file {file_path}: {e}")
+            return {
+                "file_path": file_path,
+                "status": "error",
+                "reason": str(e),
+                "vulnerabilities": []
+            }
+    
+    async def _save_file_scan_results(
+        self, 
+        scan_id: int, 
+        file_results: List[Dict[str, Any]]
+    ):
+        """
+        Save detailed file scan results for reporting
+        """
+        # You might want to create a new table for this, for now we'll store in scan metadata
+        scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
+        if scan:
+            if not hasattr(scan, 'scan_metadata') or scan.scan_metadata is None:
+                scan.scan_metadata = {}
+            
+            scan.scan_metadata["file_scan_results"] = file_results
+            self.db.commit()
     
     async def _get_repository_files(
         self, 
@@ -190,76 +391,6 @@ class ScannerService:
         
         return scannable_files
     
-    async def _scan_file_batch(
-        self, 
-        files: List[Dict[str, Any]], 
-        github_access_token: str, 
-        repo_full_name: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Scan a batch of files for vulnerabilities
-        """
-        batch_vulnerabilities = []
-        
-        # Create tasks for concurrent scanning
-        tasks = []
-        for file_info in files:
-            task = self._scan_single_file(
-                file_info, github_access_token, repo_full_name
-            )
-            tasks.append(task)
-        
-        # Execute tasks concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Collect results
-        for result in results:
-            if isinstance(result, Exception):
-                logger.error(f"Error in file scan: {result}")
-            elif isinstance(result, list):
-                batch_vulnerabilities.extend(result)
-        
-        return batch_vulnerabilities
-    
-    async def _scan_single_file(
-        self, 
-        file_info: Dict[str, Any], 
-        github_access_token: str, 
-        repo_full_name: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Scan a single file for vulnerabilities
-        """
-        try:
-            file_path = file_info['path']
-            logger.info(f"Scanning file: {file_path}")
-            
-            # Get file content
-            file_content_data = self.github_service.get_file_content(
-                github_access_token, repo_full_name, file_path
-            )
-            
-            if not file_content_data or file_content_data.get('is_binary'):
-                return []
-            
-            file_content = file_content_data.get('content', '')
-            if not file_content:
-                return []
-            
-            # Determine file extension
-            file_extension = '.' + file_path.split('.')[-1] if '.' in file_path else ''
-            
-            # Analyze with LLM
-            vulnerabilities = await self.llm_service.analyze_code_for_vulnerabilities(
-                file_content, file_path, file_extension
-            )
-            
-            return vulnerabilities
-            
-        except Exception as e:
-            logger.error(f"Error scanning file {file_info['path']}: {e}")
-            return []
-    
     async def _save_vulnerabilities(
         self, 
         scan_id: int, 
@@ -304,8 +435,8 @@ class ScannerService:
         """
         if not vulnerabilities:
             return {
-                'security_score': 100.0,
-                'code_coverage': 95.0
+                'security_score': 95.0,  # High score for no vulnerabilities
+                'code_coverage': 90.0
             }
         
         # Calculate base security score
@@ -324,21 +455,16 @@ class ScannerService:
         )
         
         # Calculate security score (0-100, where 100 is perfect)
-        max_possible_score = total_vulns * 10  # If all were critical
-        if max_possible_score > 0:
-            security_score = max(0, 100 - (weighted_score / max_possible_score * 100))
-        else:
-            security_score = 100.0
-        
-        # Generate summary using LLM
-        try:
-            summary = await self.llm_service.generate_scan_summary(vulnerabilities, repo_name)
-            security_score = summary.get('security_score', security_score)
-        except Exception as e:
-            logger.error(f"Error generating scan summary: {e}")
+        # Adjust scoring to account for limited scanning
+        base_penalty = min(weighted_score * 2, 80)  # Cap penalty at 80 points
+        security_score = max(10, 100 - base_penalty)  # Minimum score of 10
         
         # Estimate code coverage based on scan completeness
-        code_coverage = min(95.0, max(60.0, 95.0 - (total_vulns * 2)))
+        # Since we're limiting scans, adjust coverage calculation
+        if total_vulns >= self.MAX_VULNERABLE_FILES:
+            code_coverage = 60.0  # Lower coverage due to limited scan
+        else:
+            code_coverage = min(85.0, max(50.0, 85.0 - (total_vulns * 3)))
         
         return {
             'security_score': round(security_score, 1),
@@ -385,3 +511,12 @@ class ScannerService:
             Vulnerability.severity.desc(),
             Vulnerability.risk_score.desc()
         ).all()
+    
+    def get_file_scan_results(self, scan_id: int) -> List[Dict[str, Any]]:
+        """
+        Get detailed file scan results for a scan
+        """
+        scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
+        if scan and scan.scan_metadata and "file_scan_results" in scan.scan_metadata:
+            return scan.scan_metadata["file_scan_results"]
+        return []

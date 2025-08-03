@@ -66,6 +66,7 @@ class VulnerabilityResponse(BaseModel):
 
 class ScanDetailResponse(ScanResponse):
     vulnerabilities: List[VulnerabilityResponse]
+    scan_metadata: Optional[Dict[str, Any]] = None
 
 
 async def run_scan_background(
@@ -205,6 +206,42 @@ async def get_scan_status(
         code_coverage=scan.code_coverage,
         error_message=scan.error_message
     )
+    
+@router.get("/{scan_id}/file-status")
+async def get_scan_file_status(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed file scan status for a specific scan"""
+    
+    # Verify scan ownership
+    scan = db.query(Scan).join(Repository).filter(
+        Scan.id == scan_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found"
+        )
+    
+    # Get file scan results from scanner service
+    scanner_service = ScannerService(db)
+    file_results = scanner_service.get_file_scan_results(scan_id)
+    
+    return {
+        "scan_id": scan_id,
+        "file_results": file_results,
+        "summary": {
+            "total_files": len(file_results),
+            "scanned": len([f for f in file_results if f.get("status") == "scanned"]),
+            "vulnerable": len([f for f in file_results if f.get("status") == "vulnerable"]),
+            "skipped": len([f for f in file_results if f.get("status") == "skipped"]),
+            "error": len([f for f in file_results if f.get("status") == "error"])
+        }
+    }
 
 
 @router.get("/{scan_id}/vulnerabilities", response_model=List[VulnerabilityResponse])
@@ -274,7 +311,7 @@ async def get_scan_details(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get complete scan details including vulnerabilities"""
+    """Get complete scan details including vulnerabilities and metadata"""
     
     scan = db.query(Scan).join(Repository).filter(
         Scan.id == scan_id,
@@ -334,7 +371,8 @@ async def get_scan_details(
         security_score=scan.security_score,
         code_coverage=scan.code_coverage,
         error_message=scan.error_message,
-        vulnerabilities=vulnerability_responses
+        vulnerabilities=vulnerability_responses,
+        scan_metadata=scan.scan_metadata
     )
 
 
