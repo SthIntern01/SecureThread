@@ -91,10 +91,22 @@ interface FileContent {
   download_url?: string;
 }
 
+// Replace the CodeViewer component in frontend/src/components/RepositoryDetails.tsx
+
 interface CodeViewerProps {
   fileName: string;
   content: string;
   language: string;
+  vulnerabilities?: Array<{
+    id: number;
+    title: string;
+    description: string;
+    severity: "critical" | "high" | "medium" | "low";
+    line_number?: number;
+    line_end_number?: number;
+    code_snippet?: string;
+    recommendation: string;
+  }>;
   onClose: () => void;
 }
 
@@ -102,9 +114,11 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
   fileName,
   content,
   language,
+  vulnerabilities = [],
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [selectedVuln, setSelectedVuln] = useState<number | null>(null);
 
   const handleCopy = async () => {
     try {
@@ -140,7 +154,47 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
     return colors[lang.toLowerCase()] || colors.default;
   };
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "bg-red-500 border-red-600 text-white";
+      case "high":
+        return "bg-orange-500 border-orange-600 text-white";
+      case "medium":
+        return "bg-yellow-500 border-yellow-600 text-white";
+      case "low":
+        return "bg-blue-500 border-blue-600 text-white";
+      default:
+        return "bg-gray-500 border-gray-600 text-white";
+    }
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "🔴";
+      case "high":
+        return "🟠";
+      case "medium":
+        return "🟡";
+      case "low":
+        return "🔵";
+      default:
+        return "⚪";
+    }
+  };
+
   const lines = content.split("\n");
+
+  // Create a map of line numbers to vulnerabilities
+  const vulnsByLine = new Map<number, Array<(typeof vulnerabilities)[0]>>();
+  vulnerabilities.forEach((vuln) => {
+    if (vuln.line_number) {
+      const lineVulns = vulnsByLine.get(vuln.line_number) || [];
+      lineVulns.push(vuln);
+      vulnsByLine.set(vuln.line_number, lineVulns);
+    }
+  });
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -161,6 +215,14 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                   <span className="text-sm text-gray-500">
                     {lines.length} lines
                   </span>
+                  {vulnerabilities.length > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {vulnerabilities.length}{" "}
+                      {vulnerabilities.length === 1
+                        ? "vulnerability"
+                        : "vulnerabilities"}
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
@@ -187,45 +249,199 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Code Area */}
-        <div className="flex-1 min-h-0 relative">
-          <div
-            className="absolute inset-0 bg-gray-50 overflow-auto"
-            style={{
-              scrollbarWidth: "thin",
-              scrollbarColor: "#CBD5E1 #F1F5F9",
-            }}
-          >
-            <div className="flex">
-              {/* Line Numbers */}
-              <div className="bg-gray-100 border-r border-gray-300 px-4 py-4 text-right select-none flex-shrink-0">
-                <div className="font-mono text-sm text-gray-500 leading-6">
-                  {lines.map((_, index) => (
-                    <div
-                      key={index + 1}
-                      style={{ height: "24px", lineHeight: "24px" }}
-                    >
-                      {index + 1}
-                    </div>
-                  ))}
-                </div>
-              </div>
+        <div className="flex-1 min-h-0 flex">
+          {/* Scrollable Code Area */}
+          <div className="flex-1 relative">
+            <div
+              className="absolute inset-0 bg-gray-50 overflow-auto"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#CBD5E1 #F1F5F9",
+              }}
+            >
+              <div className="flex">
+                {/* Line Numbers */}
+                <div className="bg-gray-100 border-r border-gray-300 px-4 py-4 text-right select-none flex-shrink-0">
+                  <div className="font-mono text-sm text-gray-500 leading-6">
+                    {lines.map((_, index) => {
+                      const lineNumber = index + 1;
+                      const lineVulns = vulnsByLine.get(lineNumber) || [];
+                      const hasVulns = lineVulns.length > 0;
+                      const highestSeverity = hasVulns
+                        ? lineVulns.reduce((highest, vuln) => {
+                            const severityOrder = {
+                              critical: 4,
+                              high: 3,
+                              medium: 2,
+                              low: 1,
+                            };
+                            return severityOrder[vuln.severity] >
+                              severityOrder[highest.severity]
+                              ? vuln
+                              : highest;
+                          }).severity
+                        : null;
 
-              {/* Code Content */}
-              <div className="flex-1 px-4 py-4">
-                <pre className="font-mono text-sm leading-6 text-gray-800">
-                  {lines.map((line, index) => (
-                    <div
-                      key={index}
-                      style={{ height: "24px", lineHeight: "24px" }}
-                    >
-                      {line || " "}
-                    </div>
-                  ))}
-                </pre>
+                      return (
+                        <div
+                          key={lineNumber}
+                          className={`flex items-center justify-end space-x-1 ${
+                            hasVulns ? "font-bold" : ""
+                          }`}
+                          style={{ height: "24px", lineHeight: "24px" }}
+                        >
+                          {hasVulns && (
+                            <span className="text-xs">
+                              {getSeverityIcon(highestSeverity!)}
+                            </span>
+                          )}
+                          <span
+                            className={
+                              hasVulns ? "text-red-600" : "text-gray-500"
+                            }
+                          >
+                            {lineNumber}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Code Content with Vulnerability Highlighting */}
+                <div className="flex-1 px-4 py-4">
+                  <pre className="font-mono text-sm leading-6 text-gray-800">
+                    {lines.map((line, index) => {
+                      const lineNumber = index + 1;
+                      const lineVulns = vulnsByLine.get(lineNumber) || [];
+                      const hasVulns = lineVulns.length > 0;
+                      const highestSeverity = hasVulns
+                        ? lineVulns.reduce((highest, vuln) => {
+                            const severityOrder = {
+                              critical: 4,
+                              high: 3,
+                              medium: 2,
+                              low: 1,
+                            };
+                            return severityOrder[vuln.severity] >
+                              severityOrder[highest.severity]
+                              ? vuln
+                              : highest;
+                          }).severity
+                        : null;
+
+                      return (
+                        <div
+                          key={lineNumber}
+                          className={`relative group ${
+                            hasVulns
+                              ? highestSeverity === "critical"
+                                ? "bg-red-100 border-l-4 border-red-500"
+                                : highestSeverity === "high"
+                                ? "bg-orange-100 border-l-4 border-orange-500"
+                                : highestSeverity === "medium"
+                                ? "bg-yellow-100 border-l-4 border-yellow-500"
+                                : "bg-blue-100 border-l-4 border-blue-500"
+                              : ""
+                          } ${hasVulns ? "pl-2" : ""}`}
+                          style={{ height: "24px", lineHeight: "24px" }}
+                          onMouseEnter={() =>
+                            hasVulns && setSelectedVuln(lineNumber)
+                          }
+                          onMouseLeave={() => setSelectedVuln(null)}
+                        >
+                          <span className={hasVulns ? "font-semibold" : ""}>
+                            {line || " "}
+                          </span>
+
+                          {/* Vulnerability Tooltip */}
+                          {hasVulns && selectedVuln === lineNumber && (
+                            <div className="absolute left-full top-0 ml-2 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 max-w-md">
+                              <div className="space-y-2">
+                                {lineVulns.map((vuln) => (
+                                  <div
+                                    key={vuln.id}
+                                    className="border-b border-gray-200 pb-2 last:border-b-0"
+                                  >
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <Badge
+                                        className={`text-xs ${getSeverityColor(
+                                          vuln.severity
+                                        )}`}
+                                      >
+                                        {vuln.severity}
+                                      </Badge>
+                                      <span className="font-semibold text-sm">
+                                        {vuln.title}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-1">
+                                      {vuln.description}
+                                    </p>
+                                    <p className="text-xs text-blue-600">
+                                      <strong>Fix:</strong>{" "}
+                                      {vuln.recommendation}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </pre>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Vulnerability Sidebar */}
+          {vulnerabilities.length > 0 && (
+            <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+              <div className="p-4 border-b border-gray-200">
+                <h3 className="font-semibold text-gray-900">
+                  Vulnerabilities ({vulnerabilities.length})
+                </h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {vulnerabilities.map((vuln) => (
+                  <div
+                    key={vuln.id}
+                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer"
+                    onClick={() => {
+                      if (vuln.line_number) {
+                        // Scroll to line (simplified)
+                        setSelectedVuln(vuln.line_number);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Badge
+                        className={`text-xs ${getSeverityColor(vuln.severity)}`}
+                      >
+                        {vuln.severity}
+                      </Badge>
+                      {vuln.line_number && (
+                        <span className="text-xs text-gray-500">
+                          Line {vuln.line_number}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                      {vuln.title}
+                    </h4>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {vuln.description}
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      <strong>Fix:</strong> {vuln.recommendation}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -396,6 +612,16 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     name: string;
     content: string;
     language: string;
+    vulnerabilities?: Array<{
+      id: number;
+      title: string;
+      description: string;
+      severity: "critical" | "high" | "medium" | "low";
+      line_number?: number;
+      line_end_number?: number;
+      code_snippet?: string;
+      recommendation: string;
+    }>;
   } | null>(null);
 
   useEffect(() => {
@@ -456,16 +682,27 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         const data = await response.json();
         const extension = fileName.split(".").pop()?.toLowerCase() || "";
         const language = getLanguageFromExtension(extension);
+
+        // Get vulnerabilities for this file
+        const fileVulnerabilities = getVulnerabilityForFile(filePath);
+
         setSelectedFile({
           name: fileName,
           content: data.content,
           language,
+          vulnerabilities: fileVulnerabilities,
         });
       } else {
         console.error("Failed to fetch file content:", response.status);
       }
     } catch (error) {
       console.error("Error fetching file content:", error);
+    }
+  };
+
+  const handleFileClick = (file: FileContent) => {
+    if (isViewableFile(file.name)) {
+      fetchFileContent(file.path, file.name);
     }
   };
 
@@ -590,12 +827,6 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   const handleFolderClick = (folderPath: string) => {
     setCurrentPath(folderPath);
     setPathHistory([...pathHistory, folderPath]);
-  };
-
-  const handleFileClick = (file: FileContent) => {
-    if (isViewableFile(file.name)) {
-      fetchFileContent(file.path, file.name);
-    }
   };
 
   const isViewableFile = (fileName: string): boolean => {
@@ -973,105 +1204,230 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                     </p>
                   </div>
                 ) : (
+                  // Replace the file list section in frontend/src/components/RepositoryDetails.tsx
+
                   <div className="divide-y divide-gray-100">
-                    {sortedContents.map((item, index) => (
-                      <div
-                        key={`${item.path}-${index}`}
-                        onClick={() => {
-                          if (item.type === "dir") {
-                            handleFolderClick(item.path);
-                          } else {
-                            handleFileClick(item);
+                    {sortedContents.map((item, index) => {
+                      const fileVulns = getVulnerabilityForFile(item.path);
+                      const hasVulns = fileVulns.length > 0;
+                      const fileStatus = fileStatuses[item.path];
+
+                      // Determine status message and color
+                      let statusMessage = "";
+                      let statusColor = "";
+
+                      if (
+                        item.type === "file" &&
+                        project.latest_scan?.status === "completed"
+                      ) {
+                        if (fileStatus) {
+                          // We have scan data for this file
+                          switch (fileStatus.status) {
+                            case "vulnerable":
+                              statusMessage = hasVulns
+                                ? `${fileVulns.length} vulnerabilities found`
+                                : "Vulnerabilities detected";
+                              statusColor = "text-red-600";
+                              break;
+                            case "scanned":
+                              statusMessage = hasVulns
+                                ? `${fileVulns.length} vulnerabilities found`
+                                : "Scan OK";
+                              statusColor = hasVulns
+                                ? "text-red-600"
+                                : "text-green-600";
+                              break;
+                            case "skipped":
+                              statusMessage =
+                                "Not scanned due to API constraints";
+                              statusColor = "text-gray-600";
+                              break;
+                            case "error":
+                              statusMessage = "Scan error occurred";
+                              statusColor = "text-orange-600";
+                              break;
+                            default:
+                              statusMessage = "Status unknown";
+                              statusColor = "text-gray-600";
                           }
-                        }}
-                        className={`p-4 hover:bg-gray-50 transition-colors ${
-                          item.type === "dir" || isViewableFile(item.name)
-                            ? "cursor-pointer"
-                            : "cursor-default"
-                        } ${
-                          hasVulnerabilities(item.path)
-                            ? "bg-red-50 border-l-4 border-red-400"
-                            : fileStatuses[item.path]?.status === "vulnerable"
-                            ? "bg-red-50 border-l-4 border-red-400"
-                            : fileStatuses[item.path]?.status === "scanned"
-                            ? "bg-green-50 border-l-4 border-green-400"
-                            : fileStatuses[item.path]?.status === "skipped"
-                            ? "bg-gray-50 border-l-4 border-gray-400"
-                            : ""
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            {getFileIcon(item.name, item.type, item.path)}
-                            <div>
-                              <div className="font-medium text-brand-black flex items-center space-x-2">
-                                <span>{item.name}</span>
-                                {/* Show vulnerability badges */}
-                                {hasVulnerabilities(item.path) && (
-                                  <Badge
-                                    variant="destructive"
-                                    className="text-xs"
-                                  >
-                                    {getVulnerabilityForFile(item.path).length}{" "}
-                                    issues
-                                  </Badge>
+                        } else if (hasVulns) {
+                          // Legacy: we have vulnerabilities but no file status
+                          statusMessage = `${fileVulns.length} vulnerabilities found`;
+                          statusColor = "text-red-600";
+                        } else {
+                          // No scan data and no vulnerabilities
+                          statusMessage = "Not scanned due to API constraints";
+                          statusColor = "text-gray-600";
+                        }
+                      }
+
+                      return (
+                        <div
+                          key={`${item.path}-${index}`}
+                          onClick={() => {
+                            if (item.type === "dir") {
+                              handleFolderClick(item.path);
+                            } else {
+                              handleFileClick(item);
+                            }
+                          }}
+                          className={`p-4 hover:bg-gray-50 transition-colors ${
+                            item.type === "dir" || isViewableFile(item.name)
+                              ? "cursor-pointer"
+                              : "cursor-default"
+                          } ${
+                            hasVulns || fileStatus?.status === "vulnerable"
+                              ? "bg-red-50 border-l-4 border-red-400"
+                              : fileStatus?.status === "scanned" && !hasVulns
+                              ? "bg-green-50 border-l-4 border-green-400"
+                              : fileStatus?.status === "skipped"
+                              ? "bg-gray-50 border-l-4 border-gray-400"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              {getFileIcon(item.name, item.type, item.path)}
+                              <div className="flex-1">
+                                <div className="font-medium text-brand-black flex items-center space-x-2">
+                                  <span>{item.name}</span>
+
+                                  {/* Show vulnerability badges */}
+                                  {hasVulns && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="text-xs"
+                                    >
+                                      {fileVulns.length}{" "}
+                                      {fileVulns.length === 1
+                                        ? "issue"
+                                        : "issues"}
+                                    </Badge>
+                                  )}
+
+                                  {/* Show scan status badges */}
+                                  {fileStatus && (
+                                    <Badge
+                                      className={`text-xs ${
+                                        fileStatus.status === "vulnerable"
+                                          ? "bg-red-100 text-red-800"
+                                          : fileStatus.status === "scanned"
+                                          ? hasVulns
+                                            ? "bg-red-100 text-red-800"
+                                            : "bg-green-100 text-green-800"
+                                          : fileStatus.status === "skipped"
+                                          ? "bg-gray-100 text-gray-800"
+                                          : "bg-orange-100 text-orange-800"
+                                      }`}
+                                    >
+                                      {fileStatus.status === "scanned" &&
+                                      !hasVulns
+                                        ? "Clean"
+                                        : fileStatus.status === "scanned" &&
+                                          hasVulns
+                                        ? "Vulnerable"
+                                        : fileStatus.status === "skipped"
+                                        ? "Skipped"
+                                        : fileStatus.status}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {/* File size */}
+                                {item.type === "file" && item.size && (
+                                  <div className="text-sm text-brand-gray">
+                                    {formatFileSize(item.size)}
+                                  </div>
                                 )}
-                                {/* Show scan status badges */}
-                                {fileStatuses[item.path] && (
-                                  <Badge
-                                    className={`text-xs ${
-                                      fileStatuses[item.path].status ===
-                                      "vulnerable"
-                                        ? "bg-red-100 text-red-800"
-                                        : fileStatuses[item.path].status ===
-                                          "scanned"
-                                        ? "bg-green-100 text-green-800"
-                                        : fileStatuses[item.path].status ===
-                                          "skipped"
-                                        ? "bg-gray-100 text-gray-800"
-                                        : "bg-red-100 text-red-800"
-                                    }`}
+
+                                {/* Status message */}
+                                {statusMessage && (
+                                  <div
+                                    className={`text-sm font-medium ${statusColor} mt-1`}
                                   >
-                                    {fileStatuses[item.path].status}
-                                  </Badge>
+                                    {statusMessage}
+                                  </div>
+                                )}
+
+                                {/* Show scan status reason if available */}
+                                {fileStatus &&
+                                  fileStatus.reason &&
+                                  fileStatus.status !== "scanned" && (
+                                    <div className="text-xs text-brand-gray mt-1">
+                                      {fileStatus.reason}
+                                    </div>
+                                  )}
+
+                                {/* Show vulnerability details if present */}
+                                {hasVulns && (
+                                  <div className="text-xs text-red-600 mt-1">
+                                    {fileVulns.filter(
+                                      (v) => v.severity === "critical"
+                                    ).length > 0 && (
+                                      <span className="font-semibold">
+                                        Critical:{" "}
+                                        {
+                                          fileVulns.filter(
+                                            (v) => v.severity === "critical"
+                                          ).length
+                                        }
+                                      </span>
+                                    )}
+                                    {fileVulns.filter(
+                                      (v) => v.severity === "high"
+                                    ).length > 0 && (
+                                      <span className="ml-2 font-semibold">
+                                        High:{" "}
+                                        {
+                                          fileVulns.filter(
+                                            (v) => v.severity === "high"
+                                          ).length
+                                        }
+                                      </span>
+                                    )}
+                                    {fileVulns.filter(
+                                      (v) => v.severity === "medium"
+                                    ).length > 0 && (
+                                      <span className="ml-2">
+                                        Medium:{" "}
+                                        {
+                                          fileVulns.filter(
+                                            (v) => v.severity === "medium"
+                                          ).length
+                                        }
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                              {item.type === "file" && item.size && (
-                                <div className="text-sm text-brand-gray">
-                                  {formatFileSize(item.size)}
-                                </div>
-                              )}
-                              {/* Show scan status reason */}
-                              {fileStatuses[item.path] && (
-                                <div className="text-xs text-brand-gray mt-1">
-                                  {fileStatuses[item.path].reason}
-                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {item.type === "file" &&
+                                isViewableFile(item.name) && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    Viewable
+                                  </Badge>
+                                )}
+                              {item.type === "file" && item.download_url && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(item.download_url, "_blank");
+                                  }}
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            {item.type === "file" &&
-                              isViewableFile(item.name) && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Viewable
-                                </Badge>
-                              )}
-                            {item.type === "file" && item.download_url && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(item.download_url, "_blank");
-                                }}
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1086,6 +1442,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
           fileName={selectedFile.name}
           content={selectedFile.content}
           language={selectedFile.language}
+          vulnerabilities={selectedFile.vulnerabilities}
           onClose={() => setSelectedFile(null)}
         />
       )}

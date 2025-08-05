@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RepositoryDetails from "../components/RepositoryDetails";
-import ScanDetailsModal from "../components/ScanDetailsModal";
+import ScanDetailsModal from "../components/SimpleScanDetailsModal";
 import FileScanStatus from "../components/FileScanStatus"; // New component
 import {
   Select,

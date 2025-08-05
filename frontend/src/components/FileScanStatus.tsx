@@ -95,7 +95,7 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     }
   }, [isOpen, scanId]);
 
-  // Update the fetchScanResults function in FileScanStatus.tsx:
+  // Replace the entire fetchScanResults function in frontend/src/components/FileScanStatus.tsx
 
   const fetchScanResults = async () => {
     if (!scanId) return;
@@ -106,7 +106,7 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     try {
       const token = localStorage.getItem("access_token");
 
-      // Try the detailed endpoint first, then fall back to details
+      // Try the detailed endpoint first
       let response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -119,50 +119,44 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
         }
       );
 
-      // If detailed endpoint fails, try the details endpoint
-      if (!response.ok && response.status === 404) {
-        console.log("Trying details endpoint...");
-        response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/scans/${scanId}/details`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-      }
-
       if (response.ok) {
         const data = await response.json();
         console.log("Detailed scan data:", data); // Debug log
 
-        // Handle both response formats
-        if (data.file_results) {
-          setFileResults(data.file_results || []);
+        // Handle the response format from the detailed endpoint
+        if (data.file_results && Array.isArray(data.file_results)) {
+          // Direct file_results array
+          setFileResults(data.file_results);
           setVulnerabilities(data.vulnerabilities || []);
-        } else if (data.scan_metadata && data.scan_metadata.file_scan_results) {
-          // If data is in scan_metadata format
-          const fileResults = data.scan_metadata.file_scan_results.map(
-            (file: any) => ({
-              file_path: file.file_path,
-              status: file.status,
-              reason: file.reason,
-              vulnerability_count: file.vulnerabilities
-                ? file.vulnerabilities.length
-                : 0,
-              file_size: file.file_size,
-            })
+          console.log(`✅ Found ${data.file_results.length} file results`);
+        } else if (
+          data.scan &&
+          data.scan.scan_metadata &&
+          data.scan.scan_metadata.file_scan_results
+        ) {
+          // Nested in scan.scan_metadata format
+          const metadataFileResults = data.scan.scan_metadata.file_scan_results;
+          const transformedResults = metadataFileResults.map((file: any) => ({
+            file_path: file.file_path,
+            status: file.status,
+            reason: file.reason,
+            vulnerability_count: file.vulnerabilities
+              ? file.vulnerabilities.length
+              : 0,
+            file_size: file.file_size,
+          }));
+          setFileResults(transformedResults);
+          setVulnerabilities(data.vulnerabilities || []);
+          console.log(
+            `✅ Found ${transformedResults.length} file results from metadata`
           );
-          setFileResults(fileResults);
-
-          // Get vulnerabilities from scan
-          const vulnResponse = await fetch(
+        } else {
+          // Fallback: try to get file status from basic scan endpoint
+          console.log("No file_results found, trying basic scan endpoint...");
+          const basicResponse = await fetch(
             `${
               import.meta.env.VITE_API_URL || "http://localhost:8000"
-            }/api/v1/scans/${scanId}/vulnerabilities`,
+            }/api/v1/scans/${scanId}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -171,9 +165,59 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
             }
           );
 
-          if (vulnResponse.ok) {
-            const vulnData = await vulnResponse.json();
-            setVulnerabilities(vulnData || []);
+          if (basicResponse.ok) {
+            const basicData = await basicResponse.json();
+            console.log("Basic scan data:", basicData);
+
+            if (
+              basicData.scan_metadata &&
+              basicData.scan_metadata.file_scan_results
+            ) {
+              const metadataResults = basicData.scan_metadata.file_scan_results;
+              const transformedResults = metadataResults.map((file: any) => ({
+                file_path: file.file_path,
+                status: file.status,
+                reason: file.reason,
+                vulnerability_count: file.vulnerabilities
+                  ? file.vulnerabilities.length
+                  : 0,
+                file_size: file.file_size,
+              }));
+              setFileResults(transformedResults);
+              console.log(
+                `✅ Found ${transformedResults.length} file results from basic endpoint`
+              );
+            } else {
+              console.log(
+                "❌ No file scan results found in basic endpoint either"
+              );
+              setFileResults([]);
+            }
+
+            // Get vulnerabilities separately if not already loaded
+            if (!data.vulnerabilities) {
+              const vulnResponse = await fetch(
+                `${
+                  import.meta.env.VITE_API_URL || "http://localhost:8000"
+                }/api/v1/scans/${scanId}/vulnerabilities`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+
+              if (vulnResponse.ok) {
+                const vulnData = await vulnResponse.json();
+                setVulnerabilities(vulnData || []);
+                console.log(
+                  `✅ Found ${vulnData?.length || 0} vulnerabilities`
+                );
+              }
+            }
+          } else {
+            setError(`Failed to fetch scan results (${response.status})`);
           }
         }
       } else {
