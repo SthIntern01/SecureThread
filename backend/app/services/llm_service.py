@@ -13,6 +13,14 @@ class LLMService:
         self.base_url = "https://api.deepseek.com/v1"
         self.model = "deepseek-chat"
         
+        # Token management for Deepseek limits
+        self.MAX_INPUT_TOKENS = 60000  # Stay well under 65.5K limit
+        self.MAX_OUTPUT_TOKENS = 4000
+        
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough token estimation (1 token ≈ 4 characters for code)"""
+        return len(text) // 4
+        
     async def analyze_code_for_vulnerabilities(
         self, 
         file_content: str, 
@@ -23,7 +31,13 @@ class LLMService:
         Analyze a single file for security vulnerabilities using Deepseek API
         """
         try:
-            prompt = self._create_vulnerability_analysis_prompt(
+            # Check token limits before processing
+            estimated_tokens = self._estimate_tokens(file_content)
+            if estimated_tokens > self.MAX_INPUT_TOKENS // 2:  # Leave room for prompt
+                logger.warning(f"File {file_path} too large ({estimated_tokens} tokens), skipping")
+                return []
+            
+            prompt = self._create_concise_vulnerability_analysis_prompt(
                 file_content, file_path, file_extension
             )
             
@@ -37,14 +51,14 @@ class LLMService:
             logger.error(f"Error analyzing {file_path}: {e}")
             return []
     
-    def _create_vulnerability_analysis_prompt(
+    def _create_concise_vulnerability_analysis_prompt(
         self, 
         file_content: str, 
         file_path: str, 
         file_extension: str
     ) -> str:
         """
-        Create a comprehensive security analysis prompt
+        Create a concise security analysis prompt optimized for token limits
         """
         language_map = {
             '.py': 'Python',
@@ -63,108 +77,64 @@ class LLMService:
             '.sh': 'Shell Script',
             '.dockerfile': 'Dockerfile',
             '.yaml': 'YAML',
-            '.yml': 'YAML',
-            '.json': 'JSON',
-            '.xml': 'XML'
+            '.yml': 'YAML'
         }
         
         language = language_map.get(file_extension.lower(), 'Unknown')
         
-        prompt = f"""
-You are a senior security engineer conducting a comprehensive security audit. Analyze the following {language} code for security vulnerabilities.
+        # Truncate file content if too long
+        max_content_length = 15000  # Limit content to ~15K characters
+        if len(file_content) > max_content_length:
+            file_content = file_content[:max_content_length] + "\n... [FILE TRUNCATED] ..."
+            logger.info(f"Truncated {file_path} content for analysis")
+        
+        prompt = f"""Analyze this {language} code for critical security vulnerabilities. Focus only on high-impact issues.
 
 FILE: {file_path}
-LANGUAGE: {language}
 
 CODE:
 ```{language.lower()}
 {file_content}
 ```
 
-SECURITY ANALYSIS REQUIREMENTS:
+FIND ONLY THESE CRITICAL VULNERABILITIES:
+1. SQL/NoSQL Injection
+2. XSS (Cross-Site Scripting)
+3. Command Injection
+4. Path Traversal
+5. Hardcoded Secrets/Credentials
+6. Insecure Cryptography
+7. Authentication/Authorization Bypass
+8. Remote Code Execution
 
-1. **OWASP Top 10 Vulnerabilities:**
-   - Injection flaws (SQL, NoSQL, LDAP, XPath)
-   - Broken Authentication and Session Management
-   - Cross-Site Scripting (XSS)
-   - Broken Access Control
-   - Security Misconfiguration
-   - Insecure Cryptographic Storage
-   - Insufficient Transport Layer Protection
-   - Unvalidated Redirects and Forwards
-   - Components with Known Vulnerabilities
-   - Insufficient Logging and Monitoring
-
-2. **Additional Security Checks:**
-   - Hardcoded credentials/secrets
-   - Insecure random number generation
-   - Path traversal vulnerabilities
-   - Command injection
-   - Code injection
-   - Deserialization vulnerabilities
-   - Race conditions
-   - Integer overflow/underflow
-   - Buffer overflow (for C/C++)
-   - Denial of Service vulnerabilities
-   - Information disclosure
-   - Privilege escalation
-   - Input validation issues
-   - Output encoding problems
-   - Insecure file operations
-   - Weak cryptography usage
-
-3. **Language-Specific Checks:**
-   - For Python: pickle vulnerabilities, eval() usage, subprocess security
-   - For JavaScript: prototype pollution, DOM-based XSS, client-side vulnerabilities
-   - For Java: deserialization, XXE, class loading vulnerabilities
-   - For PHP: file inclusion, variable variables, register_globals issues
-   - For SQL: injection, privilege escalation, data exposure
-
-**RESPONSE FORMAT:**
-You must respond with a valid JSON array containing vulnerability objects. Each vulnerability must have this exact structure:
-
+RESPONSE FORMAT (JSON only):
 ```json
 [
   {{
     "title": "Brief vulnerability title",
-    "description": "Detailed description of the vulnerability and why it's dangerous",
+    "description": "Why this is dangerous",
     "severity": "critical|high|medium|low",
-    "category": "sql_injection|xss|authentication|authorization|cryptography|injection|configuration|logging|components|validation|other",
-    "cwe_id": "CWE-XXX (if applicable)",
-    "owasp_category": "A01|A02|A03|A04|A05|A06|A07|A08|A09|A10 (if applicable)",
-    "line_number": integer_line_number_where_vulnerability_starts,
-    "line_end_number": integer_line_number_where_vulnerability_ends,
-    "code_snippet": "The vulnerable code lines",
-    "recommendation": "How to fix this vulnerability",
-    "fix_suggestion": "Specific code changes or security practices",
-    "risk_score": float_between_0_and_10,
-    "exploitability": "low|medium|high",
-    "impact": "low|medium|high"
+    "category": "sql_injection|xss|command_injection|path_traversal|hardcoded_secrets|crypto|auth|rce|other",
+    "line_number": line_number,
+    "code_snippet": "vulnerable code",
+    "recommendation": "How to fix",
+    "risk_score": 1.0-10.0
   }}
 ]
 ```
 
-**SEVERITY GUIDELINES:**
-- **Critical**: Remote code execution, SQL injection, authentication bypass
-- **High**: XSS, privilege escalation, sensitive data exposure
-- **Medium**: Information disclosure, denial of service, weak cryptography
-- **Low**: Information leakage, missing security headers, code quality issues
+IMPORTANT:
+- Return empty array [] if no critical vulnerabilities found
+- Focus on exploitable issues only
+- Be concise but accurate
+- Include specific line numbers
+- Maximum 5 vulnerabilities per file"""
 
-**IMPORTANT RULES:**
-1. Only return the JSON array, no additional text
-2. If no vulnerabilities found, return an empty array: []
-3. Be thorough but avoid false positives
-4. Focus on real security issues, not code style
-5. Provide specific line numbers and actionable recommendations
-6. Consider the context and framework being used
-
-Analyze the code now:
-"""
         return prompt
     
     async def _make_api_request(self, prompt: str) -> Dict[str, Any]:
         """
-        Make request to Deepseek API
+        Make request to Deepseek API with strict token limits
         """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -176,19 +146,24 @@ Analyze the code now:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a security expert specializing in code vulnerability analysis. You always respond with valid JSON format as requested."
+                    "content": "You are a security expert. Respond only with valid JSON arrays of vulnerability objects. Be concise and focus on critical issues only."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            "temperature": 0.1,  # Low temperature for consistent analysis
-            "max_tokens": 4000,
+            "temperature": 0.1,
+            "max_tokens": self.MAX_OUTPUT_TOKENS,
             "stream": False
         }
         
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Estimate total tokens and warn if too high
+        total_estimated = self._estimate_tokens(prompt) + 500  # System message overhead
+        if total_estimated > self.MAX_INPUT_TOKENS:
+            logger.warning(f"Request may exceed token limit: {total_estimated} tokens")
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
@@ -212,13 +187,17 @@ Analyze the code now:
         try:
             content = response['choices'][0]['message']['content']
             
-            # Clean up the response - remove markdown code blocks if present
+            # Clean up the response
             content = content.strip()
             if content.startswith('```json'):
                 content = content[7:]
             if content.endswith('```'):
                 content = content[:-3]
             content = content.strip()
+            
+            # Handle empty responses
+            if not content or content.lower() in ['[]', 'none', 'no vulnerabilities']:
+                return []
             
             # Parse JSON
             vulnerabilities = json.loads(content)
@@ -251,32 +230,39 @@ Analyze the code now:
         """
         required_fields = [
             'title', 'description', 'severity', 'category', 
-            'line_number', 'recommendation', 'risk_score'
+            'line_number', 'recommendation'
         ]
         
         # Check required fields
         for field in required_fields:
             if field not in vuln:
+                logger.warning(f"Missing required field: {field}")
                 return False
         
         # Validate severity
         if vuln['severity'] not in ['critical', 'high', 'medium', 'low']:
+            logger.warning(f"Invalid severity: {vuln['severity']}")
             return False
         
-        # Validate risk score
-        try:
-            risk_score = float(vuln['risk_score'])
-            if not (0 <= risk_score <= 10):
+        # Validate risk score if present
+        if 'risk_score' in vuln:
+            try:
+                risk_score = float(vuln['risk_score'])
+                if not (0 <= risk_score <= 10):
+                    logger.warning(f"Invalid risk score: {risk_score}")
+                    return False
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid risk score format: {vuln['risk_score']}")
                 return False
-        except (ValueError, TypeError):
-            return False
         
         # Validate line number
         try:
             line_num = int(vuln['line_number'])
             if line_num < 1:
+                logger.warning(f"Invalid line number: {line_num}")
                 return False
         except (ValueError, TypeError):
+            logger.warning(f"Invalid line number format: {vuln['line_number']}")
             return False
         
         return True
@@ -284,97 +270,91 @@ Analyze the code now:
     async def generate_scan_summary(
         self, 
         scan_results: List[Dict[str, Any]], 
-        repository_name: str
+        repository_name: str,
+        files_scanned: int,
+        files_skipped: int
     ) -> Dict[str, Any]:
         """
-        Generate a comprehensive scan summary
+        Generate a lightweight scan summary
         """
         try:
-            prompt = self._create_summary_prompt(scan_results, repository_name)
-            response = await self._make_api_request(prompt)
-            summary = self._parse_summary_response(response)
-            return summary
+            if not scan_results:
+                return {
+                    "security_score": 85.0,
+                    "risk_level": "low",
+                    "summary": f"Scanned {files_scanned} files, no critical vulnerabilities found.",
+                    "top_concerns": ["Limited scan coverage"] if files_skipped > 0 else [],
+                    "recommendations": ["Continue monitoring", "Consider full repository scan"]
+                }
+            
+            # Quick analysis without LLM to save tokens
+            total_vulns = len(scan_results)
+            severity_counts = {
+                'critical': len([v for v in scan_results if v.get('severity') == 'critical']),
+                'high': len([v for v in scan_results if v.get('severity') == 'high']),
+                'medium': len([v for v in scan_results if v.get('severity') == 'medium']),
+                'low': len([v for v in scan_results if v.get('severity') == 'low'])
+            }
+            
+            # Calculate risk level
+            if severity_counts['critical'] > 0:
+                risk_level = "critical"
+                security_score = max(10, 50 - (severity_counts['critical'] * 10))
+            elif severity_counts['high'] > 2:
+                risk_level = "high"
+                security_score = max(20, 70 - (severity_counts['high'] * 5))
+            elif severity_counts['high'] > 0 or severity_counts['medium'] > 3:
+                risk_level = "medium"
+                security_score = max(40, 80 - (severity_counts['medium'] * 3))
+            else:
+                risk_level = "low"
+                security_score = max(60, 90 - (severity_counts['low'] * 2))
+            
+            # Generate summary
+            summary = f"Scanned {files_scanned} files in {repository_name}. "
+            if files_skipped > 0:
+                summary += f"{files_skipped} files skipped due to limits. "
+            summary += f"Found {total_vulns} vulnerabilities requiring attention."
+            
+            # Top concerns
+            concerns = []
+            if severity_counts['critical'] > 0:
+                concerns.append(f"{severity_counts['critical']} critical vulnerabilities")
+            if severity_counts['high'] > 0:
+                concerns.append(f"{severity_counts['high']} high severity issues")
+            if files_skipped > files_scanned:
+                concerns.append("Limited scan coverage")
+            
+            # Recommendations
+            recommendations = []
+            if severity_counts['critical'] > 0:
+                recommendations.append("Fix critical vulnerabilities immediately")
+            if severity_counts['high'] > 0:
+                recommendations.append("Address high severity issues")
+            if files_skipped > 0:
+                recommendations.append("Consider full repository scan")
+            if not recommendations:
+                recommendations.append("Continue regular security monitoring")
+            
+            return {
+                "security_score": round(security_score, 1),
+                "risk_level": risk_level,
+                "summary": summary,
+                "top_concerns": concerns,
+                "recommendations": recommendations[:3],  # Limit to top 3
+                "scan_coverage": {
+                    "files_scanned": files_scanned,
+                    "files_skipped": files_skipped,
+                    "coverage_percentage": round((files_scanned / max(1, files_scanned + files_skipped)) * 100, 1)
+                }
+            }
+            
         except Exception as e:
             logger.error(f"Error generating scan summary: {e}")
-            return {}
-    
-    def _create_summary_prompt(
-        self, 
-        scan_results: List[Dict[str, Any]], 
-        repository_name: str
-    ) -> str:
-        """
-        Create a prompt for scan summary generation
-        """
-        total_vulns = len(scan_results)
-        severity_counts = {
-            'critical': len([v for v in scan_results if v.get('severity') == 'critical']),
-            'high': len([v for v in scan_results if v.get('severity') == 'high']),
-            'medium': len([v for v in scan_results if v.get('severity') == 'medium']),
-            'low': len([v for v in scan_results if v.get('severity') == 'low'])
-        }
-        
-        categories = {}
-        for vuln in scan_results:
-            cat = vuln.get('category', 'unknown')
-            categories[cat] = categories.get(cat, 0) + 1
-        
-        prompt = f"""
-Generate a comprehensive security scan summary for repository: {repository_name}
-
-SCAN RESULTS:
-- Total Vulnerabilities: {total_vulns}
-- Critical: {severity_counts['critical']}
-- High: {severity_counts['high']}
-- Medium: {severity_counts['medium']}
-- Low: {severity_counts['low']}
-
-VULNERABILITY CATEGORIES:
-{json.dumps(categories, indent=2)}
-
-TOP VULNERABILITIES (Sample):
-{json.dumps(scan_results[:5], indent=2)}
-
-Generate a JSON response with this structure:
-```json
-{{{{
-  "security_score": float_between_0_and_100,
-  "risk_level": "low|medium|high|critical",
-  "summary": "Brief overall security assessment",
-  "top_concerns": ["list", "of", "primary", "security", "concerns"],
-  "recommendations": ["list", "of", "prioritized", "recommendations"],
-  "compliance_status": {{{{
-    "owasp_top_10": "compliant|partial|non_compliant",
-    "security_best_practices": "good|fair|poor"
-  }}}}
-}}}}
-```
-
-Focus on actionable insights and prioritized recommendations.
-"""
-        return prompt
-    
-    def _parse_summary_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Parse the summary response from LLM
-        """
-        try:
-            content = response['choices'][0]['message']['content']
-            content = content.strip()
-            
-            if content.startswith('```json'):
-                content = content[7:]
-            if content.endswith('```'):
-                content = content[:-3]
-            content = content.strip()
-            
-            return json.loads(content)
-        except Exception as e:
-            logger.error(f"Error parsing summary response: {e}")
             return {
                 "security_score": 50.0,
                 "risk_level": "medium",
-                "summary": "Security analysis completed with mixed results.",
-                "top_concerns": ["Manual review required"],
-                "recommendations": ["Review scan results manually"]
+                "summary": f"Security analysis completed for {repository_name}. Manual review recommended.",
+                "top_concerns": ["Analysis error occurred"],
+                "recommendations": ["Review scan results manually", "Check scan logs"]
             }

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RepositoryDetails from "../components/RepositoryDetails";
 import ScanDetailsModal from "../components/ScanDetailsModal";
+import FileScanStatus from "../components/FileScanStatus"; // New component
 import {
   Select,
   SelectContent,
@@ -38,6 +39,7 @@ import {
   Activity,
   Github,
   FileText,
+  StopCircle,
 } from "lucide-react";
 import {
   IconDashboard,
@@ -279,7 +281,6 @@ const ImportRepositoriesModal = ({
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -293,11 +294,6 @@ const ImportRepositoriesModal = ({
     setError("");
     try {
       const token = localStorage.getItem("access_token");
-      console.log(
-        "Fetching repositories with token:",
-        token ? "Present" : "Missing"
-      );
-
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -310,17 +306,11 @@ const ImportRepositoriesModal = ({
         }
       );
 
-      console.log("Response status:", response.status);
-      console.log("Response headers:", response.headers.get("content-type"));
-
       if (response.ok) {
         const data = await response.json();
-        console.log("Repository data:", data);
-        console.log("First repository structure:", data.repositories?.[0]);
         setRepositories(data.repositories || []);
       } else {
         const errorData = await response.text();
-        console.error("Error response:", errorData);
         setError(
           `Failed to fetch repositories: ${response.status} ${response.statusText}`
         );
@@ -334,15 +324,10 @@ const ImportRepositoriesModal = ({
   };
 
   const handleRepoToggle = (repoId: number) => {
-    console.log("Toggling repo:", repoId);
-    console.log("Current selected:", selectedRepos);
-
     setSelectedRepos((prev) => {
       const newSelection = prev.includes(repoId)
         ? prev.filter((id) => id !== repoId)
         : [...prev, repoId];
-
-      console.log("New selection:", newSelection);
       return newSelection;
     });
   };
@@ -439,18 +424,8 @@ const ImportRepositoriesModal = ({
                               id={`repo-checkbox-${repo.id}`}
                               checked={selectedRepos.includes(repo.id)}
                               onChange={(e) => {
-                                const repoId = repo.id; // Changed from repo.github_id to repo.id
+                                const repoId = repo.id;
                                 const isChecked = e.target.checked;
-
-                                console.log(
-                                  `Repository ${repoId} (${repo.name}) checkbox changed to:`,
-                                  isChecked
-                                );
-                                console.log("Repo object:", repo); // Add this to see the full repo structure
-                                console.log(
-                                  "Current selectedRepos before change:",
-                                  selectedRepos
-                                );
 
                                 setSelectedRepos((prevSelected) => {
                                   let newSelected;
@@ -463,11 +438,6 @@ const ImportRepositoriesModal = ({
                                       (id) => id !== repoId
                                     );
                                   }
-
-                                  console.log(
-                                    "New selectedRepos after change:",
-                                    newSelected
-                                  );
                                   return newSelected;
                                 });
                               }}
@@ -562,12 +532,18 @@ const ProjectCard = ({
   onSync,
   onViewDetails,
   onStartScan,
+  onStopScan,
+  onViewFileScanStatus,
+  onViewScanDetails,
 }: {
   project: Project;
   onDelete: (projectId: number) => void;
   onSync: (projectId: number) => void;
   onViewDetails: (project: Project) => void;
   onStartScan: (projectId: number) => void;
+  onStopScan: (projectId: number) => void;
+  onViewFileScanStatus: (project: Project) => void;
+  onViewScanDetails: (project: Project) => void;
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -642,6 +618,9 @@ const ProjectCard = ({
 
   const hasScanned =
     project.vulnerabilities !== null && project.coverage !== null;
+  const isScanning =
+    project.latest_scan?.status === "running" ||
+    project.latest_scan?.status === "pending";
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
@@ -695,11 +674,9 @@ const ProjectCard = ({
           </DropdownMenu>
         </div>
       </div>
-
       <p className="text-sm text-brand-gray mb-4 line-clamp-2">
         {project.description}
       </p>
-
       <div className="flex items-center space-x-4 mb-4">
         <div className="flex items-center space-x-2">
           {getStatusIcon(project.status)}
@@ -720,7 +697,6 @@ const ProjectCard = ({
           </Badge>
         )}
       </div>
-
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-brand-gray mb-1">Vulnerabilities</div>
@@ -775,7 +751,6 @@ const ProjectCard = ({
           )}
         </div>
       </div>
-
       <div className="flex items-center justify-between text-xs text-brand-gray mb-4">
         <div className="flex items-center space-x-1">
           <Clock className="w-3 h-3" />
@@ -792,44 +767,66 @@ const ProjectCard = ({
           </div>
         )}
       </div>
-
-      <div className="flex items-center space-x-2 pt-4 border-t border-gray-200/50">
+      <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200/50">
+        {/* Top row - View Details always shown */}
         <Button
           size="sm"
           variant="outline"
-          className="flex-1"
+          className="w-full"
           onClick={() => onViewDetails(project)}
         >
           <Eye className="w-4 h-4 mr-2" />
           View Details
         </Button>
+
+        {/* Show File Status button if scan is completed */}
         {project.latest_scan?.status === "completed" && (
+          <div className="flex space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={() => onViewFileScanStatus(project)}
+            >
+              <FileText className="w-4 h-4 mr-1" />
+              File Status
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1"
+              onClick={() => onViewScanDetails(project)}
+            >
+              <Activity className="w-4 h-4 mr-1" />
+              Scan Report
+            </Button>
+          </div>
+        )}
+
+        {/* Show different buttons based on scan status */}
+        {isScanning ? (
           <Button
             size="sm"
             variant="outline"
-            className="flex-1"
-            onClick={() => onViewScanDetails(project)}
+            className="w-full text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            onClick={() => onStopScan(project.id)}
           >
-            <FileText className="w-4 h-4 mr-2" />
-            View Scan
+            <StopCircle className="w-4 h-4 mr-2" />
+            Stop Scan
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            className="w-full bg-accent hover:bg-accent/90"
+            onClick={() => onStartScan(project.id)}
+            disabled={project.latest_scan?.status === "pending"}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            {project.latest_scan?.status === "pending"
+              ? "Starting..."
+              : "Run Scan"}
           </Button>
         )}
-        <Button
-          size="sm"
-          className="flex-1"
-          onClick={() => onStartScan(project.id)}
-          disabled={
-            project.latest_scan?.status === "running" ||
-            project.latest_scan?.status === "pending"
-          }
-        >
-          <Play className="w-4 h-4 mr-2" />
-          {project.latest_scan?.status === "running"
-            ? "Scanning..."
-            : project.latest_scan?.status === "pending"
-            ? "Starting..."
-            : "Run Scan"}
-        </Button>
       </div>
     </div>
   );
@@ -847,11 +844,25 @@ const Projects = () => {
   const [showScanModal, setShowScanModal] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [selectedRepoName, setSelectedRepoName] = useState("");
+  const [showFileScanModal, setShowFileScanModal] = useState(false);
   const [error, setError] = useState("");
+  const [scanningProjects, setScanningProjects] = useState<Set<number>>(
+    new Set()
+  );
   const navigate = useNavigate();
+
+  // Polling management
+  const [pollIntervals, setPollIntervals] = useState<
+    Map<number, NodeJS.Timeout>
+  >(new Map());
 
   useEffect(() => {
     fetchProjects();
+
+    // Cleanup function to clear all polling intervals
+    return () => {
+      pollIntervals.forEach((interval) => clearInterval(interval));
+    };
   }, []);
 
   const fetchProjects = async () => {
@@ -925,6 +936,16 @@ const Projects = () => {
 
         setProjects(transformedProjects);
         setFilteredProjects(transformedProjects);
+
+        // Start polling for any projects that are currently scanning
+        transformedProjects.forEach((project) => {
+          if (
+            project.latest_scan?.status === "running" ||
+            project.latest_scan?.status === "pending"
+          ) {
+            startScanPolling(project.latest_scan.id, project.id);
+          }
+        });
       } else {
         setError("Failed to fetch projects");
       }
@@ -936,8 +957,270 @@ const Projects = () => {
     }
   };
 
+  const clearScanPolling = useCallback(
+    (scanId: number) => {
+      const interval = pollIntervals.get(scanId);
+      if (interval) {
+        clearInterval(interval);
+        setPollIntervals((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(scanId);
+          return newMap;
+        });
+      }
+    },
+    [pollIntervals]
+  );
+
+  const startScanPolling = useCallback(
+    (scanId: number, projectId: number) => {
+      // Clear any existing polling for this scan
+      clearScanPolling(scanId);
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const token = localStorage.getItem("access_token");
+          const response = await fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:8000"
+            }/api/v1/scans/${scanId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (response.ok) {
+            const scanData = await response.json();
+
+            setProjects((prevProjects) =>
+              prevProjects.map((project) =>
+                project.id === projectId
+                  ? {
+                      ...project,
+                      latest_scan: {
+                        id: scanData.id,
+                        status: scanData.status,
+                        started_at: scanData.started_at,
+                        completed_at: scanData.completed_at,
+                        scan_duration: scanData.scan_duration,
+                      },
+                      status:
+                        scanData.status === "completed"
+                          ? ("completed" as const)
+                          : scanData.status === "failed"
+                          ? ("failed" as const)
+                          : ("scanning" as const),
+                      vulnerabilities:
+                        scanData.total_vulnerabilities !== undefined
+                          ? {
+                              total: scanData.total_vulnerabilities,
+                              critical: scanData.critical_count,
+                              high: scanData.high_count,
+                              medium: scanData.medium_count,
+                              low: scanData.low_count,
+                            }
+                          : project.vulnerabilities,
+                      security_score: scanData.security_score,
+                      code_coverage: scanData.code_coverage,
+                      coverage: scanData.code_coverage,
+                      scanDuration: scanData.scan_duration,
+                      lastScan: scanData.completed_at
+                        ? new Date(scanData.completed_at).toLocaleDateString()
+                        : null,
+                    }
+                  : project
+              )
+            );
+
+            // Stop polling if scan is completed, failed, or stopped
+            if (["completed", "failed", "stopped"].includes(scanData.status)) {
+              clearScanPolling(scanId);
+              setScanningProjects((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(projectId);
+                return newSet;
+              });
+            }
+          } else {
+            console.error("Failed to fetch scan status:", response.status);
+            // Stop polling on error
+            clearScanPolling(scanId);
+            setScanningProjects((prev) => {
+              const newSet = new Set(prev);
+              newSet.delete(projectId);
+              return newSet;
+            });
+          }
+        } catch (error) {
+          console.error("Error polling scan status:", error);
+          // Stop polling on error
+          clearScanPolling(scanId);
+          setScanningProjects((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(projectId);
+            return newSet;
+          });
+        }
+      }, 5000); // Poll every 5 seconds
+
+      // Store the interval
+      setPollIntervals((prev) => new Map(prev).set(scanId, pollInterval));
+
+      // Auto-stop polling after 30 minutes to prevent infinite polling
+      setTimeout(() => {
+        clearScanPolling(scanId);
+        setScanningProjects((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(projectId);
+          return newSet;
+        });
+      }, 30 * 60 * 1000);
+    },
+    [clearScanPolling]
+  );
+
+  const handleStartScan = async (projectId: number) => {
+    if (scanningProjects.has(projectId)) {
+      console.log("Scan already in progress for project", projectId);
+      return;
+    }
+
+    try {
+      setScanningProjects((prev) => new Set(prev).add(projectId));
+
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/start`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repository_id: projectId,
+            scan_config: {
+              max_files: 10,
+              max_vulnerabilities: 5,
+              priority_scan: true,
+            },
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Scan started:", data);
+
+        // Update the project status immediately
+        setProjects((prevProjects) =>
+          prevProjects.map((project) =>
+            project.id === projectId
+              ? {
+                  ...project,
+                  latest_scan: {
+                    id: data.id,
+                    status: "pending",
+                    started_at: data.started_at,
+                  },
+                  status: "scanning" as const,
+                }
+              : project
+          )
+        );
+
+        // Start polling for scan status
+        startScanPolling(data.id, projectId);
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to start scan:", errorData);
+        setError(errorData.detail || "Failed to start scan");
+        setScanningProjects((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(projectId);
+          return newSet;
+        });
+      }
+    } catch (error) {
+      console.error("Error starting scan:", error);
+      setError("Network error occurred while starting scan");
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleStopScan = async (projectId: number) => {
+    try {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.latest_scan?.id) return;
+
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/${project.latest_scan.id}/stop`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Stop polling
+        clearScanPolling(project.latest_scan.id);
+        setScanningProjects((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(projectId);
+          return newSet;
+        });
+
+        // Update project status
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.id === projectId
+              ? {
+                  ...p,
+                  status: "failed" as const,
+                  latest_scan: {
+                    ...p.latest_scan!,
+                    status: "stopped",
+                  },
+                }
+              : p
+          )
+        );
+      } else {
+        console.error("Failed to stop scan");
+      }
+    } catch (error) {
+      console.error("Error stopping scan:", error);
+    }
+  };
+
   const handleDeleteProject = async (projectId: number) => {
     try {
+      // Stop any ongoing scan polling
+      const project = projects.find((p) => p.id === projectId);
+      if (project?.latest_scan?.id) {
+        clearScanPolling(project.latest_scan.id);
+      }
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
@@ -964,131 +1247,6 @@ const Projects = () => {
     }
   };
 
-  const handleStartScan = async (projectId: number) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/start`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            repository_id: projectId,
-            scan_config: {},
-          }),
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Scan started:", data);
-
-        // Update the project status to show it's scanning
-        setProjects((prevProjects) =>
-          prevProjects.map((project) =>
-            project.id === projectId
-              ? {
-                  ...project,
-                  latest_scan: {
-                    id: data.id,
-                    status: "pending",
-                    started_at: data.started_at,
-                  },
-                  status: "scanning" as const,
-                }
-              : project
-          )
-        );
-
-        // Start polling for scan status
-        startScanPolling(data.id, projectId);
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to start scan:", errorData);
-        setError(errorData.detail || "Failed to start scan");
-      }
-    } catch (error) {
-      console.error("Error starting scan:", error);
-      setError("Network error occurred while starting scan");
-    }
-  };
-
-  const startScanPolling = (scanId: number, projectId: number) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/scans/${scanId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (response.ok) {
-          const scanData = await response.json();
-
-          setProjects((prevProjects) =>
-            prevProjects.map((project) =>
-              project.id === projectId
-                ? {
-                    ...project,
-                    latest_scan: {
-                      id: scanData.id,
-                      status: scanData.status,
-                      started_at: scanData.started_at,
-                      completed_at: scanData.completed_at,
-                      scan_duration: scanData.scan_duration,
-                    },
-                    status:
-                      scanData.status === "completed"
-                        ? ("completed" as const)
-                        : scanData.status === "failed"
-                        ? ("failed" as const)
-                        : ("scanning" as const),
-                    vulnerabilities: {
-                      total: scanData.total_vulnerabilities,
-                      critical: scanData.critical_count,
-                      high: scanData.high_count,
-                      medium: scanData.medium_count,
-                      low: scanData.low_count,
-                    },
-                    security_score: scanData.security_score,
-                    code_coverage: scanData.code_coverage,
-                    scanDuration: scanData.scan_duration,
-                    lastScan: scanData.completed_at
-                      ? new Date(scanData.completed_at).toLocaleDateString()
-                      : null,
-                  }
-                : project
-            )
-          );
-
-          // Stop polling if scan is completed or failed
-          if (scanData.status === "completed" || scanData.status === "failed") {
-            clearInterval(pollInterval);
-          }
-        }
-      } catch (error) {
-        console.error("Error polling scan status:", error);
-      }
-    }, 3000); // Poll every 3 seconds
-
-    // Stop polling after 30 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval);
-    }, 30 * 60 * 1000);
-  };
-
   const handleViewScanDetails = (project: Project) => {
     if (project.latest_scan && project.latest_scan.status === "completed") {
       setSelectedScanId(project.latest_scan.id);
@@ -1097,19 +1255,23 @@ const Projects = () => {
     }
   };
 
+  const handleViewFileScanStatus = (project: Project) => {
+    if (project.latest_scan && project.latest_scan.status === "completed") {
+      setSelectedScanId(project.latest_scan.id);
+      setSelectedRepoName(project.name);
+      setShowFileScanModal(true);
+    }
+  };
+
   const handleSyncProject = async (projectId: number) => {
     try {
       const token = localStorage.getItem("access_token");
-      const project = projects.find((p) => p.id === projectId);
-
-      if (!project) return;
-
-      // Get updated repository info from GitHub
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/repositories/${projectId}`,
+        }/api/v1/repositories/${projectId}/sync`,
         {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -1119,17 +1281,16 @@ const Projects = () => {
 
       if (response.ok) {
         const updatedRepo = await response.json();
-
-        // Update the project in local state
         setProjects((prevProjects) =>
           prevProjects.map((p) =>
             p.id === projectId
               ? {
                   ...p,
-                  description: updatedRepo.description || p.description,
+                  description:
+                    updatedRepo.repository?.description || p.description,
                   default_branch:
-                    updatedRepo.default_branch || p.default_branch,
-                  language: updatedRepo.language || p.language,
+                    updatedRepo.repository?.default_branch || p.default_branch,
+                  language: updatedRepo.repository?.language || p.language,
                   updated_at: new Date().toISOString(),
                 }
               : p
@@ -1147,6 +1308,7 @@ const Projects = () => {
     navigate(`/projects/${project.id}`);
   };
 
+  // Filter projects effect
   useEffect(() => {
     let filtered = projects;
 
@@ -1175,8 +1337,6 @@ const Projects = () => {
   const handleImportRepositories = async (repoIds: number[]) => {
     try {
       const token = localStorage.getItem("access_token");
-
-      // Send all IDs in a single request instead of individual requests
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -1188,7 +1348,7 @@ const Projects = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            repository_ids: repoIds, // Send as array with correct field name
+            repository_ids: repoIds,
           }),
         }
       );
@@ -1201,7 +1361,6 @@ const Projects = () => {
 
       const result = await response.json();
       console.log("Import successful:", result);
-
       await fetchProjects();
     } catch (error) {
       console.error("Error importing repositories:", error);
@@ -1393,6 +1552,8 @@ const Projects = () => {
                     onSync={handleSyncProject}
                     onViewDetails={handleViewDetails}
                     onStartScan={handleStartScan}
+                    onStopScan={handleStopScan}
+                    onViewFileScanStatus={handleViewFileScanStatus}
                     onViewScanDetails={handleViewScanDetails}
                   />
                 ))}
@@ -1408,10 +1569,19 @@ const Projects = () => {
         onClose={() => setShowImportModal(false)}
         onImport={handleImportRepositories}
       />
+
       {/* Scan Details Modal */}
       <ScanDetailsModal
         isOpen={showScanModal}
         onClose={() => setShowScanModal(false)}
+        scanId={selectedScanId}
+        repositoryName={selectedRepoName}
+      />
+
+      {/* File Scan Status Modal */}
+      <FileScanStatus
+        isOpen={showFileScanModal}
+        onClose={() => setShowFileScanModal(false)}
         scanId={selectedScanId}
         repositoryName={selectedRepoName}
       />

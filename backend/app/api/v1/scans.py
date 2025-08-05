@@ -1,6 +1,9 @@
+# Replace the file: backend/app/api/v1/scans.py
+
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
+from datetime import datetime  # ADD THIS IMPORT
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
@@ -35,9 +38,24 @@ class ScanResponse(BaseModel):
     security_score: Optional[float] = None
     code_coverage: Optional[float] = None
     error_message: Optional[str] = None
+    scan_metadata: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
+
+
+class FileStatusResponse(BaseModel):
+    file_path: str
+    status: str  # "scanned", "vulnerable", "skipped", "error"
+    reason: str
+    vulnerability_count: int
+    file_size: Optional[int] = None
+
+
+class ScanDetailedResponse(BaseModel):
+    scan: ScanResponse
+    file_results: List[FileStatusResponse]
+    vulnerabilities: List[Dict[str, Any]]
 
 
 class VulnerabilityResponse(BaseModel):
@@ -64,11 +82,6 @@ class VulnerabilityResponse(BaseModel):
         from_attributes = True
 
 
-class ScanDetailResponse(ScanResponse):
-    vulnerabilities: List[VulnerabilityResponse]
-    scan_metadata: Optional[Dict[str, Any]] = None
-
-
 async def run_scan_background(
     repository_id: int,
     github_access_token: str,
@@ -83,6 +96,16 @@ async def run_scan_background(
         )
     except Exception as e:
         logger.error(f"Background scan failed: {e}")
+        # Update scan status to failed
+        scan = db.query(Scan).filter(
+            Scan.repository_id == repository_id,
+            Scan.status == "running"
+        ).first()
+        if scan:
+            scan.status = "failed"
+            scan.error_message = str(e)
+            scan.completed_at = datetime.utcnow()
+            db.commit()
 
 
 @router.post("/start", response_model=ScanResponse)
@@ -115,7 +138,7 @@ async def start_repository_scan(
     # Check if there's already a running scan
     existing_scan = db.query(Scan).filter(
         Scan.repository_id == scan_request.repository_id,
-        Scan.status == "running"
+        Scan.status.in_(["running", "pending"])
     ).first()
     
     if existing_scan:
@@ -125,11 +148,12 @@ async def start_repository_scan(
         )
     
     try:
-        # Create initial scan record
+        # Create initial scan record with pending status
         scan = Scan(
             repository_id=scan_request.repository_id,
             status="pending",
-            scan_config=scan_request.scan_config or {}
+            scan_config=scan_request.scan_config or {},
+            scan_metadata={}  # Initialize with empty dict
         )
         db.add(scan)
         db.commit()
@@ -159,7 +183,8 @@ async def start_repository_scan(
             low_count=scan.low_count,
             security_score=scan.security_score,
             code_coverage=scan.code_coverage,
-            error_message=scan.error_message
+            error_message=scan.error_message,
+            scan_metadata=scan.scan_metadata or {}
         )
     
     except Exception as e:
@@ -204,10 +229,12 @@ async def get_scan_status(
         low_count=scan.low_count,
         security_score=scan.security_score,
         code_coverage=scan.code_coverage,
-        error_message=scan.error_message
+        error_message=scan.error_message,
+        scan_metadata=getattr(scan, 'scan_metadata', {}) or {}  # Safe access
     )
     
-@router.get("/{scan_id}/file-status")
+
+@router.get("/{scan_id}/file-status", response_model=List[FileStatusResponse])
 async def get_scan_file_status(
     scan_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -231,17 +258,122 @@ async def get_scan_file_status(
     scanner_service = ScannerService(db)
     file_results = scanner_service.get_file_scan_results(scan_id)
     
-    return {
-        "scan_id": scan_id,
-        "file_results": file_results,
-        "summary": {
-            "total_files": len(file_results),
-            "scanned": len([f for f in file_results if f.get("status") == "scanned"]),
-            "vulnerable": len([f for f in file_results if f.get("status") == "vulnerable"]),
-            "skipped": len([f for f in file_results if f.get("status") == "skipped"]),
-            "error": len([f for f in file_results if f.get("status") == "error"])
-        }
-    }
+    # Transform to response format
+    file_status_list = []
+    for file_result in file_results:
+        vulnerability_count = len(file_result.get("vulnerabilities", []))
+        file_status_list.append(FileStatusResponse(
+            file_path=file_result.get("file_path", ""),
+            status=file_result.get("status", "unknown"),
+            reason=file_result.get("reason", ""),
+            vulnerability_count=vulnerability_count,
+            file_size=file_result.get("file_size")
+        ))
+    
+    return file_status_list
+
+
+@router.get("/{scan_id}/detailed", response_model=ScanDetailedResponse)
+async def get_detailed_scan_results(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get complete scan results including file status and vulnerabilities"""
+    
+    # Verify scan ownership
+    scan = db.query(Scan).join(Repository).filter(
+        Scan.id == scan_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found"
+        )
+    
+    # Get file results from scan metadata
+    file_results = []
+    if scan.scan_metadata and "file_scan_results" in scan.scan_metadata:
+        file_results = scan.scan_metadata["file_scan_results"]
+        logger.info(f"Found {len(file_results)} file results in scan metadata")
+    else:
+        logger.warning(f"No file scan results found in scan {scan_id} metadata")
+    
+    # Get vulnerabilities
+    vulnerabilities = db.query(Vulnerability).filter(
+        Vulnerability.scan_id == scan_id
+    ).order_by(
+        Vulnerability.severity.desc(),
+        Vulnerability.risk_score.desc()
+    ).all()
+    
+    logger.info(f"Found {len(vulnerabilities)} vulnerabilities for scan {scan_id}")
+    
+    # Transform file results to response format
+    file_status_list = []
+    for file_result in file_results:
+        vulnerability_count = len(file_result.get("vulnerabilities", []))
+        file_status_list.append(FileStatusResponse(
+            file_path=file_result.get("file_path", ""),
+            status=file_result.get("status", "unknown"),
+            reason=file_result.get("reason", ""),
+            vulnerability_count=vulnerability_count,
+            file_size=file_result.get("file_size")
+        ))
+    
+    # Transform vulnerabilities
+    vuln_list = []
+    for vuln in vulnerabilities:
+        vuln_list.append({
+            "id": vuln.id,
+            "title": vuln.title,
+            "description": vuln.description,
+            "severity": vuln.severity,
+            "category": vuln.category,
+            "cwe_id": vuln.cwe_id,
+            "owasp_category": vuln.owasp_category,
+            "file_path": vuln.file_path,
+            "line_number": vuln.line_number,
+            "line_end_number": vuln.line_end_number,
+            "code_snippet": vuln.code_snippet,
+            "recommendation": vuln.recommendation,
+            "fix_suggestion": vuln.fix_suggestion,
+            "risk_score": vuln.risk_score,
+            "exploitability": vuln.exploitability,
+            "impact": vuln.impact,
+            "status": vuln.status,
+            "detected_at": vuln.detected_at.isoformat()
+        })
+    
+    # Create scan response
+    scan_response = ScanResponse(
+        id=scan.id,
+        repository_id=scan.repository_id,
+        status=scan.status,
+        started_at=scan.started_at.isoformat(),
+        completed_at=scan.completed_at.isoformat() if scan.completed_at else None,
+        total_files_scanned=scan.total_files_scanned,
+        scan_duration=scan.scan_duration,
+        total_vulnerabilities=scan.total_vulnerabilities,
+        critical_count=scan.critical_count,
+        high_count=scan.high_count,
+        medium_count=scan.medium_count,
+        low_count=scan.low_count,
+        security_score=scan.security_score,
+        code_coverage=scan.code_coverage,
+        error_message=scan.error_message,
+        scan_metadata=getattr(scan, 'scan_metadata', {}) or {}
+    )
+    
+    logger.info(f"Returning scan details: {len(file_status_list)} files, {len(vuln_list)} vulnerabilities")
+    
+    return ScanDetailedResponse(
+        scan=scan_response,
+        file_results=file_status_list,
+        vulnerabilities=vuln_list
+    )
 
 
 @router.get("/{scan_id}/vulnerabilities", response_model=List[VulnerabilityResponse])
@@ -305,77 +437,6 @@ async def get_scan_vulnerabilities(
     ]
 
 
-@router.get("/{scan_id}/details", response_model=ScanDetailResponse)
-async def get_scan_details(
-    scan_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get complete scan details including vulnerabilities and metadata"""
-    
-    scan = db.query(Scan).join(Repository).filter(
-        Scan.id == scan_id,
-        Repository.owner_id == current_user.id
-    ).first()
-    
-    if not scan:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Scan not found"
-        )
-    
-    vulnerabilities = db.query(Vulnerability).filter(
-        Vulnerability.scan_id == scan_id
-    ).order_by(
-        Vulnerability.severity.desc(),
-        Vulnerability.risk_score.desc()
-    ).all()
-    
-    vulnerability_responses = [
-        VulnerabilityResponse(
-            id=vuln.id,
-            title=vuln.title,
-            description=vuln.description,
-            severity=vuln.severity,
-            category=vuln.category,
-            cwe_id=vuln.cwe_id,
-            owasp_category=vuln.owasp_category,
-            file_path=vuln.file_path,
-            line_number=vuln.line_number,
-            line_end_number=vuln.line_end_number,
-            code_snippet=vuln.code_snippet,
-            recommendation=vuln.recommendation,
-            fix_suggestion=vuln.fix_suggestion,
-            risk_score=vuln.risk_score,
-            exploitability=vuln.exploitability,
-            impact=vuln.impact,
-            status=vuln.status,
-            detected_at=vuln.detected_at.isoformat()
-        )
-        for vuln in vulnerabilities
-    ]
-    
-    return ScanDetailResponse(
-        id=scan.id,
-        repository_id=scan.repository_id,
-        status=scan.status,
-        started_at=scan.started_at.isoformat(),
-        completed_at=scan.completed_at.isoformat() if scan.completed_at else None,
-        total_files_scanned=scan.total_files_scanned,
-        scan_duration=scan.scan_duration,
-        total_vulnerabilities=scan.total_vulnerabilities,
-        critical_count=scan.critical_count,
-        high_count=scan.high_count,
-        medium_count=scan.medium_count,
-        low_count=scan.low_count,
-        security_score=scan.security_score,
-        code_coverage=scan.code_coverage,
-        error_message=scan.error_message,
-        vulnerabilities=vulnerability_responses,
-        scan_metadata=scan.scan_metadata
-    )
-
-
 @router.get("/repository/{repository_id}", response_model=List[ScanResponse])
 async def get_repository_scans(
     repository_id: int,
@@ -416,7 +477,8 @@ async def get_repository_scans(
             low_count=scan.low_count,
             security_score=scan.security_score,
             code_coverage=scan.code_coverage,
-            error_message=scan.error_message
+            error_message=scan.error_message,
+            scan_metadata=getattr(scan, 'scan_metadata', {}) or {}
         )
         for scan in scans
     ]
@@ -442,7 +504,7 @@ async def delete_scan(
         )
     
     # Don't allow deletion of running scans
-    if scan.status == "running":
+    if scan.status in ["running", "pending"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete a running scan"
@@ -452,3 +514,48 @@ async def delete_scan(
     db.commit()
     
     return {"message": "Scan deleted successfully"}
+
+
+@router.post("/{scan_id}/stop")
+async def stop_scan(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Stop a running scan"""
+    
+    scan = db.query(Scan).join(Repository).filter(
+        Scan.id == scan_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found"
+        )
+    
+    if scan.status not in ["running", "pending"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Scan is not currently running"
+        )
+    
+    # Update scan status to stopped
+    scan.status = "stopped"
+    scan.completed_at = datetime.utcnow()  # Now datetime is imported
+    scan.error_message = "Scan stopped by user"
+    
+    db.commit()
+    db.refresh(scan)
+    
+    return {"message": "Scan stopped successfully"}
+
+@router.get("/{scan_id}/details", response_model=ScanDetailedResponse)
+async def get_scan_details_legacy(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Legacy endpoint - redirect to detailed"""
+    return await get_detailed_scan_results(scan_id, current_user, db)
