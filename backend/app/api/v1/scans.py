@@ -273,6 +273,8 @@ async def get_scan_file_status(
     return file_status_list
 
 
+# Update the get_detailed_scan_results function in backend/app/api/v1/scans.py
+
 @router.get("/{scan_id}/detailed", response_model=ScanDetailedResponse)
 async def get_detailed_scan_results(
     scan_id: int,
@@ -293,15 +295,37 @@ async def get_detailed_scan_results(
             detail="Scan not found"
         )
     
-    # Get file results from scan metadata
+    # Get file results from scan metadata - FIXED
     file_results = []
     if scan.scan_metadata and "file_scan_results" in scan.scan_metadata:
-        file_results = scan.scan_metadata["file_scan_results"]
-        logger.info(f"Found {len(file_results)} file results in scan metadata")
+        metadata_file_results = scan.scan_metadata["file_scan_results"]
+        logger.info(f"Found {len(metadata_file_results)} file results in scan metadata")
+        
+        # Transform to proper format
+        for file_result in metadata_file_results:
+            # Get vulnerabilities for this file
+            file_vulnerabilities = []
+            if "vulnerabilities" in file_result and file_result["vulnerabilities"]:
+                file_vulnerabilities = file_result["vulnerabilities"]
+            
+            # Determine status based on scan results
+            status = file_result.get("status", "unknown")
+            if status == "scanned" and len(file_vulnerabilities) > 0:
+                status = "vulnerable"
+            elif status == "scanned" and len(file_vulnerabilities) == 0:
+                status = "scanned"  # Clean
+            
+            file_results.append(FileStatusResponse(
+                file_path=file_result.get("file_path", ""),
+                status=status,
+                reason=file_result.get("reason", ""),
+                vulnerability_count=len(file_vulnerabilities),
+                file_size=file_result.get("file_size")
+            ))
     else:
         logger.warning(f"No file scan results found in scan {scan_id} metadata")
     
-    # Get vulnerabilities
+    # Get vulnerabilities from database
     vulnerabilities = db.query(Vulnerability).filter(
         Vulnerability.scan_id == scan_id
     ).order_by(
@@ -310,18 +334,6 @@ async def get_detailed_scan_results(
     ).all()
     
     logger.info(f"Found {len(vulnerabilities)} vulnerabilities for scan {scan_id}")
-    
-    # Transform file results to response format
-    file_status_list = []
-    for file_result in file_results:
-        vulnerability_count = len(file_result.get("vulnerabilities", []))
-        file_status_list.append(FileStatusResponse(
-            file_path=file_result.get("file_path", ""),
-            status=file_result.get("status", "unknown"),
-            reason=file_result.get("reason", ""),
-            vulnerability_count=vulnerability_count,
-            file_size=file_result.get("file_size")
-        ))
     
     # Transform vulnerabilities
     vuln_list = []
@@ -367,11 +379,11 @@ async def get_detailed_scan_results(
         scan_metadata=getattr(scan, 'scan_metadata', {}) or {}
     )
     
-    logger.info(f"Returning scan details: {len(file_status_list)} files, {len(vuln_list)} vulnerabilities")
+    logger.info(f"Returning scan details: {len(file_results)} files, {len(vuln_list)} vulnerabilities")
     
     return ScanDetailedResponse(
         scan=scan_response,
-        file_results=file_status_list,
+        file_results=file_results,
         vulnerabilities=vuln_list
     )
 
@@ -559,3 +571,34 @@ async def get_scan_details_legacy(
 ):
     """Legacy endpoint - redirect to detailed"""
     return await get_detailed_scan_results(scan_id, current_user, db)
+
+
+@router.get("/{scan_id}/debug")
+async def debug_scan_metadata(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check scan metadata"""
+    
+    scan = db.query(Scan).join(Repository).filter(
+        Scan.id == scan_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not scan:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan not found"
+        )
+    
+    return {
+        "scan_id": scan.id,
+        "status": scan.status,
+        "total_files_scanned": scan.total_files_scanned,
+        "total_vulnerabilities": scan.total_vulnerabilities,
+        "scan_metadata_keys": list(scan.scan_metadata.keys()) if scan.scan_metadata else [],
+        "scan_metadata": scan.scan_metadata,
+        "has_file_scan_results": "file_scan_results" in (scan.scan_metadata or {}),
+        "file_scan_results_count": len(scan.scan_metadata.get("file_scan_results", [])) if scan.scan_metadata else 0
+    }

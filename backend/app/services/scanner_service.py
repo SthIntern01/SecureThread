@@ -45,6 +45,8 @@ class ScannerService:
         """Get current UTC datetime - consistent timezone handling"""
         return datetime.now(timezone.utc)
     
+    # Replace the entire start_repository_scan method in backend/app/services/scanner_service.py
+
     async def start_repository_scan(
         self, 
         repository_id: int, 
@@ -55,6 +57,18 @@ class ScannerService:
         Start a limited security scan of a repository
         """
         logger.info(f"🚀 Starting repository scan for repository {repository_id}")
+        
+        # Initialize variables early to prevent scope errors
+        scan_results = {
+            "vulnerabilities": [],
+            "files_scanned": 0,
+            "files_skipped": 0,
+            "vulnerable_files_count": 0,
+            "stop_reason": "initialization_failed",
+            "file_results": [],
+            "estimated_tokens_used": 0
+        }
+        scannable_files = []
         
         # Get repository
         repository = self.db.query(Repository).filter(Repository.id == repository_id).first()
@@ -142,7 +156,7 @@ class ScannerService:
             security_metrics = await self._calculate_security_metrics(
                 scan_results["vulnerabilities"], repository.full_name, scan_results
             )
-            
+
             # Update scan with final results - FIXED: Use consistent datetime
             current_time = self._get_utc_now()
             scan.status = "completed"
@@ -155,20 +169,24 @@ class ScannerService:
             scan.security_score = security_metrics.get('security_score', 0.0)
             scan.code_coverage = security_metrics.get('code_coverage', 0.0)
             
+            # CRITICAL: Ensure scan_metadata is initialized properly
+            if scan.scan_metadata is None:
+                scan.scan_metadata = {}
+            
             # Update scan metadata with detailed results
             scan.scan_metadata.update({
                 "files_scanned": scan_results["files_scanned"],
                 "files_skipped": scan_results["files_skipped"],
                 "vulnerable_files_found": scan_results["vulnerable_files_count"],
                 "scan_stopped_reason": scan_results["stop_reason"],
-                "file_scan_results": scan_results["file_results"],
+                "file_scan_results": scan_results["file_results"],  # CRITICAL: This must be saved
                 "scan_completed": True,
-                "scan_end_time": current_time.isoformat()
+                "scan_end_time": current_time.isoformat(),
+                "total_scannable_files": len(scannable_files)
             })
             
             # Calculate scan duration - FIXED: Handle timezone-aware datetimes
             if scan.started_at.tzinfo is None:
-                # If started_at is naive, make it UTC
                 start_time = scan.started_at.replace(tzinfo=timezone.utc)
             else:
                 start_time = scan.started_at
@@ -193,16 +211,19 @@ class ScannerService:
             scan.completed_at = current_time
             scan.error_message = str(e)
             
-            if scan.scan_metadata:
-                scan.scan_metadata["error"] = str(e)
-                scan.scan_metadata["scan_failed"] = True
-                scan.scan_metadata["scan_end_time"] = current_time.isoformat()
-            else:
-                scan.scan_metadata = {
-                    "error": str(e), 
-                    "scan_failed": True,
-                    "scan_end_time": current_time.isoformat()
-                }
+            # Initialize scan_metadata if it doesn't exist
+            if scan.scan_metadata is None:
+                scan.scan_metadata = {}
+            
+            scan.scan_metadata.update({
+                "error": str(e), 
+                "scan_failed": True,
+                "scan_end_time": current_time.isoformat(),
+                "files_scanned": scan_results.get("files_scanned", 0),
+                "files_skipped": scan_results.get("files_skipped", 0),
+                "total_scannable_files": len(scannable_files),
+                "failure_stage": "scan_execution"
+            })
             
             # Calculate duration even for failed scans
             if scan.started_at.tzinfo is None:
@@ -363,39 +384,47 @@ class ScannerService:
         file_path = file_info['path']
         
         try:
+            logger.info(f"🔍 Starting scan of file: {file_path}")
+            
             # Get file content
             file_content_data = self.github_service.get_file_content(
                 github_access_token, repo_full_name, file_path
             )
             
             if not file_content_data or file_content_data.get('is_binary'):
-                return {
+                result = {
                     "file_path": file_path,
                     "status": "skipped",
                     "reason": "Binary file or content not available",
                     "vulnerabilities": [],
                     "file_size": file_info.get('size', 0)
                 }
+                logger.info(f"⏭️ Skipped {file_path}: Binary or unavailable")
+                return result
             
             file_content = file_content_data.get('content', '')
             if not file_content:
-                return {
+                result = {
                     "file_path": file_path,
                     "status": "skipped",
                     "reason": "Empty file",
                     "vulnerabilities": [],
                     "file_size": file_info.get('size', 0)
                 }
+                logger.info(f"⏭️ Skipped {file_path}: Empty file")
+                return result
             
             # Check if file content is too large for LLM
             if len(file_content) > 20000:  # Limit to ~20K characters
-                return {
+                result = {
                     "file_path": file_path,
                     "status": "skipped",
                     "reason": "File too large for analysis",
                     "vulnerabilities": [],
                     "file_size": len(file_content)
                 }
+                logger.info(f"⏭️ Skipped {file_path}: Too large ({len(file_content)} chars)")
+                return result
             
             # Determine file extension
             file_extension = '.' + file_path.split('.')[-1] if '.' in file_path else ''
@@ -406,16 +435,17 @@ class ScannerService:
                 file_content, file_path, file_extension
             )
             
-            status = "scanned"
-            reason = f"No vulnerabilities found"
-            if vulnerabilities:
+            # Determine final status and reason
+            if vulnerabilities and len(vulnerabilities) > 0:
                 status = "vulnerable"
                 reason = f"Found {len(vulnerabilities)} vulnerabilities"
-                logger.info(f"⚠️ LLM found {len(vulnerabilities)} vulnerabilities in {file_path}")
+                logger.info(f"🚨 {file_path}: Found {len(vulnerabilities)} vulnerabilities!")
             else:
-                logger.info(f"✅ LLM found no vulnerabilities in {file_path}")
+                status = "scanned"
+                reason = "No vulnerabilities found"
+                logger.info(f"✅ {file_path}: Clean scan, no vulnerabilities")
             
-            return {
+            result = {
                 "file_path": file_path,
                 "status": status,
                 "reason": reason,
@@ -423,15 +453,19 @@ class ScannerService:
                 "file_size": len(file_content)
             }
             
+            logger.info(f"📋 Completed scan of {file_path}: {status} with {len(vulnerabilities)} vulns")
+            return result
+            
         except Exception as e:
             logger.error(f"❌ Error scanning file {file_path}: {e}")
-            return {
+            result = {
                 "file_path": file_path,
                 "status": "error",
-                "reason": str(e),
+                "reason": f"Scan error: {str(e)}",
                 "vulnerabilities": [],
                 "file_size": file_info.get('size', 0)
             }
+            return result
     
     async def _get_repository_files(
         self, 
