@@ -275,6 +275,10 @@ async def get_scan_file_status(
 
 # Update the get_detailed_scan_results function in backend/app/api/v1/scans.py
 
+# Update for backend/app/api/v1/scans.py - Ensure detailed endpoint works correctly
+
+# Update for backend/app/api/v1/scans.py - Ensure detailed endpoint works correctly
+
 @router.get("/{scan_id}/detailed", response_model=ScanDetailedResponse)
 async def get_detailed_scan_results(
     scan_id: int,
@@ -295,7 +299,7 @@ async def get_detailed_scan_results(
             detail="Scan not found"
         )
     
-    # Get file results from scan metadata - FIXED
+    # Get file results from scan metadata
     file_results = []
     if scan.scan_metadata and "file_scan_results" in scan.scan_metadata:
         metadata_file_results = scan.scan_metadata["file_scan_results"]
@@ -303,24 +307,48 @@ async def get_detailed_scan_results(
         
         # Transform to proper format
         for file_result in metadata_file_results:
-            # Get vulnerabilities for this file
-            file_vulnerabilities = []
-            if "vulnerabilities" in file_result and file_result["vulnerabilities"]:
-                file_vulnerabilities = file_result["vulnerabilities"]
+            # Get vulnerabilities for this file from the database
+            file_vulnerabilities_from_db = db.query(Vulnerability).filter(
+                Vulnerability.scan_id == scan_id,
+                Vulnerability.file_path == file_result.get("file_path", "")
+            ).all()
             
-            # Determine status based on scan results
+            # Convert to list of dicts for JSON response
+            file_vulnerabilities = []
+            for vuln in file_vulnerabilities_from_db:
+                file_vulnerabilities.append({
+                    "id": vuln.id,
+                    "title": vuln.title,
+                    "description": vuln.description,
+                    "severity": vuln.severity,
+                    "category": vuln.category,
+                    "line_number": vuln.line_number,
+                    "code_snippet": vuln.code_snippet,
+                    "recommendation": vuln.recommendation,
+                    "risk_score": vuln.risk_score
+                })
+            
+            # Determine final status
             status = file_result.get("status", "unknown")
+            reason = file_result.get("reason", "")
+            
+            # Adjust status based on vulnerabilities found
             if status == "scanned" and len(file_vulnerabilities) > 0:
                 status = "vulnerable"
+                reason = f"Found {len(file_vulnerabilities)} vulnerabilities"
             elif status == "scanned" and len(file_vulnerabilities) == 0:
-                status = "scanned"  # Clean
+                reason = "Scan OK - no vulnerabilities found"
+            elif status == "skipped":
+                reason = "Did not scan due to API constraints"
+            elif status == "error":
+                reason = "Scan Failed"
             
             file_results.append(FileStatusResponse(
                 file_path=file_result.get("file_path", ""),
                 status=status,
-                reason=file_result.get("reason", ""),
+                reason=reason,
                 vulnerability_count=len(file_vulnerabilities),
-                file_size=file_result.get("file_size")
+                file_size=file_result.get("file_size", 0)  # Ensure we have a default value
             ))
     else:
         logger.warning(f"No file scan results found in scan {scan_id} metadata")

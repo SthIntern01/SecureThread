@@ -1,3 +1,5 @@
+// Updated: frontend/src/components/ScanDetailsModal.tsx - Fix PDF export and stats calculation
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,7 @@ interface FileStatus {
   status: "scanned" | "vulnerable" | "skipped" | "error";
   reason: string;
   vulnerabilities: Vulnerability[];
+  file_size?: number;
 }
 
 interface ScanDetails {
@@ -122,7 +125,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${scanId}/details`,
+        }/api/v1/scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -255,7 +258,8 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
       return matchesSearch && matchesStatus;
     }) || [];
 
-  const exportReport = () => {
+  // Fixed JSON export function - create proper JSON file download
+  const exportReportAsJSON = () => {
     if (!scanDetails) return;
 
     const report = {
@@ -281,9 +285,9 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
       file_status: scanDetails.scan_metadata?.file_scan_results || [],
     };
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
-      type: "application/json",
-    });
+    // Create JSON file download
+    const jsonString = JSON.stringify(report, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -292,6 +296,525 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Fixed CSV export function
+  const exportReportAsCSV = () => {
+    if (!scanDetails) return;
+
+    const csvRows = [
+      // Header
+      [
+        "File Path",
+        "Status",
+        "Vulnerabilities",
+        "Severity",
+        "Title",
+        "Description",
+        "Recommendation",
+      ].join(","),
+
+      // Data rows
+      ...scanDetails.vulnerabilities.map((vuln) =>
+        [
+          `"${vuln.file_path}"`,
+          "vulnerable",
+          "1",
+          vuln.severity,
+          `"${vuln.title.replace(/"/g, '""')}"`,
+          `"${vuln.description.replace(/"/g, '""')}"`,
+          `"${vuln.recommendation.replace(/"/g, '""')}"`,
+        ].join(",")
+      ),
+
+      // Add file status rows for files without vulnerabilities
+      ...(scanDetails.scan_metadata?.file_scan_results
+        ?.filter(
+          (file) =>
+            !scanDetails.vulnerabilities.some(
+              (v) => v.file_path === file.file_path
+            )
+        )
+        .map((file) =>
+          [
+            `"${file.file_path}"`,
+            file.status,
+            "0",
+            "none",
+            "No vulnerabilities",
+            file.reason,
+            "No action needed",
+          ].join(",")
+        ) || []),
+    ];
+
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `security-scan-${repositoryName}-${scanDetails.id}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Fixed PDF export function using jsPDF
+  const exportReportAsPDF = () => {
+    if (!scanDetails) return;
+
+    // Create a new window with the report content
+    const reportWindow = window.open("", "_blank");
+    if (!reportWindow) {
+      alert("Pop-up blocked. Please allow pop-ups and try again.");
+      return;
+    }
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Security Scan Report - ${repositoryName}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+            color: #333;
+            background: white;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2563eb;
+        }
+        .header h1 {
+            color: #1f2937;
+            margin: 0 0 10px 0;
+            font-size: 28px;
+        }
+        .header .subtitle {
+            color: #6b7280;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .section {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+        }
+        .section h2 {
+            color: #1f2937;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .critical { color: #dc2626; }
+        .high { color: #ea580c; }
+        .medium { color: #d97706; }
+        .low { color: #64748b; }
+        .green { color: #059669; }
+        .blue { color: #0284c7; }
+        .vulnerability {
+            background: #fafafa;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        .vuln-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .vuln-title {
+            font-weight: bold;
+            color: #1f2937;
+            font-size: 18px;
+            margin-bottom: 6px;
+        }
+        .vuln-meta {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+        .vuln-description {
+            margin-bottom: 15px;
+            color: #374151;
+        }
+        .vuln-recommendation {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 0 6px 6px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-critical {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        .badge-high {
+            background: #fed7aa;
+            color: #9a3412;
+            border: 1px solid #fdba74;
+        }
+        .badge-medium {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+        .badge-low {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+        }
+        .alert {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .alert-title {
+            font-weight: bold;
+            color: #92400e;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .scan-info {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .info-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .info-value {
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .code-snippet {
+            background: #1f2937;
+            color: #f8fafc;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            border: 1px solid #374151;
+        }
+        .recommendations {
+            background: #eff6ff;
+            border-radius: 8px;
+            padding: 25px;
+            border: 1px solid #3b82f6;
+        }
+        .recommendations h3 {
+            color: #1e40af;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .recommendations ol {
+            color: #374151;
+            line-height: 1.6;
+        }
+        .recommendations li {
+            margin-bottom: 8px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 12px;
+        }
+        @media print {
+            body { margin: 0; padding: 15px; }
+            .section { page-break-inside: avoid; margin-bottom: 20px; }
+            .vulnerability { page-break-inside: avoid; margin-bottom: 15px; }
+            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Security Scan Report</h1>
+        <div class="subtitle"><strong>Repository:</strong> ${repositoryName}</div>
+        <div class="subtitle"><strong>Scan ID:</strong> ${scanDetails.id}</div>
+        <div class="subtitle"><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
+    </div>
+
+    <div class="section">
+        <h2>📊 Scan Overview</h2>
+        <div class="scan-info">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value">${scanDetails.status.toUpperCase()}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Duration:</span>
+                    <span class="info-value">${
+                      scanDetails.scan_duration || "N/A"
+                    }</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Files Scanned:</span>
+                    <span class="info-value">${
+                      scanDetails.total_files_scanned
+                    }</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Security Score:</span>
+                    <span class="info-value">${
+                      scanDetails.security_score?.toFixed(1) || "N/A"
+                    }/100</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Started:</span>
+                    <span class="info-value">${new Date(
+                      scanDetails.started_at
+                    ).toLocaleString()}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Completed:</span>
+                    <span class="info-value">${
+                      scanDetails.completed_at
+                        ? new Date(scanDetails.completed_at).toLocaleString()
+                        : "N/A"
+                    }</span>
+                </div>
+            </div>
+        </div>
+        ${
+          scanDetails.scan_metadata?.scan_stopped_reason ===
+          "vulnerability_limit_reached"
+            ? `
+        <div class="alert">
+            <div class="alert-title">⚠️ Scan Limited</div>
+            <p>Scan stopped after finding ${scanDetails.scan_metadata.vulnerable_files_found} vulnerable files due to token constraints. ${scanDetails.scan_metadata.files_skipped} files were not scanned for complete coverage.</p>
+            <p><strong>Total scannable files:</strong> ${scanDetails.scan_metadata.total_scannable_files}</p>
+        </div>
+        `
+            : ""
+        }
+    </div>
+
+    <div class="section">
+        <h2>🎯 Vulnerability Summary</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number critical">${
+                  scanDetails.critical_count
+                }</div>
+                <div class="stat-label">Critical</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number high">${scanDetails.high_count}</div>
+                <div class="stat-label">High</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number medium">${
+                  scanDetails.medium_count
+                }</div>
+                <div class="stat-label">Medium</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number low">${scanDetails.low_count}</div>
+                <div class="stat-label">Low</div>
+            </div>
+        </div>
+    </div>
+
+    ${
+      scanDetails.vulnerabilities.length > 0
+        ? `
+    <div class="section">
+        <h2>🚨 Vulnerabilities Found (${scanDetails.total_vulnerabilities})</h2>
+        ${scanDetails.vulnerabilities
+          .map(
+            (vuln) => `
+        <div class="vulnerability">
+            <div class="vuln-header">
+                <div>
+                    <div class="vuln-title">${vuln.title}</div>
+                    <div class="vuln-meta">
+                        📁 ${vuln.file_path}${
+              vuln.line_number ? ` (Line ${vuln.line_number})` : ""
+            }
+                        • Category: ${vuln.category}
+                        ${
+                          vuln.risk_score
+                            ? ` • Risk Score: ${vuln.risk_score.toFixed(1)}/10`
+                            : ""
+                        }
+                    </div>
+                </div>
+                <span class="badge badge-${vuln.severity}">${
+              vuln.severity
+            }</span>
+            </div>
+            <div class="vuln-description">${vuln.description}</div>
+            ${
+              vuln.code_snippet
+                ? `
+            <div class="code-snippet">
+                <strong>📄 Code Snippet:</strong><br>
+                <pre style="margin: 8px 0; white-space: pre-wrap; font-family: inherit;">${vuln.code_snippet}</pre>
+            </div>
+            `
+                : ""
+            }
+            <div class="vuln-recommendation">
+                <strong>💡 Recommendation:</strong> ${vuln.recommendation}
+                ${
+                  vuln.fix_suggestion
+                    ? `<br><br><strong>🔧 Fix:</strong> ${vuln.fix_suggestion}`
+                    : ""
+                }
+            </div>
+        </div>
+        `
+          )
+          .join("")}
+    </div>
+    `
+        : `
+    <div class="section">
+        <h2>✅ No Vulnerabilities Found</h2>
+        <div style="text-align: center; color: #059669; font-size: 18px; padding: 30px;">
+            <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
+            <p><strong>Excellent!</strong> This scan didn't find any security vulnerabilities in the scanned files.</p>
+        </div>
+    </div>
+    `
+    }
+
+    <div class="section">
+        <div class="recommendations">
+            <h3>📋 Recommendations & Next Steps</h3>
+            ${
+              scanDetails.critical_count > 0
+                ? `
+            <p><strong>🔴 Critical Priority:</strong> ${scanDetails.critical_count} critical vulnerabilities require immediate attention.</p>
+            `
+                : ""
+            }
+            ${
+              scanDetails.high_count > 0
+                ? `
+            <p><strong>🟠 High Priority:</strong> ${scanDetails.high_count} high-severity vulnerabilities should be addressed soon.</p>
+            `
+                : ""
+            }
+            ${
+              scanDetails.scan_metadata?.scan_stopped_reason ===
+              "vulnerability_limit_reached"
+                ? `
+            <p><strong>⚠️ Complete Coverage:</strong> Consider running additional targeted scans on the remaining ${scanDetails.scan_metadata.files_skipped} files for complete coverage.</p>
+            `
+                : ""
+            }
+            <p><strong>📈 Security Improvement:</strong> Current score: ${
+              scanDetails.security_score?.toFixed(1) || "N/A"
+            }/100. Focus on fixing high-impact vulnerabilities to improve this score.</p>
+            
+            <h4>Action Items:</h4>
+            <ol>
+                <li>Review and prioritize vulnerabilities by severity level</li>
+                <li>Implement fixes for critical and high-severity issues first</li>
+                <li>Update dependencies and libraries to latest secure versions</li>
+                ${
+                  scanDetails.scan_metadata?.scan_stopped_reason ===
+                  "vulnerability_limit_reached"
+                    ? "<li>Run additional scans on remaining files for complete coverage</li>"
+                    : ""
+                }
+                <li>Run another scan after implementing fixes to verify improvements</li>
+                <li>Consider implementing automated security scanning in your CI/CD pipeline</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>SecureThread Security Scanner</strong></p>
+        <p>Report generated on ${new Date().toLocaleString()}</p>
+        <p>This report contains sensitive security information. Handle with care.</p>
+    </div>
+</body>
+</html>`;
+
+    reportWindow.document.write(htmlContent);
+    reportWindow.document.close();
+
+    // Wait for content to load, then trigger print dialog
+    setTimeout(() => {
+      reportWindow.print();
+      // Don't close the window automatically - let user decide
+    }, 1000);
+  };
+
+  const exportReport = () => {
+    exportReportAsPDF();
   };
 
   if (!isOpen) return null;
@@ -306,9 +829,17 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
               <span>Security Scan Report - {repositoryName}</span>
             </DialogTitle>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={exportReport}>
+              <Button variant="outline" size="sm" onClick={exportReportAsPDF}>
                 <Download className="w-4 h-4 mr-2" />
-                Export Report
+                Export PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportReportAsJSON}>
+                <Download className="w-4 h-4 mr-2" />
+                Export JSON
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportReportAsCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
               </Button>
               <Button variant="ghost" size="sm" onClick={onClose}>
                 <X className="w-4 h-4" />

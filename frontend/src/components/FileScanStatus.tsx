@@ -1,4 +1,4 @@
-// Create: frontend/src/components/FileScanStatus.tsx
+// Updated: frontend/src/components/FileScanStatus.tsx - Fix API endpoint and data structure
 
 import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -95,8 +95,6 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     }
   }, [isOpen, scanId]);
 
-  // Replace the entire fetchScanResults function in frontend/src/components/FileScanStatus.tsx
-
   const fetchScanResults = async () => {
     if (!scanId) return;
 
@@ -106,8 +104,8 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     try {
       const token = localStorage.getItem("access_token");
 
-      // Try the detailed endpoint first
-      let response = await fetch(
+      // Use the detailed endpoint to get both file results and vulnerabilities
+      const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
         }/api/v1/scans/${scanId}/detailed`,
@@ -121,22 +119,21 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Detailed scan data:", data); // Debug log
+        console.log("Detailed scan data:", data);
 
-        // Handle the response format from the detailed endpoint
+        // Set vulnerabilities
+        setVulnerabilities(data.vulnerabilities || []);
+
+        // Extract file results from the response
+        let extractedFileResults: FileStatus[] = [];
+
         if (data.file_results && Array.isArray(data.file_results)) {
           // Direct file_results array
-          setFileResults(data.file_results);
-          setVulnerabilities(data.vulnerabilities || []);
-          console.log(`✅ Found ${data.file_results.length} file results`);
-        } else if (
-          data.scan &&
-          data.scan.scan_metadata &&
-          data.scan.scan_metadata.file_scan_results
-        ) {
-          // Nested in scan.scan_metadata format
-          const metadataFileResults = data.scan.scan_metadata.file_scan_results;
-          const transformedResults = metadataFileResults.map((file: any) => ({
+          extractedFileResults = data.file_results;
+        } else if (data.scan?.scan_metadata?.file_scan_results) {
+          // From scan metadata
+          const metadataResults = data.scan.scan_metadata.file_scan_results;
+          extractedFileResults = metadataResults.map((file: any) => ({
             file_path: file.file_path,
             status: file.status,
             reason: file.reason,
@@ -145,84 +142,38 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
               : 0,
             file_size: file.file_size,
           }));
-          setFileResults(transformedResults);
-          setVulnerabilities(data.vulnerabilities || []);
-          console.log(
-            `✅ Found ${transformedResults.length} file results from metadata`
-          );
-        } else {
-          // Fallback: try to get file status from basic scan endpoint
-          console.log("No file_results found, trying basic scan endpoint...");
-          const basicResponse = await fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:8000"
-            }/api/v1/scans/${scanId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          if (basicResponse.ok) {
-            const basicData = await basicResponse.json();
-            console.log("Basic scan data:", basicData);
-
-            if (
-              basicData.scan_metadata &&
-              basicData.scan_metadata.file_scan_results
-            ) {
-              const metadataResults = basicData.scan_metadata.file_scan_results;
-              const transformedResults = metadataResults.map((file: any) => ({
-                file_path: file.file_path,
-                status: file.status,
-                reason: file.reason,
-                vulnerability_count: file.vulnerabilities
-                  ? file.vulnerabilities.length
-                  : 0,
-                file_size: file.file_size,
-              }));
-              setFileResults(transformedResults);
-              console.log(
-                `✅ Found ${transformedResults.length} file results from basic endpoint`
-              );
-            } else {
-              console.log(
-                "❌ No file scan results found in basic endpoint either"
-              );
-              setFileResults([]);
-            }
-
-            // Get vulnerabilities separately if not already loaded
-            if (!data.vulnerabilities) {
-              const vulnResponse = await fetch(
-                `${
-                  import.meta.env.VITE_API_URL || "http://localhost:8000"
-                }/api/v1/scans/${scanId}/vulnerabilities`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                  },
-                }
-              );
-
-              if (vulnResponse.ok) {
-                const vulnData = await vulnResponse.json();
-                setVulnerabilities(vulnData || []);
-                console.log(
-                  `✅ Found ${vulnData?.length || 0} vulnerabilities`
-                );
-              }
-            }
-          } else {
-            setError(`Failed to fetch scan results (${response.status})`);
-          }
         }
+
+        // If we still don't have file results, try to construct them from vulnerabilities
+        if (
+          extractedFileResults.length === 0 &&
+          data.vulnerabilities?.length > 0
+        ) {
+          const filePathsWithVulns = new Set(
+            data.vulnerabilities.map((v: Vulnerability) => v.file_path)
+          );
+
+          extractedFileResults = Array.from(filePathsWithVulns).map(
+            (filePath) => ({
+              file_path: filePath,
+              status: "vulnerable" as const,
+              reason: "Vulnerabilities detected in this file",
+              vulnerability_count: data.vulnerabilities.filter(
+                (v: Vulnerability) => v.file_path === filePath
+              ).length,
+              file_size: undefined,
+            })
+          );
+        }
+
+        console.log(`Found ${extractedFileResults.length} file results`);
+        setFileResults(extractedFileResults);
       } else {
-        setError(`Failed to fetch scan results (${response.status})`);
-        console.error("API Error:", response.status, response.statusText);
+        const errorText = await response.text();
+        setError(
+          `Failed to fetch scan results: ${response.status} ${response.statusText}`
+        );
+        console.error("API Error:", errorText);
       }
     } catch (error) {
       console.error("Error fetching scan results:", error);
@@ -259,26 +210,26 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     switch (status) {
       case "scanned":
         if (vulnerabilityCount === 0) {
-          return { text: "OK", color: "text-green-500 font-semibold" };
+          return { text: "Scan OK", color: "text-green-500 font-semibold" };
         } else {
           return {
-            text: `${vulnerabilityCount} vulnerabilities found`,
-            color: "text-orange-600 font-medium",
+            text: "Vulnerabilities Found",
+            color: "text-red-600 font-medium",
           };
         }
       case "vulnerable":
         return {
-          text: "Vulnerabilities found in this file",
+          text: "Vulnerabilities Found",
           color: "text-red-500 font-semibold",
         };
       case "skipped":
         return {
-          text: "Not scanned due to constraint limits",
+          text: "Did not scan due to API constraints",
           color: "text-gray-500",
         };
       case "error":
         return {
-          text: `Error: ${reason}`,
+          text: "Scan Failed",
           color: "text-red-500",
         };
       default:
@@ -313,7 +264,7 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
       );
     } else if (status === "error") {
       return (
-        <Badge className="bg-red-100 text-red-800 border-red-200">Error</Badge>
+        <Badge className="bg-red-100 text-red-800 border-red-200">Failed</Badge>
       );
     }
     return (
@@ -390,6 +341,11 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
     errors: fileResults.filter((f) => f.status === "error").length,
   };
 
+  // Calculate clean files correctly (scanned files without vulnerabilities)
+  const cleanFiles = fileResults.filter(
+    (f) => f.status === "scanned" && f.vulnerability_count === 0
+  ).length;
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -434,7 +390,7 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
                   <Card>
                     <CardContent className="p-3">
                       <div className="text-2xl font-bold text-green-600">
-                        {stats.scanned - stats.vulnerable}
+                        {cleanFiles}
                       </div>
                       <div className="text-sm text-gray-600">Clean</div>
                     </CardContent>
@@ -564,7 +520,7 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
                               <TableCell className="text-sm text-gray-600">
                                 {file.file_size
                                   ? `${(file.file_size / 1024).toFixed(1)} KB`
-                                  : "N/A"}
+                                  : "Unknown"}
                               </TableCell>
                               <TableCell>
                                 {file.vulnerability_count > 0 && (

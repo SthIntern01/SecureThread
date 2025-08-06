@@ -1204,17 +1204,16 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                     </p>
                   </div>
                 ) : (
-                  // Replace the file list section in frontend/src/components/RepositoryDetails.tsx
-
                   <div className="divide-y divide-gray-100">
                     {sortedContents.map((item, index) => {
                       const fileVulns = getVulnerabilityForFile(item.path);
                       const hasVulns = fileVulns.length > 0;
                       const fileStatus = fileStatuses[item.path];
 
-                      // Determine status message and color
+                      // Determine status message and color for files only
                       let statusMessage = "";
                       let statusColor = "";
+                      let statusBadge = null;
 
                       if (
                         item.type === "file" &&
@@ -1228,36 +1227,77 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 ? `${fileVulns.length} vulnerabilities found`
                                 : "Vulnerabilities detected";
                               statusColor = "text-red-600";
+                              statusBadge = (
+                                <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                  Vulnerabilities Found
+                                </Badge>
+                              );
                               break;
                             case "scanned":
-                              statusMessage = hasVulns
-                                ? `${fileVulns.length} vulnerabilities found`
-                                : "Scan OK";
-                              statusColor = hasVulns
-                                ? "text-red-600"
-                                : "text-green-600";
+                              if (hasVulns) {
+                                statusMessage = `${fileVulns.length} vulnerabilities found`;
+                                statusColor = "text-red-600";
+                                statusBadge = (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                    Vulnerabilities Found
+                                  </Badge>
+                                );
+                              } else {
+                                statusMessage = "Scan OK";
+                                statusColor = "text-green-600";
+                                statusBadge = (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                    Scan OK
+                                  </Badge>
+                                );
+                              }
                               break;
                             case "skipped":
                               statusMessage =
-                                "Not scanned due to API constraints";
+                                "Did not scan due to API constraints";
                               statusColor = "text-gray-600";
+                              statusBadge = (
+                                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                  Did not scan due to API constraints
+                                </Badge>
+                              );
                               break;
                             case "error":
-                              statusMessage = "Scan error occurred";
-                              statusColor = "text-orange-600";
+                              statusMessage = "Scan Failed";
+                              statusColor = "text-red-600";
+                              statusBadge = (
+                                <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                  Scan Failed
+                                </Badge>
+                              );
                               break;
                             default:
                               statusMessage = "Status unknown";
                               statusColor = "text-gray-600";
+                              statusBadge = (
+                                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                  Status unknown
+                                </Badge>
+                              );
                           }
                         } else if (hasVulns) {
                           // Legacy: we have vulnerabilities but no file status
                           statusMessage = `${fileVulns.length} vulnerabilities found`;
                           statusColor = "text-red-600";
+                          statusBadge = (
+                            <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                              Vulnerabilities Found
+                            </Badge>
+                          );
                         } else {
                           // No scan data and no vulnerabilities
-                          statusMessage = "Not scanned due to API constraints";
+                          statusMessage = "Did not scan due to API constraints";
                           statusColor = "text-gray-600";
+                          statusBadge = (
+                            <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                              Did not scan due to API constraints
+                            </Badge>
+                          );
                         }
                       }
 
@@ -1271,9 +1311,9 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                               handleFileClick(item);
                             }
                           }}
-                          className={`p-4 hover:bg-gray-50 transition-colors ${
+                          className={`p-4 transition-colors ${
                             item.type === "dir" || isViewableFile(item.name)
-                              ? "cursor-pointer"
+                              ? "cursor-pointer hover:bg-gray-50"
                               : "cursor-default"
                           } ${
                             hasVulns || fileStatus?.status === "vulnerable"
@@ -1282,6 +1322,8 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                               ? "bg-green-50 border-l-4 border-green-400"
                               : fileStatus?.status === "skipped"
                               ? "bg-gray-50 border-l-4 border-gray-400"
+                              : fileStatus?.status === "error"
+                              ? "bg-red-50 border-l-4 border-red-400"
                               : ""
                           }`}
                         >
@@ -1292,43 +1334,22 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 <div className="font-medium text-brand-black flex items-center space-x-2">
                                   <span>{item.name}</span>
 
-                                  {/* Show vulnerability badges */}
+                                  {/* Show scan status badge for files */}
+                                  {item.type === "file" &&
+                                    project.latest_scan?.status ===
+                                      "completed" &&
+                                    statusBadge}
+
+                                  {/* Show vulnerability count badge if there are vulnerabilities */}
                                   {hasVulns && (
                                     <Badge
                                       variant="destructive"
-                                      className="text-xs"
+                                      className="text-xs ml-2"
                                     >
                                       {fileVulns.length}{" "}
                                       {fileVulns.length === 1
                                         ? "issue"
                                         : "issues"}
-                                    </Badge>
-                                  )}
-
-                                  {/* Show scan status badges */}
-                                  {fileStatus && (
-                                    <Badge
-                                      className={`text-xs ${
-                                        fileStatus.status === "vulnerable"
-                                          ? "bg-red-100 text-red-800"
-                                          : fileStatus.status === "scanned"
-                                          ? hasVulns
-                                            ? "bg-red-100 text-red-800"
-                                            : "bg-green-100 text-green-800"
-                                          : fileStatus.status === "skipped"
-                                          ? "bg-gray-100 text-gray-800"
-                                          : "bg-orange-100 text-orange-800"
-                                      }`}
-                                    >
-                                      {fileStatus.status === "scanned" &&
-                                      !hasVulns
-                                        ? "Clean"
-                                        : fileStatus.status === "scanned" &&
-                                          hasVulns
-                                        ? "Vulnerable"
-                                        : fileStatus.status === "skipped"
-                                        ? "Skipped"
-                                        : fileStatus.status}
                                     </Badge>
                                   )}
                                 </div>
@@ -1340,26 +1361,29 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                   </div>
                                 )}
 
-                                {/* Status message */}
-                                {statusMessage && (
-                                  <div
-                                    className={`text-sm font-medium ${statusColor} mt-1`}
-                                  >
-                                    {statusMessage}
-                                  </div>
-                                )}
+                                {/* Status message for files */}
+                                {item.type === "file" &&
+                                  project.latest_scan?.status === "completed" &&
+                                  statusMessage && (
+                                    <div
+                                      className={`text-sm font-medium ${statusColor} mt-1`}
+                                    >
+                                      {statusMessage}
+                                    </div>
+                                  )}
 
                                 {/* Show scan status reason if available */}
                                 {fileStatus &&
                                   fileStatus.reason &&
-                                  fileStatus.status !== "scanned" && (
+                                  fileStatus.status !== "scanned" &&
+                                  item.type === "file" && (
                                     <div className="text-xs text-brand-gray mt-1">
-                                      {fileStatus.reason}
+                                      Reason: {fileStatus.reason}
                                     </div>
                                   )}
 
                                 {/* Show vulnerability details if present */}
-                                {hasVulns && (
+                                {hasVulns && item.type === "file" && (
                                   <div className="text-xs text-red-600 mt-1">
                                     {fileVulns.filter(
                                       (v) => v.severity === "critical"
