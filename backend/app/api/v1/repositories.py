@@ -9,6 +9,7 @@ from app.services.github_service import GitHubService
 from app.models.vulnerability import Scan
 from pydantic import BaseModel
 import logging
+from datetime import datetime
 
 router = APIRouter()
 
@@ -159,21 +160,21 @@ async def get_user_repositories(
             "language": repo.language,
             "is_private": repo.is_private,
             "is_fork": repo.is_fork,
-            "created_at": repo.created_at,
-            "updated_at": repo.updated_at,
+            "created_at": repo.created_at.isoformat() if repo.created_at else None,
+            "updated_at": repo.updated_at.isoformat() if repo.updated_at else None,
             # Add scan information
             "latest_scan": None,
             "vulnerabilities": None,
             "security_score": None,
             "code_coverage": None
         }
-        
+
         if latest_scan:
             repo_data.update({
                 "latest_scan": {
                     "id": latest_scan.id,
                     "status": latest_scan.status,
-                    "started_at": latest_scan.started_at.isoformat(),
+                    "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
                     "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
                     "scan_duration": latest_scan.scan_duration
                 },

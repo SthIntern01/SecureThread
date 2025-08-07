@@ -1,4 +1,4 @@
-// Create this file: frontend/src/pages/RepositoryDetails.tsx
+// frontend/src/pages/RepositoryDetails.tsx
 
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -22,6 +22,7 @@ interface Project {
   status: "active" | "scanning" | "failed" | "completed" | "pending";
   lastScan: string | null;
   vulnerabilities: {
+    total: number;
     critical: number;
     high: number;
     medium: number;
@@ -33,6 +34,15 @@ interface Project {
   scanDuration: string | null;
   created_at: string;
   updated_at: string;
+  latest_scan?: {
+    id: number;
+    status: string;
+    started_at: string;
+    completed_at?: string;
+    scan_duration?: string;
+  } | null;
+  security_score?: number | null;
+  code_coverage?: number | null;
 }
 
 const RepositoryDetailsPage: React.FC = () => {
@@ -53,10 +63,12 @@ const RepositoryDetailsPage: React.FC = () => {
     setError("");
     try {
       const token = localStorage.getItem("access_token");
+
+      // Fetch repository details from the repositories endpoint that includes latest scan
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/repositories/${id}`,
+        }/api/v1/repositories/`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -66,7 +78,15 @@ const RepositoryDetailsPage: React.FC = () => {
       );
 
       if (response.ok) {
-        const repository = await response.json();
+        const data = await response.json();
+        const repository = data.repositories?.find(
+          (repo: any) => repo.id === id
+        );
+
+        if (!repository) {
+          setError("Project not found");
+          return;
+        }
 
         const transformedProject: Project = {
           id: repository.id,
@@ -83,15 +103,35 @@ const RepositoryDetailsPage: React.FC = () => {
           owner: repository.full_name.split("/")[0],
           repository: repository.name,
           source: "github" as const,
-          status: "pending" as const,
-          lastScan: null,
-          vulnerabilities: null,
-          coverage: null,
+          status:
+            repository.latest_scan?.status === "running"
+              ? ("scanning" as const)
+              : repository.latest_scan?.status === "completed"
+              ? ("completed" as const)
+              : repository.latest_scan?.status === "failed"
+              ? ("failed" as const)
+              : ("pending" as const),
+          lastScan: repository.latest_scan?.completed_at
+            ? new Date(repository.latest_scan.completed_at).toLocaleDateString()
+            : null,
+          vulnerabilities: repository.vulnerabilities
+            ? {
+                total: repository.vulnerabilities.total,
+                critical: repository.vulnerabilities.critical,
+                high: repository.vulnerabilities.high,
+                medium: repository.vulnerabilities.medium,
+                low: repository.vulnerabilities.low,
+              }
+            : null,
+          coverage: repository.code_coverage,
           isStarred: false,
           branch: repository.default_branch || "main",
-          scanDuration: null,
+          scanDuration: repository.latest_scan?.scan_duration,
           created_at: repository.created_at,
           updated_at: repository.updated_at,
+          latest_scan: repository.latest_scan,
+          security_score: repository.security_score,
+          code_coverage: repository.code_coverage,
         };
 
         setProject(transformedProject);

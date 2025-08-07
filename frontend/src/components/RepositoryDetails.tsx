@@ -70,6 +70,7 @@ interface Project {
   status: "active" | "scanning" | "failed" | "completed" | "pending";
   lastScan: string | null;
   vulnerabilities: {
+    total: number;
     critical: number;
     high: number;
     medium: number;
@@ -81,6 +82,15 @@ interface Project {
   scanDuration: string | null;
   created_at: string;
   updated_at: string;
+  latest_scan?: {
+    id: number;
+    status: string;
+    started_at: string;
+    completed_at?: string;
+    scan_duration?: string;
+  } | null;
+  security_score?: number | null;
+  code_coverage?: number | null;
 }
 
 interface FileContent {
@@ -599,6 +609,9 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [contents, setContents] = useState<FileContent[]>([]);
+  const [scanPollingInterval, setScanPollingInterval] =
+    useState<NodeJS.Timeout | null>(null);
+  const [latestScanData, setLatestScanData] = useState<any>(null);
   const [currentPath, setCurrentPath] = useState("");
   const [pathHistory, setPathHistory] = useState<string[]>([""]);
   const [loading, setLoading] = useState(false);
@@ -623,6 +636,15 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       recommendation: string;
     }>;
   } | null>(null);
+
+  useEffect(() => {
+    if (project.latest_scan?.status === "completed") {
+      fetchVulnerabilities();
+      if (project.latest_scan?.id) {
+        fetchFileScanStatuses(project.latest_scan.id);
+      }
+    }
+  }, [project.latest_scan]);
 
   useEffect(() => {
     fetchContents(currentPath);
@@ -706,14 +728,68 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     }
   };
 
+  // Add scan polling effect
   useEffect(() => {
-    if (project.latest_scan?.status === "completed") {
-      fetchVulnerabilities();
-      if (project.latest_scan?.id) {
-        fetchFileScanStatuses(project.latest_scan.id);
-      }
+    // Start polling if there's a running scan
+    if (
+      project.latest_scan?.status === "running" ||
+      project.latest_scan?.status === "pending"
+    ) {
+      startScanPolling();
     }
+
+    return () => {
+      if (scanPollingInterval) {
+        clearInterval(scanPollingInterval);
+      }
+    };
   }, [project.latest_scan]);
+
+  const startScanPolling = () => {
+    if (scanPollingInterval) {
+      clearInterval(scanPollingInterval);
+    }
+
+    const interval = setInterval(async () => {
+      if (!project.latest_scan?.id) return;
+
+      try {
+        const token = localStorage.getItem("access_token");
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:8000"
+          }/api/v1/scans/${project.latest_scan.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const scanData = await response.json();
+          setLatestScanData(scanData);
+
+          // Update project status based on scan status
+          if (scanData.status === "completed" || scanData.status === "failed") {
+            clearInterval(interval);
+            setScanPollingInterval(null);
+
+            // Refresh vulnerabilities and file statuses
+            if (scanData.status === "completed") {
+              fetchVulnerabilities();
+              fetchFileScanStatuses(scanData.id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error polling scan status:", error);
+      }
+    }, 5000);
+
+    setScanPollingInterval(interval);
+  };
 
   const fetchVulnerabilities = async () => {
     if (!project.latest_scan?.id) return;
@@ -747,7 +823,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${scanId}/file-status`,
+        }/api/v1/scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -760,7 +836,13 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         const data = await response.json();
         const statusMap: { [key: string]: any } = {};
 
-        data.file_results.forEach((file: any) => {
+        // Check if we have file_results directly or in scan metadata
+        const fileResults =
+          data.file_results ||
+          data.scan?.scan_metadata?.file_scan_results ||
+          [];
+
+        fileResults.forEach((file: any) => {
           statusMap[file.file_path] = {
             status: file.status,
             reason: file.reason,
@@ -1094,6 +1176,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
               </div>
 
               {/* Project Stats */}
+              {/* Project Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="text-lg font-semibold text-brand-black">
@@ -1111,13 +1194,18 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-semibold text-brand-black">
-                    {new Date(project.updated_at).toLocaleDateString()}
+                    {project.updated_at &&
+                    project.updated_at !== "1970-01-01T00:00:00.000Z"
+                      ? new Date(project.updated_at).toLocaleDateString()
+                      : "Unknown"}
                   </div>
                   <div className="text-sm text-brand-gray">Last Updated</div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-semibold text-brand-black capitalize">
-                    {project.status}
+                    {latestScanData?.status ||
+                      project.latest_scan?.status ||
+                      project.status}
                   </div>
                   <div className="text-sm text-brand-gray">Scan Status</div>
                 </div>
@@ -1215,87 +1303,123 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                       let statusColor = "";
                       let statusBadge = null;
 
-                      if (
-                        item.type === "file" &&
-                        project.latest_scan?.status === "completed"
-                      ) {
-                        if (fileStatus) {
-                          // We have scan data for this file
-                          switch (fileStatus.status) {
-                            case "vulnerable":
-                              statusMessage = hasVulns
-                                ? `${fileVulns.length} vulnerabilities found`
-                                : "Vulnerabilities detected";
-                              statusColor = "text-red-600";
-                              statusBadge = (
-                                <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
-                                  Vulnerabilities Found
-                                </Badge>
-                              );
-                              break;
-                            case "scanned":
-                              if (hasVulns) {
-                                statusMessage = `${fileVulns.length} vulnerabilities found`;
+                      if (item.type === "file") {
+                        const currentScanStatus =
+                          latestScanData?.status || project.latest_scan?.status;
+
+                        if (currentScanStatus === "completed") {
+                          if (fileStatus) {
+                            // We have scan data for this file
+                            switch (fileStatus.status) {
+                              case "vulnerable":
+                                const vulnCount = hasVulns
+                                  ? fileVulns.length
+                                  : 1;
+                                statusMessage = `Scanning OK, ${vulnCount} Vulnerabilities found`;
                                 statusColor = "text-red-600";
                                 statusBadge = (
                                   <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
-                                    Vulnerabilities Found
+                                    Scanning OK, {vulnCount} Vulnerabilities
+                                    found
                                   </Badge>
                                 );
-                              } else {
-                                statusMessage = "Scan OK";
-                                statusColor = "text-green-600";
+                                break;
+                              case "scanned":
+                                if (hasVulns) {
+                                  statusMessage = `Scanning OK, ${fileVulns.length} Vulnerabilities found`;
+                                  statusColor = "text-red-600";
+                                  statusBadge = (
+                                    <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                      Scanning OK, {fileVulns.length}{" "}
+                                      Vulnerabilities found
+                                    </Badge>
+                                  );
+                                } else {
+                                  statusMessage = "Scanning OK File Safe";
+                                  statusColor = "text-green-600";
+                                  statusBadge = (
+                                    <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                      Scanning OK File Safe
+                                    </Badge>
+                                  );
+                                }
+                                break;
+                              case "skipped":
+                                statusMessage =
+                                  "Scanning did not occur (API Constraints)";
+                                statusColor = "text-gray-600";
                                 statusBadge = (
-                                  <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
-                                    Scan OK
+                                  <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                    Scanning did not occur (API Constraints)
                                   </Badge>
                                 );
-                              }
-                              break;
-                            case "skipped":
-                              statusMessage =
-                                "Did not scan due to API constraints";
-                              statusColor = "text-gray-600";
-                              statusBadge = (
-                                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
-                                  Did not scan due to API constraints
-                                </Badge>
-                              );
-                              break;
-                            case "error":
-                              statusMessage = "Scan Failed";
-                              statusColor = "text-red-600";
-                              statusBadge = (
-                                <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
-                                  Scan Failed
-                                </Badge>
-                              );
-                              break;
-                            default:
-                              statusMessage = "Status unknown";
-                              statusColor = "text-gray-600";
-                              statusBadge = (
-                                <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
-                                  Status unknown
-                                </Badge>
-                              );
+                                break;
+                              case "error":
+                                statusMessage = "Scan Failed";
+                                statusColor = "text-red-600";
+                                statusBadge = (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                    Scan Failed
+                                  </Badge>
+                                );
+                                break;
+                              default:
+                                statusMessage =
+                                  "Scanning did not occur (API Constraints)";
+                                statusColor = "text-gray-600";
+                                statusBadge = (
+                                  <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                    Scanning did not occur (API Constraints)
+                                  </Badge>
+                                );
+                            }
+                          } else if (hasVulns) {
+                            // Legacy: we have vulnerabilities but no file status
+                            statusMessage = `Scanning OK, ${fileVulns.length} Vulnerabilities found`;
+                            statusColor = "text-red-600";
+                            statusBadge = (
+                              <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                Scanning OK, {fileVulns.length} Vulnerabilities
+                                found
+                              </Badge>
+                            );
+                          } else {
+                            // No scan data and no vulnerabilities - assume not scanned due to constraints
+                            statusMessage =
+                              "Scanning did not occur (API Constraints)";
+                            statusColor = "text-gray-600";
+                            statusBadge = (
+                              <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                Scanning did not occur (API Constraints)
+                              </Badge>
+                            );
                           }
-                        } else if (hasVulns) {
-                          // Legacy: we have vulnerabilities but no file status
-                          statusMessage = `${fileVulns.length} vulnerabilities found`;
+                        } else if (currentScanStatus === "failed") {
+                          statusMessage = "Scan Failed";
                           statusColor = "text-red-600";
                           statusBadge = (
                             <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
-                              Vulnerabilities Found
+                              Scan Failed
+                            </Badge>
+                          );
+                        } else if (
+                          currentScanStatus === "running" ||
+                          currentScanStatus === "pending"
+                        ) {
+                          statusMessage = "Scanning in progress...";
+                          statusColor = "text-blue-600";
+                          statusBadge = (
+                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
+                              Scanning in progress...
                             </Badge>
                           );
                         } else {
-                          // No scan data and no vulnerabilities
-                          statusMessage = "Did not scan due to API constraints";
+                          // No scan has been run yet
+                          statusMessage = "Not scanned";
                           statusColor = "text-gray-600";
                           statusBadge = (
                             <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
-                              Did not scan due to API constraints
+                              Not scanned
                             </Badge>
                           );
                         }
@@ -1335,10 +1459,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                   <span>{item.name}</span>
 
                                   {/* Show scan status badge for files */}
-                                  {item.type === "file" &&
-                                    project.latest_scan?.status ===
-                                      "completed" &&
-                                    statusBadge}
+                                  {item.type === "file" && statusBadge}
 
                                   {/* Show vulnerability count badge if there are vulnerabilities */}
                                   {hasVulns && (
@@ -1362,15 +1483,13 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 )}
 
                                 {/* Status message for files */}
-                                {item.type === "file" &&
-                                  project.latest_scan?.status === "completed" &&
-                                  statusMessage && (
-                                    <div
-                                      className={`text-sm font-medium ${statusColor} mt-1`}
-                                    >
-                                      {statusMessage}
-                                    </div>
-                                  )}
+                                {item.type === "file" && statusMessage && (
+                                  <div
+                                    className={`text-sm font-medium ${statusColor} mt-1`}
+                                  >
+                                    {statusMessage}
+                                  </div>
+                                )}
 
                                 {/* Show scan status reason if available */}
                                 {fileStatus &&

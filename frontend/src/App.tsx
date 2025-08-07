@@ -15,7 +15,7 @@ import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
 import NotFound from "./pages/NotFound";
-import RepositoryDetails from "./pages/RepositoryDetails";
+import RepositoryDetailsPage from "./pages/RepositoryDetails"; // Changed this line
 
 const queryClient = new QueryClient();
 
@@ -53,10 +53,11 @@ const App = () => (
               path="/projects/:projectId"
               element={
                 <ProtectedRoute>
-                  <RepositoryDetails />
+                  <RepositoryDetailsPage />
                 </ProtectedRoute>
               }
             />
+            {/* Removed the duplicate route */}
             <Route
               path="/members"
               element={
