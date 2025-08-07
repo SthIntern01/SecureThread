@@ -836,7 +836,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         const data = await response.json();
         const statusMap: { [key: string]: any } = {};
 
-        // Check if we have file_results directly or in scan metadata
+        // Check if we have file_results directly or it is there in scan_metadata
         const fileResults =
           data.file_results ||
           data.scan?.scan_metadata?.file_scan_results ||
