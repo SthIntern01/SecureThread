@@ -28,6 +28,7 @@ import {
   IconCode,
   IconBug,
   IconActivity,
+  IconRobot,
 } from '@tabler/icons-react';
 
 const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean; setSidebarOpen: (open: boolean) => void }) => {
@@ -56,6 +57,12 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
       icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
       active: true,
       count: "99+",
+    },
+    {
+      label: "AI Chat",
+      href: "/ai-chat",
+      icon: <IconRobot className="h-5 w-5 shrink-0" />,
+      active: false,
     },
     {
       label: "Solved",
