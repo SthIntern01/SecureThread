@@ -11,6 +11,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.core.database import Base
 from app.config.settings import settings
 
+# Import ALL your models here so Alembic can detect them
+from app.models.user import User
+from app.models.repository import Repository
+from app.models.vulnerability import Vulnerability, Scan
+from app.models.ai_chat import (
+    ChatSession, 
+    ChatMessage, 
+    AIAnalysisRequest, 
+    AIRecommendation, 
+    AIUsageMetrics, 
+    AIFeedback
+)
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
