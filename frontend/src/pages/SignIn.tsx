@@ -3,21 +3,17 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { EtherealBackground } from "../components/ui/ethereal-background";
 import {
-  IconMail,
-  IconLock,
-  IconEye,
-  IconEyeOff,
   IconBrandGithub,
+  IconBrandGitlab,
   IconBrandGoogle,
-  IconArrowRight,
   IconShield,
+  IconLink,
+  IconBolt,
+  IconTool,
+  IconCheck,
 } from "@tabler/icons-react";
 
 const SignInPage = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -58,16 +54,14 @@ const SignInPage = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // For now, we'll focus on GitHub OAuth
-    // Regular email/password login can be implemented later
-    setError("Please use GitHub login for now");
+  const handleComingSoonProvider = (provider: string) => {
+    setError(`${provider} integration coming soon!`);
+    setTimeout(() => setError(""), 3000);
   };
 
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center p-4">
-      {/* Ethereal Shadows Background */}
+    <div className="min-h-screen w-full flex relative overflow-hidden">
+      {/* Ethereal Background */}
       <EtherealBackground
         color="rgba(255, 255, 255, 0.6)"
         animation={{ scale: 100, speed: 90 }}
@@ -75,194 +69,220 @@ const SignInPage = () => {
         sizing="fill"
       />
 
-      {/* Main Sign In Card */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo/Brand Section */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <IconShield className="h-8 w-8 text-white" />
-            <span className="text-2xl font-bold text-white">SECURE THREAD</span>
-          </div>
-          <p className="text-gray-300 text-sm">
-            Welcome back! Please sign in to your account.
-          </p>
+      {/* Left Side - Hero Section */}
+      <div className="hidden lg:flex lg:w-1/2 relative z-10 overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent"></div>
+          <div 
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+              backgroundSize: '50px 50px'
+            }}
+          ></div>
         </div>
 
-        {/* Sign In Form Card */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-white/20">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-brand-black mb-2">
-              Sign In
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
+          {/* Logo */}
+          <div className="flex items-center space-x-3 mb-12">
+            <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
+              <IconShield className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-2xl font-bold">SECURE THREAD</span>
+          </div>
+
+          {/* Main Tagline */}
+          <div className="mb-12">
+            <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">
+            One dashboard for risk, threat, and project security.
             </h1>
-            <p className="text-brand-gray text-sm">
-              Enter your credentials to access your dashboard
+          </div>
+
+          {/* Feature List */}
+          <div className="space-y-6">
+            <div className="flex items-start space-x-4">
+              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconLink className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Link your projects effortlessly</h3>
+                <p className="text-gray-300 leading-relaxed">
+                  Connect GitHub, GitLab, and other repositories with one-click integration
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-4">
+              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconBolt className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Detect vulnerabilities in real time</h3>
+                <p className="text-gray-300 leading-relaxed">
+                  Advanced AI-powered scanning identifies security threats as they emerge
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-4">
+              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconTool className="w-6 h-6 text-accent" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Apply rapid, step-by-step fixes</h3>
+                <p className="text-gray-300 leading-relaxed">
+                  Get actionable remediation guidance with automated fix suggestions
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="mt-16 pt-8 border-t border-gray-700">
+            <p className="text-sm text-gray-400 mb-4">Trusted by leading software companies</p>
+            <div className="flex items-center space-x-6 opacity-60">
+              <div className="text-xs font-medium">SOC 2</div>
+              <div className="w-1 h-1 bg-gray-500 rounded-full"></div>
+              <div className="text-xs font-medium">ISO 27001</div>
+              <div className="w-1 h-1 bg-gray-500 rounded-full"></div>
+              <div className="text-xs font-medium">GDPR Compliant</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Side - Authentication */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center space-x-2 mb-8">
+            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+              <IconShield className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold text-white">SECURE THREAD</span>
+          </div>
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Get started for free
+            </h2>
+            <p className="text-white/80 text-lg">
+              Secure in seconds – Start free, no card required
             </p>
           </div>
 
+          {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+            <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 text-red-100 rounded-lg text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
-            <div className="space-y-2">
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-brand-black"
-              >
-                Email Address
-              </label>
-              <div className="relative">
-                <IconMail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-brand-gray" />
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white/70 backdrop-blur-sm"
-                  placeholder="Enter your email"
-                  disabled
-                />
-              </div>
-            </div>
-
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-brand-black"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <IconLock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-brand-gray" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors bg-white/70 backdrop-blur-sm"
-                  placeholder="Enter your password"
-                  disabled
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-brand-gray hover:text-brand-black transition-colors"
-                  disabled
-                >
-                  {showPassword ? (
-                    <IconEyeOff className="h-5 w-5" />
-                  ) : (
-                    <IconEye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 cursor-pointer opacity-50">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-accent bg-white border-gray-300 rounded focus:ring-accent focus:ring-2"
-                  disabled
-                />
-                <span className="text-sm text-brand-gray">Remember me</span>
-              </label>
-              <a
-                href="#"
-                className="text-sm text-accent hover:text-accent/80 transition-colors opacity-50"
-              >
-                Forgot password?
-              </a>
-            </div>
-
-            {/* Sign In Button */}
-            <button
-              type="submit"
-              disabled={true}
-              className="w-full bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 group opacity-50 cursor-not-allowed"
-            >
-              <span>Sign In</span>
-              <IconArrowRight className="h-4 w-4" />
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="mt-6 mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white/80 text-brand-gray">
-                  Continue with
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Social Sign In */}
-          <div className="space-y-3">
+          {/* Authentication Options */}
+          <div className="space-y-4 mb-6">
+            {/* GitHub Login */}
             <button
               onClick={handleGitHubLogin}
               disabled={isLoading}
-              className="w-full flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e]/90 hover:bg-[#1a1e22]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
             >
-              <IconBrandGithub className="h-5 w-5 text-brand-black" />
-              <span className="text-sm font-medium text-brand-black">
-                {isLoading ? "Connecting..." : "Continue with GitHub"}
-              </span>
+              <IconBrandGithub className="w-5 h-5" />
+              <span>{isLoading ? "Connecting..." : "Continue with GitHub"}</span>
             </button>
 
+            {/* Google Login */}
             <button
-              disabled={true}
-              className="w-full flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg transition-colors bg-white/50 backdrop-blur-sm opacity-50 cursor-not-allowed"
+              onClick={() => handleComingSoonProvider("Google")}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md"
             >
-              <IconBrandGoogle className="h-5 w-5 text-red-500" />
-              <span className="text-sm font-medium text-brand-black">
-                Google (Coming Soon)
-              </span>
+              <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
+              <span>Continue with Google</span>
+            </button>
+
+            {/* GitLab Login */}
+            <button
+              onClick={() => handleComingSoonProvider("GitLab")}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10"
+            >
+              <IconBrandGitlab className="w-5 h-5" />
+              <span>Continue with GitLab</span>
+            </button>
+
+            {/* Bitbucket Login */}
+            <button
+              onClick={() => handleComingSoonProvider("Bitbucket")}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/>
+              </svg>
+              <span>Continue with Bitbucket</span>
             </button>
           </div>
 
-          {/* Sign Up Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-brand-gray">
-              Don't have an account?{" "}
-              <a
-                href="/signup"
+          {/* Additional Options */}
+          <div className="text-center mb-6">
+            <p className="text-sm text-white/80">
+              Or sign up with{" "}
+              <button 
+                onClick={() => handleComingSoonProvider("Enterprise SSO")}
                 className="text-accent hover:text-accent/80 font-medium transition-colors"
               >
-                Sign up here
+                Enterprise SSO
+              </button>{" "}
+              |{" "}
+              <button 
+                onClick={() => handleComingSoonProvider("Docker ID")}
+                className="text-accent hover:text-accent/80 font-medium transition-colors"
+              >
+                Docker ID
+              </button>
+            </p>
+          </div>
+
+          {/* Security Notice */}
+          <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 rounded-lg p-4 mb-6">
+            <div className="flex items-start space-x-3">
+              <IconShield className="w-5 h-5 text-blue-300 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-semibold text-blue-100 text-sm">Secure read-only access</h4>
+                <p className="text-xs text-blue-200 mt-1">
+                  Our analysis does not require any agents, just read-only API access. 
+                  We never store your code.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Remember Login */}
+          <div className="flex items-center justify-center mb-6">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-4 h-4 text-accent bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
+              />
+              <span className="text-sm text-white/80">Remember my login details</span>
+            </label>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center">
+            <p className="text-xs text-white/70 leading-relaxed">
+              We will not make any use of the auth provider without your permission.
+              <br />
+              By logging in or signing up, you agree to abide by our{" "}
+              <a href="#" className="text-accent hover:text-accent/80 transition-colors">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="#" className="text-accent hover:text-accent/80 transition-colors">
+                Privacy Policy
               </a>
             </p>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
-            By signing in, you agree to our{" "}
-            <a
-              href="#"
-              className="text-white hover:text-gray-300 transition-colors"
-            >
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a
-              href="#"
-              className="text-white hover:text-gray-300 transition-colors"
-            >
-              Privacy Policy
-            </a>
-          </p>
         </div>
       </div>
     </div>

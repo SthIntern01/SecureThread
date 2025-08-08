@@ -1,11 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
+from app.models.repository import Repository
 from app.models.vulnerability import Vulnerability
+from app.models.ai_chat import ChatSession, ChatMessage as ChatMessageModel, AIAnalysisRequest, AIRecommendation, AIFeedback, AIUsageMetrics
 from app.services.ai_chat_service import AIChatService
+from app.schemas.ai_chat import (
+    ChatSessionCreate, ChatSessionResponse, ChatMessageCreate, ChatMessageResponse,
+    AIAnalysisRequestCreate, AIAnalysisResponse, AIRecommendationCreate, 
+    AIRecommendationResponse, AIFeedbackCreate, AIUsageMetricsResponse
+)
 from pydantic import BaseModel
 import logging
 
@@ -23,10 +31,13 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[ChatMessage]] = None
     repository_id: Optional[int] = None
+    session_id: Optional[int] = None
 
 
 class ChatResponse(BaseModel):
     response: str
+    session_id: Optional[int] = None
+    message_id: Optional[int] = None
     tokens_used: Optional[int] = None
     user_context: Optional[Dict[str, Any]] = None
     suggestions: Optional[List[str]] = None
@@ -50,6 +61,37 @@ async def chat_with_ai(
 ):
     """Chat with SecureThread AI assistant"""
     try:
+        # Get or create chat session
+        session = None
+        if chat_request.session_id:
+            session = db.query(ChatSession).filter(
+                ChatSession.id == chat_request.session_id,
+                ChatSession.user_id == current_user.id
+            ).first()
+        
+        if not session:
+            # Create new session
+            session = ChatSession(
+                user_id=current_user.id,
+                title=f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                session_metadata={"created_from": "web_interface"}
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+        
+        # Save user message - using ChatMessageModel to avoid naming conflict
+        user_message = ChatMessageModel(
+            session_id=session.id,
+            user_id=current_user.id,
+            role="user",
+            content=chat_request.message,
+            message_type="text"
+        )
+        db.add(user_message)
+        db.commit()
+        db.refresh(user_message)
+        
         ai_service = AIChatService(db)
         
         # Convert conversation history to the format expected by AI service
@@ -61,12 +103,35 @@ async def chat_with_ai(
                     "content": msg.content
                 })
         
+        # Record start time for metrics
+        import time
+        start_time = time.time()
+        
         # Get AI response
         result = await ai_service.chat_completion(
             user=current_user,
             message=chat_request.message,
             conversation_history=history
         )
+        
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Save AI response message - using ChatMessageModel
+        ai_message = ChatMessageModel(
+            session_id=session.id,
+            user_id=current_user.id,
+            role="assistant",
+            content=result["response"],
+            message_type="text",
+            tokens_used=result.get("tokens_used"),
+            model_used=result.get("model", "deepseek-chat"),
+            response_time_ms=response_time_ms,
+            context_data=result.get("user_context")
+        )
+        db.add(ai_message)
+        db.commit()
+        db.refresh(ai_message)
         
         # Generate follow-up suggestions based on the conversation
         suggestions = []
@@ -93,6 +158,8 @@ async def chat_with_ai(
         
         return ChatResponse(
             response=result["response"],
+            session_id=session.id,
+            message_id=ai_message.id,
             tokens_used=result.get("tokens_used"),
             user_context=result.get("user_context"),
             suggestions=suggestions
@@ -102,7 +169,7 @@ async def chat_with_ai(
         logger.error(f"Error in AI chat: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="AI service temporarily unavailable"
+            detail=f"AI service temporarily unavailable: {str(e)}"
         )
 
 
@@ -118,6 +185,7 @@ async def analyze_vulnerability_with_ai(
         vulnerability = db.query(Vulnerability).join(
             Vulnerability.scan
         ).join(
+            Repository,
             Vulnerability.scan.has(repository_id=Repository.id)
         ).filter(
             Vulnerability.id == analysis_request.vulnerability_id,
@@ -274,4 +342,147 @@ async def execute_ai_command(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to execute command"
+        )
+
+
+@router.get("/sessions", response_model=List[ChatSessionResponse])
+async def get_chat_sessions(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's chat sessions"""
+    sessions = db.query(ChatSession).filter(
+        ChatSession.user_id == current_user.id,
+        ChatSession.is_active == True
+    ).order_by(ChatSession.updated_at.desc()).limit(20).all()
+    
+    session_responses = []
+    for session in sessions:
+        message_count = db.query(ChatMessageModel).filter(
+            ChatMessageModel.session_id == session.id
+        ).count()
+        
+        session_responses.append(ChatSessionResponse(
+            id=session.id,
+            title=session.title,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            is_active=session.is_active,
+            message_count=message_count
+        ))
+    
+    return session_responses
+
+
+@router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
+async def get_session_messages(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get messages for a specific chat session"""
+    # Verify session ownership
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id
+    ).first()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found"
+        )
+    
+    messages = db.query(ChatMessageModel).filter(
+        ChatMessageModel.session_id == session_id
+    ).order_by(ChatMessageModel.created_at.asc()).all()
+    
+    return [
+        ChatMessageResponse(
+            id=msg.id,
+            role=msg.role,
+            content=msg.content,
+            message_type=msg.message_type,
+            created_at=msg.created_at,
+            tokens_used=msg.tokens_used,
+            model_used=msg.model_used,
+            response_time_ms=msg.response_time_ms
+        )
+        for msg in messages
+    ]
+
+
+@router.post("/feedback")
+async def submit_ai_feedback(
+    feedback: AIFeedbackCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Submit feedback on AI responses"""
+    try:
+        ai_feedback = AIFeedback(
+            user_id=current_user.id,
+            message_id=feedback.message_id,
+            analysis_request_id=feedback.analysis_request_id,
+            rating=feedback.rating,
+            feedback_type=feedback.feedback_type,
+            feedback_text=feedback.feedback_text,
+            was_accurate=feedback.was_accurate,
+            was_helpful=feedback.was_helpful
+        )
+        
+        db.add(ai_feedback)
+        db.commit()
+        
+        return {"message": "Feedback submitted successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit feedback"
+        )
+
+
+@router.get("/usage-metrics", response_model=AIUsageMetricsResponse)
+async def get_ai_usage_metrics(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's AI usage metrics"""
+    try:
+        # Get today's metrics
+        from datetime import date
+        today = date.today()
+        
+        metrics = db.query(AIUsageMetrics).filter(
+            AIUsageMetrics.user_id == current_user.id,
+            AIUsageMetrics.date >= today
+        ).first()
+        
+        if not metrics:
+            # Create empty metrics for today
+            metrics = AIUsageMetrics(user_id=current_user.id)
+            db.add(metrics)
+            db.commit()
+            db.refresh(metrics)
+        
+        return AIUsageMetricsResponse(
+            date=metrics.date,
+            chat_messages_sent=metrics.chat_messages_sent,
+            vulnerability_analyses=metrics.vulnerability_analyses,
+            recommendations_generated=metrics.recommendations_generated,
+            commands_executed=metrics.commands_executed,
+            total_tokens_used=metrics.total_tokens_used,
+            avg_response_time_ms=metrics.avg_response_time_ms,
+            total_requests=metrics.total_requests,
+            failed_requests=metrics.failed_requests,
+            estimated_cost=metrics.estimated_cost
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting usage metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get usage metrics"
         )
