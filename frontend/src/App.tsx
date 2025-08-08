@@ -11,6 +11,7 @@ import Members from "./pages/Members";
 import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
 import Solved from "./pages/Solved";
+import AIChat from "./pages/AIChat";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
@@ -71,6 +72,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Integrations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-chat"
+              element={
+                <ProtectedRoute>
+                  <AIChat />
                 </ProtectedRoute>
               }
             />
