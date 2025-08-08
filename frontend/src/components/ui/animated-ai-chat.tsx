@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as React from "react"
+import { aiChatService, ChatMessage, ChatResponse } from "@/services/aiChatService";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface UseAutoResizeTextareaProps {
   minHeight: number;
@@ -136,11 +138,15 @@ export function AnimatedAIChat() {
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [conversation, setConversation] = useState<ChatMessage[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [userContext, setUserContext] = useState<any>(null);
   const [isPending, startTransition] = useTransition();
   const [activeSuggestion, setActiveSuggestion] = useState<number>(-1);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [recentCommand, setRecentCommand] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const { user } = useAuth();
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 60,
     maxHeight: 200,
@@ -174,6 +180,22 @@ export function AnimatedAIChat() {
       prefix: "/fix"
     },
   ];
+
+  // Load user context on component mount
+  useEffect(() => {
+    const loadUserContext = async () => {
+      try {
+        const contextData = await aiChatService.getUserContext();
+        setUserContext(contextData.context);
+      } catch (error) {
+        console.error('Failed to load user context:', error);
+      }
+    };
+
+    if (user) {
+      loadUserContext();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (value.startsWith('/') && !value.includes(' ')) {
@@ -252,17 +274,69 @@ export function AnimatedAIChat() {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (value.trim()) {
-      startTransition(() => {
+      const userMessage = value.trim();
+      const newUserMessage: ChatMessage = {
+        role: 'user',
+        content: userMessage,
+        timestamp: new Date().toISOString()
+      };
+
+      // Add user message to conversation
+      setConversation(prev => [...prev, newUserMessage]);
+      setValue("");
+      adjustHeight(true);
+      setIsTyping(true);
+
+      try {
+        let response: ChatResponse;
+
+        // Check if it's a command
+        if (userMessage.startsWith('/')) {
+          const command = userMessage.slice(1).split(' ')[0];
+          response = await aiChatService.executeCommand(command);
+        } else {
+          // Regular chat message
+          response = await aiChatService.sendMessage(userMessage, conversation);
+        }
+
+        // Add AI response to conversation
+        const aiMessage: ChatMessage = {
+          role: 'assistant',
+          content: response.response,
+          timestamp: new Date().toISOString()
+        };
+
+        setConversation(prev => [...prev, aiMessage]);
+        
+        // Update suggestions and context
+        if (response.suggestions) {
+          setSuggestions(response.suggestions);
+        }
+        if (response.user_context) {
+          setUserContext(response.user_context);
+        }
+
+      } catch (error) {
+        console.error('Error sending message:', error);
+        
+        // Add error message
+        const errorMessage: ChatMessage = {
+          role: 'assistant',
+          content: "I'm sorry, I'm experiencing technical difficulties. Please try again in a moment.",
+          timestamp: new Date().toISOString()
+        };
+        setConversation(prev => [...prev, errorMessage]);
+      } finally {
         setIsTyping(true);
-        setTimeout(() => {
-          setIsTyping(false);
-          setValue("");
-          adjustHeight(true);
-        }, 3000);
-      });
+      }
     }
+  };
+
+  const handleSuggestionClick = async (suggestion: string) => {
+    setValue(suggestion);
+    await handleSendMessage();
   };
 
   const handleAttachFile = () => {
@@ -279,7 +353,12 @@ export function AnimatedAIChat() {
     setValue(selectedCommand.prefix + ' ');
     setShowCommandPalette(false);
     setRecentCommand(selectedCommand.label);
-    setTimeout(() => setRecentCommand(null), 2000);
+    setTimeout(() => setRecentCommand(null), 3000);
+    
+    // Auto-execute the command
+    setTimeout(() => {
+      handleSendMessage();
+    }, 100);
   };
 
   return (
@@ -296,7 +375,44 @@ export function AnimatedAIChat() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         >
-          <div className="text-center space-y-3">
+          {/* Chat Messages */}
+          <AnimatePresence>
+            {conversation.length > 0 && (
+              <motion.div
+                className="space-y-4 mb-8 max-h-96 overflow-y-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                {conversation.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    className={cn(
+                      "flex",
+                      message.role === 'user' ? "justify-end" : "justify-start"
+                    )}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
+                        message.role === 'user'
+                          ? "bg-white/10 text-white ml-auto"
+                          : "bg-white/5 text-white/90 border border-white/10"
+                      )}
+                    >
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {conversation.length === 0 && (
+            <div className="text-center space-y-3">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -321,7 +437,8 @@ export function AnimatedAIChat() {
             >
               Ask about vulnerabilities, security scans, or get recommendations
             </motion.p>
-          </div>
+            </div>
+          )}
 
           <motion.div
             className="relative backdrop-blur-2xl bg-white/[0.02] rounded-2xl border border-white/[0.05] shadow-2xl"
@@ -485,7 +602,9 @@ export function AnimatedAIChat() {
             </div>
           </motion.div>
 
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* Quick Action Buttons */}
+          {conversation.length === 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
             {commandSuggestions.map((suggestion, index) => (
               <motion.button
                 key={suggestion.prefix}
@@ -511,7 +630,36 @@ export function AnimatedAIChat() {
                 />
               </motion.button>
             ))}
-          </div>
+            </div>
+          )}
+
+          {/* AI Suggestions */}
+          <AnimatePresence>
+            {suggestions.length > 0 && (
+              <motion.div
+                className="flex flex-wrap items-center justify-center gap-2"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <div className="text-xs text-white/40 mb-2 w-full text-center">
+                  Suggested follow-ups:
+                </div>
+                {suggestions.map((suggestion, index) => (
+                  <motion.button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-xs text-white/60 hover:text-white/90 transition-all border border-white/[0.05]"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    {suggestion}
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
 
@@ -528,7 +676,7 @@ export function AnimatedAIChat() {
                 <span className="text-xs font-medium text-white/90 mb-0.5">AI</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-white/70">
-                <span>Analyzing</span>
+                <span>Thinking</span>
                 <TypingDots />
               </div>
             </div>
