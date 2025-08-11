@@ -17,7 +17,7 @@ const SignInPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,6 +28,21 @@ const SignInPage = () => {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, location]);
+
+  // Handle OAuth callbacks
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+
+    if (code && state) {
+      if (state === 'securethread_gitlab_auth') {
+        handleGitLabCallback(code);
+      } else if (state === 'securethread_github_auth') {
+        handleGitHubCallback(code);
+      }
+    }
+  }, []);
 
   const handleGitHubLogin = async () => {
     try {
@@ -54,7 +69,151 @@ const SignInPage = () => {
     }
   };
 
-  const handleComingSoonProvider = (provider: string) => {
+  const handleGitHubCallback = async (code) => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/github/callback`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ code }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to authenticate with GitHub');
+      }
+
+      const data = await response.json();
+      console.log('GitHub callback data:', data);
+      
+      // Check what your backend actually returns
+      if (data.access_token && data.user) {
+        login(data.access_token, data.user);
+      } else if (data.access_token) {
+        // If backend only returns token, we need to fetch user separately
+        // For now, create a minimal user object
+        const user = {
+          id: data.user_id || 1,
+          email: data.email || 'user@example.com',
+          github_username: data.username || 'user',
+          full_name: data.name || 'User',
+          avatar_url: data.avatar_url || ''
+        };
+        login(data.access_token, user);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Navigate to dashboard
+      const from = location.state?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
+      
+    } catch (err) {
+      console.error('GitHub callback error:', err);
+      setError('Failed to sign in with GitHub. Please try again.');
+      // Clean up URL on error
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGitLabLogin = async () => {
+  try {
+    setIsLoading(true);
+    setError("");
+
+    // Get GitLab authorization URL from the backend
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/authorize`
+    );
+    const data = await response.json();
+
+    if (data.authorization_url) {
+      // Redirect to GitLab for authorization
+      window.location.href = data.authorization_url;
+    } else {
+      setError("Failed to get GitLab authorization URL");
+    }
+  } catch (error) {
+    console.error("GitLab login error:", error);
+    setError("Failed to initiate GitLab login");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  const handleGitLabCallback = async (code) => {
+    setIsLoading(true);
+    setError("");
+
+    console.log('Processing GitLab callback with code:', code);
+
+    try {
+      const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/callback`,  // Changed from /auth/gitlab/callback
+      {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ code }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('GitLab callback error:', errorText);
+        throw new Error(`Failed to authenticate with GitLab: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('GitLab callback data:', data);
+      
+      // Check what your backend actually returns
+      if (data.access_token && data.user) {
+        login(data.access_token, data.user);
+      } else if (data.access_token) {
+        // If backend only returns token, create a minimal user object
+        const user = {
+          id: data.user_id || 1,
+          email: data.email || 'user@example.com',
+          github_username: data.username || 'user',
+          full_name: data.name || 'User',
+          avatar_url: data.avatar_url || ''
+        };
+        login(data.access_token, user);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Navigate to dashboard
+      const from = location.state?.from?.pathname || "/dashboard";
+      navigate(from, { replace: true });
+      
+    } catch (err) {
+      console.error('GitLab callback error:', err);
+      setError('Failed to sign in with GitLab. Please try again.');
+      // Clean up URL on error
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleComingSoonProvider = (provider) => {
     setError(`${provider} integration coming soon!`);
     setTimeout(() => setError(""), 3000);
   };
@@ -202,13 +361,14 @@ const SignInPage = () => {
               <span>Continue with Google</span>
             </button>
 
-            {/* GitLab Login */}
+            {/* GitLab Login - NOW FUNCTIONAL */}
             <button
-              onClick={() => handleComingSoonProvider("GitLab")}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10"
+              onClick={handleGitLabLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
             >
               <IconBrandGitlab className="w-5 h-5" />
-              <span>Continue with GitLab</span>
+              <span>{isLoading ? "Connecting..." : "Continue with GitLab"}</span>
             </button>
 
             {/* Bitbucket Login */}

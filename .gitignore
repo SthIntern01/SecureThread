@@ -89,16 +89,6 @@ Thumbs.db
 !github/workflows/prod.yml
 
 # ---------------------------
-# Optional: lock your LLM/AI model outputs or data
-# ---------------------------
-models/
-*.pt
-*.onnx
-*.pkl
-*.h5
-*.tflite
-
-# ---------------------------
 # Optional: block test artifacts
 # ---------------------------
 test-results/
