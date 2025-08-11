@@ -42,7 +42,7 @@ async def refresh_token(
     """Refresh access token"""
     from app.core.security import create_access_token
     from datetime import timedelta
-    from app.config.settings import settings
+    from app.core.settings import settings
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

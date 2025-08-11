@@ -5,7 +5,7 @@ from app.schemas.user import UserCreate
 from app.core.security import create_access_token
 from app.services.github_service import GitHubService
 from datetime import timedelta
-from app.config.settings import settings
+from app.core.settings import settings
 
 
 class AuthService:

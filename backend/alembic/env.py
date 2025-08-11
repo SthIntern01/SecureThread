@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.database import Base
-from app.config.settings import settings
+from app.core.settings import settings
 
 # Import ALL your models here so Alembic can detect them
 from app.models.user import User

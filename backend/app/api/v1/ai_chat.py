@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+# backend/app/api/v1/ai_chat.py - Updated with file upload support
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -9,6 +11,7 @@ from app.models.repository import Repository
 from app.models.vulnerability import Vulnerability
 from app.models.ai_chat import ChatSession, ChatMessage as ChatMessageModel, AIAnalysisRequest, AIRecommendation, AIFeedback, AIUsageMetrics
 from app.services.ai_chat_service import AIChatService
+from app.services.file_upload_service import FileUploadService
 from app.schemas.ai_chat import (
     ChatSessionCreate, ChatSessionResponse, ChatMessageCreate, ChatMessageResponse,
     AIAnalysisRequestCreate, AIAnalysisResponse, AIRecommendationCreate, 
@@ -16,6 +19,7 @@ from app.schemas.ai_chat import (
 )
 from pydantic import BaseModel
 import logging
+import json
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -41,6 +45,16 @@ class ChatResponse(BaseModel):
     tokens_used: Optional[int] = None
     user_context: Optional[Dict[str, Any]] = None
     suggestions: Optional[List[str]] = None
+    file_analyses: Optional[List[Dict[str, Any]]] = None
+    total_vulnerabilities: Optional[int] = None
+
+
+class FileUploadResponse(BaseModel):
+    files_processed: int
+    files_analyzed: int
+    total_vulnerabilities: int
+    ai_response: str
+    file_details: List[Dict[str, Any]]
 
 
 class VulnerabilityAnalysisRequest(BaseModel):
@@ -59,7 +73,7 @@ async def chat_with_ai(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Chat with SecureThread AI assistant"""
+    """Chat with SecureThread AI assistant - text only"""
     try:
         # Get or create chat session
         session = None
@@ -80,7 +94,7 @@ async def chat_with_ai(
             db.commit()
             db.refresh(session)
         
-        # Save user message - using ChatMessageModel to avoid naming conflict
+        # Save user message
         user_message = ChatMessageModel(
             session_id=session.id,
             user_id=current_user.id,
@@ -107,7 +121,7 @@ async def chat_with_ai(
         import time
         start_time = time.time()
         
-        # Get AI response
+        # Regular chat completion
         result = await ai_service.chat_completion(
             user=current_user,
             message=chat_request.message,
@@ -117,7 +131,7 @@ async def chat_with_ai(
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
         
-        # Save AI response message - using ChatMessageModel
+        # Save AI response message
         ai_message = ChatMessageModel(
             session_id=session.id,
             user_id=current_user.id,
@@ -149,11 +163,11 @@ async def chat_with_ai(
                 "Which vulnerabilities should I prioritize?",
                 "How do I prevent this in the future?"
             ]
-        elif any(word in message_lower for word in ["github", "integration", "connect"]):
+        elif any(word in message_lower for word in ["upload", "file", "analyze code"]):
             suggestions = [
-                "Help me set up GitHub integration",
-                "How do I import repositories?",
-                "What integrations are available?"
+                "How do I upload files for analysis?",
+                "What file types can you analyze?",
+                "Show me an example of code analysis"
             ]
         
         return ChatResponse(
@@ -170,6 +184,189 @@ async def chat_with_ai(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI service temporarily unavailable: {str(e)}"
+        )
+
+
+@router.post("/chat-with-files", response_model=ChatResponse)
+async def chat_with_files(
+    message: str = Form(...),
+    files: List[UploadFile] = File(...),
+    conversation_history: Optional[str] = Form(None),
+    session_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Chat with AI including file uploads for analysis"""
+    try:
+        # Parse conversation history if provided
+        history = []
+        if conversation_history:
+            try:
+                history_data = json.loads(conversation_history)
+                history = [
+                    {"role": msg["role"], "content": msg["content"]} 
+                    for msg in history_data
+                ]
+            except Exception as e:
+                logger.warning(f"Failed to parse conversation history: {e}")
+        
+        # Get or create chat session
+        session = None
+        if session_id:
+            session = db.query(ChatSession).filter(
+                ChatSession.id == session_id,
+                ChatSession.user_id == current_user.id
+            ).first()
+        
+        if not session:
+            session = ChatSession(
+                user_id=current_user.id,
+                title=f"File Analysis {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                session_metadata={"created_from": "web_interface", "has_files": True}
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+        
+        # Process uploaded files
+        file_service = FileUploadService()
+        processed_files = await file_service.process_uploaded_files(files)
+        
+        # Save user message with file attachments
+        user_message = ChatMessageModel(
+            session_id=session.id,
+            user_id=current_user.id,
+            role="user",
+            content=message,
+            message_type="file_upload",
+            context_data={
+                "files": [
+                    {
+                        "name": pf.get("original_name"),
+                        "size": pf.get("size"),
+                        "type": pf.get("extension"),
+                        "analyzed": pf.get("is_text", False)
+                    }
+                    for pf in processed_files
+                ]
+            }
+        )
+        db.add(user_message)
+        db.commit()
+        db.refresh(user_message)
+        
+        # Analyze files with AI
+        ai_service = AIChatService(db)
+        
+        # Record start time for metrics
+        import time
+        start_time = time.time()
+        
+        # Use the file analysis method
+        result = await ai_service.analyze_uploaded_files(
+            user=current_user,
+            message=message,
+            attachments=processed_files,
+            conversation_history=history
+        )
+        
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Save AI response with file analysis data
+        ai_message = ChatMessageModel(
+            session_id=session.id,
+            user_id=current_user.id,
+            role="assistant",
+            content=result["response"],
+            message_type="file_analysis",
+            tokens_used=result.get("tokens_used"),
+            model_used="deepseek-chat",
+            response_time_ms=response_time_ms,
+            context_data={
+                "file_analyses": result.get("file_analyses", []),
+                "total_vulnerabilities": result.get("total_vulnerabilities", 0),
+                "user_context": result.get("user_context", {})
+            }
+        )
+        db.add(ai_message)
+        db.commit()
+        db.refresh(ai_message)
+        
+        # Generate suggestions for file analysis
+        total_vulns = result.get("total_vulnerabilities", 0)
+        suggestions = []
+        
+        if total_vulns > 0:
+            suggestions = [
+                f"How do I fix the {total_vulns} vulnerabilities found?",
+                "Which issues should I prioritize first?",
+                "Show me detailed fix instructions for critical issues",
+                "How can I prevent these vulnerabilities in the future?"
+            ]
+        else:
+            suggestions = [
+                "What security best practices should I follow?",
+                "How can I improve my code security further?",
+                "Can you review my coding patterns for potential issues?",
+                "What automated security tools do you recommend?"
+            ]
+        
+        return ChatResponse(
+            response=result["response"],
+            session_id=session.id,
+            message_id=ai_message.id,
+            tokens_used=result.get("tokens_used"),
+            user_context=result.get("user_context"),
+            suggestions=suggestions,
+            file_analyses=result.get("file_analyses"),
+            total_vulnerabilities=result.get("total_vulnerabilities")
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in file chat: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"File analysis failed: {str(e)}"
+        )
+
+
+@router.post("/upload-files", response_model=FileUploadResponse)
+async def upload_files_for_analysis(
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Upload files for immediate vulnerability analysis"""
+    try:
+        # Process uploaded files
+        file_service = FileUploadService()
+        processed_files = await file_service.process_uploaded_files(files)
+        
+        # Analyze files with AI
+        ai_service = AIChatService(db)
+        
+        result = await ai_service.analyze_uploaded_files(
+            user=current_user,
+            message="Please analyze these uploaded files for security vulnerabilities.",
+            attachments=processed_files
+        )
+        
+        files_analyzed = len([f for f in processed_files if f.get("is_text")])
+        
+        return FileUploadResponse(
+            files_processed=len(processed_files),
+            files_analyzed=files_analyzed,
+            total_vulnerabilities=result.get("total_vulnerabilities", 0),
+            ai_response=result["response"],
+            file_details=result.get("file_analyses", [])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in file upload analysis: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"File upload analysis failed: {str(e)}"
         )
 
 
@@ -321,6 +518,11 @@ async def execute_ai_command(
                     "response": "🎉 **Great news!** No vulnerabilities found in your recent scans.\n\n📋 **Recommendations:**\n1. Run regular scans on new code\n2. Keep dependencies updated\n3. Follow security best practices\n4. Consider setting up automated scanning",
                     "action": "maintain_security"
                 }
+        elif command == "upload":
+            return {
+                "response": "📁 **File Upload for Analysis:**\n\n🔍 **How to upload files:**\n1. Click the **paperclip icon** (📎) in the chat\n2. Select your code files (.py, .js, .php, .java, etc.)\n3. Add a message describing what you want analyzed\n4. Click **Send**\n\n✅ **Supported file types:**\n- Python (.py)\n- JavaScript (.js, .jsx, .ts, .tsx)\n- PHP (.php)\n- Java (.java)\n- C/C++ (.c, .cpp)\n- And many more!\n\n💡 **What I'll analyze:**\n- Security vulnerabilities\n- Code quality issues\n- Best practice violations\n- Detailed fix recommendations",
+                "action": "show_file_upload"
+            }
         elif command == "report":
             return {
                 "response": "📄 **Generate Security Reports:**\n\n1. 📊 **Dashboard** - Overview of all projects\n2. 🔍 **Project Details** - Click any project for detailed report\n3. 📋 **Solved Issues** - View resolved vulnerabilities\n4. 📤 **Export** - Download PDF reports from scan details\n\n💡 **Tip:** Use the export button in scan details for comprehensive PDF reports.",
@@ -333,7 +535,7 @@ async def execute_ai_command(
             }
         else:
             return {
-                "response": f"❓ Unknown command: `/{command}`\n\n**Available Commands:**\n- `/scan` - How to start security scans\n- `/analyze` - Analyze your security status\n- `/report` - Generate security reports\n- `/fix` - Get vulnerability fix guidance\n\n💬 Or just ask me any security question!",
+                "response": f"❓ Unknown command: `/{command}`\n\n**Available Commands:**\n- `/scan` - How to start security scans\n- `/analyze` - Analyze your security status\n- `/upload` - How to upload files for analysis\n- `/report` - Generate security reports\n- `/fix` - Get vulnerability fix guidance\n\n💬 Or just ask me any security question!",
                 "action": "show_help"
             }
             
@@ -344,6 +546,9 @@ async def execute_ai_command(
             detail="Failed to execute command"
         )
 
+
+# Include all other existing endpoints from the original file...
+# (get_chat_sessions, get_session_messages, submit_ai_feedback, get_ai_usage_metrics)
 
 @router.get("/sessions", response_model=List[ChatSessionResponse])
 async def get_chat_sessions(
@@ -486,3 +691,74 @@ async def get_ai_usage_metrics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get usage metrics"
         )
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a chat session and its messages"""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id
+    ).first()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found"
+        )
+    
+    # Delete all messages in the session first
+    db.query(ChatMessageModel).filter(
+        ChatMessageModel.session_id == session_id
+    ).delete()
+    
+    # Delete the session
+    db.delete(session)
+    db.commit()
+    
+    return {"message": "Chat session deleted successfully"}
+
+
+@router.post("/sessions/{session_id}/archive")
+async def archive_chat_session(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Archive a chat session"""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id
+    ).first()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found"
+        )
+    
+    session.is_active = False
+    db.commit()
+    
+    return {"message": "Chat session archived successfully"}
+
+
+@router.get("/file-types")
+async def get_supported_file_types(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get list of supported file types for upload"""
+    from app.services.llm_service import LLMService
+    
+    llm_service = LLMService()
+    supported_languages = llm_service.get_supported_languages()
+    
+    return {
+        "supported_file_types": supported_languages,
+        "max_file_size_mb": settings.MAX_FILE_SIZE // (1024 * 1024),
+        "max_files_per_upload": 5
+    }

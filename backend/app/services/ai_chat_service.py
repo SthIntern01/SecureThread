@@ -1,15 +1,18 @@
+# backend/app/services/ai_chat_service.py - Updated with file upload support
+
 import httpx
 import json
 import logging
 from typing import List, Dict, Any, Optional
-from app.config.settings import settings
+from app.core.settings import settings
 from app.models.user import User
 from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
+from app.services.file_upload_service import FileUploadService
+from app.services.llm_service import LLMService
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-
 
 class AIChatService:
     def __init__(self, db: Session):
@@ -17,6 +20,8 @@ class AIChatService:
         self.api_key = settings.DEEPSEEK_API_KEY
         self.base_url = "https://api.deepseek.com/v1"
         self.model = "deepseek-chat"
+        self.file_service = FileUploadService()
+        self.llm_service = LLMService()
         
         # Context limits for chat
         self.MAX_INPUT_TOKENS = 30000
@@ -49,6 +54,7 @@ class AIChatService:
 - Suggest specific fixes for code issues
 - Help prioritize security tasks
 - Guide users through SecureThread features
+- Analyze uploaded code files for security issues
 
 💬 COMMUNICATION STYLE:
 - Be concise but thorough
@@ -112,6 +118,192 @@ Always prioritize security best practices and help users improve their security 
         except Exception as e:
             logger.error(f"Error getting user context: {e}")
             return {}
+    
+    async def analyze_uploaded_files(
+        self, 
+        user: User,
+        message: str,
+        attachments: List[Dict[str, Any]],
+        conversation_history: List[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """Analyze uploaded files for vulnerabilities and provide AI insights"""
+        try:
+            # Extract file information from attachments
+            file_analyses = []
+            total_vulnerabilities = 0
+            
+            for attachment in attachments:
+                if attachment.get("is_text") and attachment.get("text_content"):
+                    # Analyze file with LLM service
+                    file_path = attachment.get("original_name", "uploaded_file")
+                    file_extension = attachment.get("extension", "")
+                    content = attachment.get("text_content", "")
+                    
+                    # Use LLM service to analyze the code
+                    vulnerabilities = await self.llm_service.analyze_code_for_vulnerabilities(
+                        content, file_path, file_extension
+                    )
+                    
+                    file_analysis = {
+                        "file_name": file_path,
+                        "file_size": attachment.get("size", 0),
+                        "line_count": attachment.get("line_count", 0),
+                        "code_lines": attachment.get("code_lines", 0),
+                        "vulnerabilities": vulnerabilities,
+                        "vulnerability_count": len(vulnerabilities),
+                        "file_extension": file_extension
+                    }
+                    
+                    file_analyses.append(file_analysis)
+                    total_vulnerabilities += len(vulnerabilities)
+                else:
+                    # Handle non-text files
+                    file_analyses.append({
+                        "file_name": attachment.get("original_name", "unknown"),
+                        "error": "File could not be analyzed - not a text file or too large",
+                        "vulnerability_count": 0
+                    })
+            
+            # Generate AI response based on analysis
+            user_context = await self.get_user_context(user)
+            ai_response = await self._generate_file_analysis_response(
+                message, file_analyses, total_vulnerabilities, user_context, conversation_history
+            )
+            
+            # Clean up temporary files
+            file_ids = [att.get("file_id") for att in attachments if att.get("file_id")]
+            if file_ids:
+                self.file_service.cleanup_temporary_files(file_ids)
+            
+            return {
+                "response": ai_response,
+                "file_analyses": file_analyses,
+                "total_vulnerabilities": total_vulnerabilities,
+                "user_context": user_context,
+                "tokens_used": self._estimate_tokens(ai_response)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing uploaded files: {e}")
+            return {
+                "response": "I encountered an error while analyzing your uploaded files. Please try again with smaller files or ensure they are valid code files.",
+                "error": str(e)
+            }
+    
+    async def _generate_file_analysis_response(
+        self,
+        user_message: str,
+        file_analyses: List[Dict[str, Any]],
+        total_vulnerabilities: int,
+        user_context: Dict[str, Any],
+        conversation_history: List[Dict[str, str]] = None
+    ) -> str:
+        """Generate AI response for file analysis"""
+        
+        # Prepare analysis summary
+        analysis_summary = self._create_analysis_summary(file_analyses, total_vulnerabilities)
+        
+        # Build prompt for AI
+        prompt = f"""The user uploaded {len(file_analyses)} file(s) for security analysis and asked: "{user_message}"
+
+FILE ANALYSIS RESULTS:
+{analysis_summary}
+
+VULNERABILITY SUMMARY:
+- Total Files Analyzed: {len(file_analyses)}
+- Total Vulnerabilities Found: {total_vulnerabilities}
+- Critical Issues: {sum(1 for fa in file_analyses for v in fa.get('vulnerabilities', []) if v.get('severity') == 'critical')}
+- High Priority Issues: {sum(1 for fa in file_analyses for v in fa.get('vulnerabilities', []) if v.get('severity') == 'high')}
+
+Please provide:
+1. 📋 Summary of security findings
+2. 🚨 Critical issues that need immediate attention
+3. 🛠️ Specific fix recommendations
+4. 📚 Best practices to prevent similar issues
+5. 🎯 Next steps for the user
+
+Be specific about the vulnerabilities found and provide actionable guidance."""
+
+        # Build conversation for AI
+        messages = [
+            {
+                "role": "system", 
+                "content": self._get_system_prompt(User(), user_context)
+            }
+        ]
+        
+        # Add conversation history if available
+        if conversation_history:
+            messages.extend(conversation_history[-5:])  # Last 5 messages for context
+        
+        # Add current analysis prompt
+        messages.append({"role": "user", "content": prompt})
+        
+        # Get AI response
+        try:
+            response = await self._make_chat_request(messages)
+            return response.get("content", "I couldn't generate a response for your file analysis.")
+        except Exception as e:
+            logger.error(f"Error generating AI response: {e}")
+            return f"""📁 **File Analysis Complete**
+
+I analyzed {len(file_analyses)} file(s) and found {total_vulnerabilities} potential security issues.
+
+{self._create_fallback_analysis(file_analyses)}
+
+💡 **Recommendations:**
+1. Review the identified vulnerabilities carefully
+2. Prioritize fixing critical and high-severity issues
+3. Consider implementing automated security scanning
+4. Follow secure coding practices for future development
+
+For detailed vulnerability information, please check the scan results or ask me specific questions about the findings."""
+    
+    def _create_analysis_summary(self, file_analyses: List[Dict[str, Any]], total_vulnerabilities: int) -> str:
+        """Create a summary of file analysis results"""
+        summary_parts = []
+        
+        for analysis in file_analyses:
+            file_name = analysis.get("file_name", "unknown")
+            vuln_count = analysis.get("vulnerability_count", 0)
+            
+            if analysis.get("error"):
+                summary_parts.append(f"❌ {file_name}: {analysis['error']}")
+            elif vuln_count > 0:
+                vulnerabilities = analysis.get("vulnerabilities", [])
+                severity_counts = {}
+                for vuln in vulnerabilities:
+                    severity = vuln.get("severity", "unknown")
+                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                
+                severity_str = ", ".join([f"{count} {sev}" for sev, count in severity_counts.items()])
+                summary_parts.append(f"🚨 {file_name}: {vuln_count} issues ({severity_str})")
+            else:
+                summary_parts.append(f"✅ {file_name}: No issues found")
+        
+        return "\n".join(summary_parts)
+    
+    def _create_fallback_analysis(self, file_analyses: List[Dict[str, Any]]) -> str:
+        """Create fallback analysis when AI service fails"""
+        summary_parts = []
+        
+        for analysis in file_analyses:
+            file_name = analysis.get("file_name", "unknown")
+            vuln_count = analysis.get("vulnerability_count", 0)
+            
+            if vuln_count > 0:
+                summary_parts.append(f"🔍 **{file_name}**: Found {vuln_count} potential security issues")
+                
+                # Show top vulnerabilities
+                vulnerabilities = analysis.get("vulnerabilities", [])[:3]  # Top 3
+                for vuln in vulnerabilities:
+                    title = vuln.get("title", "Security Issue")
+                    severity = vuln.get("severity", "medium").upper()
+                    summary_parts.append(f"   • {severity}: {title}")
+            else:
+                summary_parts.append(f"✅ **{file_name}**: No security issues detected")
+        
+        return "\n".join(summary_parts)
     
     async def chat_completion(
         self, 
@@ -338,6 +530,11 @@ Focus on practical steps they can take today."""
                 "label": "🔍 Scan Repository",
                 "description": "How do I start a security scan?",
                 "response": "To start a security scan:\n1. Go to Projects page\n2. Select your repository\n3. Click 'Start Scan'\n4. Wait for results\n\nScans typically take 2-10 minutes depending on repository size."
+            },
+            {
+                "label": "📁 Upload Files",
+                "description": "How do I analyze uploaded code files?",
+                "response": "To analyze code files:\n1. Click the paperclip icon in the chat\n2. Select your code files (.py, .js, .php, etc.)\n3. Add a message describing what you want to analyze\n4. Click Send\n\nI'll analyze the files for vulnerabilities and provide detailed security recommendations."
             },
             {
                 "label": "🚨 Fix Critical Issues",

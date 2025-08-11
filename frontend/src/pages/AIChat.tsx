@@ -1,3 +1,5 @@
+// frontend/src/pages/AiChat.tsx - Complete Working Version
+
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
@@ -19,9 +21,13 @@ import {
   LoaderIcon,
   Sparkles,
   Command,
+  FileText,
+  AlertTriangle,
+  CheckCircle,
+  Upload,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { aiChatService, ChatMessage, ChatResponse } from "@/services/aiChatService";
+import { aiChatService, ChatMessage, ChatResponse, FileAnalysis } from "@/services/aiChatService";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   IconDashboard,
@@ -132,16 +138,6 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             transition={{ duration: 0.2 }}
           />
         )}
-
-        {props.onChange && (
-          <div
-            className="absolute bottom-2 right-2 opacity-0 w-2 h-2 bg-violet-500 rounded-full"
-            style={{
-              animation: 'none',
-            }}
-            id="textarea-ripple"
-          />
-        )}
       </div>
     )
   }
@@ -175,44 +171,167 @@ function TypingDots() {
   );
 }
 
-interface ActionButtonProps {
-  icon: React.ReactNode;
-  label: string;
+interface AttachedFile {
+  file: File;
+  id: string;
+  status: 'pending' | 'uploading' | 'completed' | 'error';
+  error?: string;
 }
 
-function ActionButton({ icon, label }: ActionButtonProps) {
-  const [isHovered, setIsHovered] = useState(false);
+interface FileUploadAreaProps {
+  onFilesSelected: (files: File[]) => void;
+  maxFiles?: number;
+}
+
+function FileUploadArea({ onFilesSelected, maxFiles = 5 }: FileUploadAreaProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files).slice(0, maxFiles);
+    if (files.length > 0) {
+      onFilesSelected(files);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).slice(0, maxFiles);
+    if (files.length > 0) {
+      onFilesSelected(files);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
-    <motion.button
-      type="button"
-      whileHover={{ scale: 1.05, y: -2 }}
-      whileTap={{ scale: 0.97 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      className="flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 rounded-full border border-neutral-800 text-neutral-400 hover:text-white transition-all relative overflow-hidden group"
+    <div
+      className={cn(
+        "border-2 border-dashed border-white/20 rounded-lg p-6 text-center transition-all duration-200",
+        isDragOver ? "border-violet-400 bg-violet-500/10" : "hover:border-white/30"
+      )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      <div className="relative z-10 flex items-center gap-2">
-        {icon}
-        <span className="text-xs relative z-10">{label}</span>
-      </div>
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-violet-500/10 to-indigo-500/10"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          />
-        )}
-      </AnimatePresence>
-      <motion.span
-        className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-violet-500 to-indigo-500"
-        initial={{ width: 0 }}
-        whileHover={{ width: "100%" }}
-        transition={{ duration: 0.3 }}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".py,.js,.jsx,.ts,.tsx,.php,.java,.cpp,.c,.cs,.rb,.go,.rs,.swift,.sql,.sh,.bash,.yaml,.yml,.json,.xml,.html,.css"
+        onChange={handleFileSelect}
+        className="hidden"
       />
-    </motion.button>
+      
+      <div className="space-y-3">
+        <Upload className="w-12 h-12 text-white/40 mx-auto" />
+        <div>
+          <p className="text-white/70 text-sm">
+            Drop your code files here or{' '}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-violet-400 hover:text-violet-300 underline"
+            >
+              browse
+            </button>
+          </p>
+          <p className="text-white/40 text-xs mt-1">
+            Supports: .py, .js, .ts, .php, .java and more • Max {maxFiles} files • 10MB each
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
+  return (
+    <div className="space-y-3">
+      <h4 className="text-white/90 font-medium text-sm">📁 File Analysis Results</h4>
+      {analyses.map((analysis, index) => (
+        <div
+          key={index}
+          className="bg-white/5 rounded-lg p-3 border border-white/10"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-white/60" />
+              <span className="text-white/90 text-sm font-medium">
+                {analysis.file_name}
+              </span>
+            </div>
+            {analysis.error ? (
+              <div className="flex items-center gap-1 text-red-400">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-xs">Error</span>
+              </div>
+            ) : analysis.vulnerability_count > 0 ? (
+              <div className="flex items-center gap-1 text-orange-400">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-xs">{analysis.vulnerability_count} issues</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                <span className="text-xs">Clean</span>
+              </div>
+            )}
+          </div>
+          
+          {analysis.error ? (
+            <p className="text-red-400 text-xs">{analysis.error}</p>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-white/60 text-xs">
+                Size: {(analysis.file_size / 1024).toFixed(1)}KB
+              </p>
+              {analysis.vulnerability_count > 0 && (
+                <div className="space-y-1">
+                  {analysis.vulnerabilities?.slice(0, 2).map((vuln, vIndex) => (
+                    <div key={vIndex} className="bg-white/5 rounded p-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded",
+                          vuln.severity === 'critical' ? "bg-red-500/20 text-red-300" :
+                          vuln.severity === 'high' ? "bg-orange-500/20 text-orange-300" :
+                          vuln.severity === 'medium' ? "bg-yellow-500/20 text-yellow-300" :
+                          "bg-blue-500/20 text-blue-300"
+                        )}>
+                          {vuln.severity?.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-white/80 text-xs font-medium">{vuln.title}</p>
+                      {vuln.line_number && (
+                        <p className="text-white/50 text-xs">Line {vuln.line_number}</p>
+                      )}
+                    </div>
+                  ))}
+                  {analysis.vulnerabilities?.length > 2 && (
+                    <p className="text-white/50 text-xs">
+                      +{analysis.vulnerabilities.length - 2} more issues...
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -327,7 +446,7 @@ const Logo = () => {
 const AIChat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [value, setValue] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -335,6 +454,8 @@ const AIChat = () => {
   const [isPending, startTransition] = useTransition();
   const [activeSuggestion, setActiveSuggestion] = useState<number>(-1);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [fileAnalyses, setFileAnalyses] = useState<FileAnalysis[]>([]);
   const [recentCommand, setRecentCommand] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const { user } = useAuth();
@@ -357,6 +478,12 @@ const AIChat = () => {
       label: "Analyze Vulnerabilities",
       description: "Get detailed vulnerability analysis",
       prefix: "/analyze"
+    },
+    {
+      icon: <FileUp className="w-4 h-4" />,
+      label: "Upload Files",
+      description: "Upload files for security analysis",
+      prefix: "/upload"
     },
     {
       icon: <MonitorIcon className="w-4 h-4" />,
@@ -459,69 +586,114 @@ const AIChat = () => {
       }
     } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (value.trim()) {
+      if (value.trim() || attachedFiles.length > 0) {
         handleSendMessage();
       }
     }
   };
 
+  const handleFilesSelected = (files: File[]) => {
+    console.log("📁 Files selected:", files);
+    
+    // Validate files
+    const validation = aiChatService.validateFiles(files);
+    if (!validation.valid) {
+      // Show error messages to user
+      validation.errors.forEach(error => {
+        console.error("❌ File validation error:", error);
+        // You could add a toast notification here
+        alert(error);
+      });
+      return;
+    }
+
+    // Add files to attached files
+    const newAttachedFiles: AttachedFile[] = files.map(file => ({
+      file,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      status: 'pending'
+    }));
+
+    setAttachedFiles(prev => [...prev, ...newAttachedFiles]);
+    setShowFileUpload(false);
+    console.log("✅ Files attached successfully:", newAttachedFiles);
+  };
+
+  const removeAttachedFile = (fileId: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
   const handleSendMessage = async () => {
-    if (value.trim()) {
-      const userMessage = value.trim();
-      const newUserMessage: ChatMessage = {
-        role: 'user',
-        content: userMessage,
+    if (!value.trim() && attachedFiles.length === 0) return;
+
+    const userMessage = value.trim() || "Please analyze these uploaded files";
+    const newUserMessage: ChatMessage = {
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add user message to conversation
+    setConversation(prev => [...prev, newUserMessage]);
+    setValue("");
+    adjustHeight(true);
+    setIsTyping(true);
+
+    try {
+      let response: ChatResponse;
+
+      // Check if it's a command
+      if (userMessage.startsWith('/')) {
+        const command = userMessage.slice(1).split(' ')[0];
+        response = await aiChatService.executeCommand(command);
+      } else if (attachedFiles.length > 0) {
+        // Send message with files
+        console.log("🚀 Sending files to AI:", attachedFiles);
+        const files = attachedFiles.map(af => af.file);
+        response = await aiChatService.sendMessageWithFiles(userMessage, files, conversation);
+        
+        // Update file analyses
+        if (response.file_analyses) {
+          setFileAnalyses(response.file_analyses);
+          console.log("📊 Received file analyses:", response.file_analyses);
+        }
+      } else {
+        // Regular chat message
+        response = await aiChatService.sendMessage(userMessage, conversation);
+      }
+
+      // Add AI response to conversation
+      const aiMessage: ChatMessage = {
+        role: 'assistant',
+        content: response.response,
         timestamp: new Date().toISOString()
       };
 
-      // Add user message to conversation
-      setConversation(prev => [...prev, newUserMessage]);
-      setValue("");
-      adjustHeight(true);
-      setIsTyping(true);
-
-      try {
-        let response: ChatResponse;
-
-        // Check if it's a command
-        if (userMessage.startsWith('/')) {
-          const command = userMessage.slice(1).split(' ')[0];
-          response = await aiChatService.executeCommand(command);
-        } else {
-          // Regular chat message
-          response = await aiChatService.sendMessage(userMessage, conversation);
-        }
-
-        // Add AI response to conversation
-        const aiMessage: ChatMessage = {
-          role: 'assistant',
-          content: response.response,
-          timestamp: new Date().toISOString()
-        };
-
-        setConversation(prev => [...prev, aiMessage]);
-        
-        // Update suggestions and context
-        if (response.suggestions) {
-          setSuggestions(response.suggestions);
-        }
-        if (response.user_context) {
-          setUserContext(response.user_context);
-        }
-
-      } catch (error) {
-        console.error('Error sending message:', error);
-        
-        // Add error message
-        const errorMessage: ChatMessage = {
-          role: 'assistant',
-          content: "I'm sorry, I'm experiencing technical difficulties. Please try again in a moment.",
-          timestamp: new Date().toISOString()
-        };
-        setConversation(prev => [...prev, errorMessage]);
-      } finally {
-        setIsTyping(false);
+      setConversation(prev => [...prev, aiMessage]);
+      
+      // Update suggestions and context
+      if (response.suggestions) {
+        setSuggestions(response.suggestions);
       }
+      if (response.user_context) {
+        setUserContext(response.user_context);
+      }
+
+      // Clear attached files after successful send
+      setAttachedFiles([]);
+
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      
+      // Add error message
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: "I'm sorry, I'm experiencing technical difficulties. Please try again in a moment.",
+        timestamp: new Date().toISOString()
+      };
+      setConversation(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
     }
   };
 
@@ -531,12 +703,8 @@ const AIChat = () => {
   };
 
   const handleAttachFile = () => {
-    const mockFileName = `file-${Math.floor(Math.random() * 1000)}.pdf`;
-    setAttachments(prev => [...prev, mockFileName]);
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    console.log("📎 Attach file button clicked");
+    setShowFileUpload(true);
   };
 
   const selectCommandSuggestion = (index: number) => {
@@ -623,6 +791,19 @@ const AIChat = () => {
                         </div>
                       </motion.div>
                     ))}
+                    
+                    {/* Show file analysis results if available */}
+                    {fileAnalyses.length > 0 && (
+                      <motion.div
+                        className="flex justify-start"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white/5 border border-white/10">
+                          <FileAnalysisResults analyses={fileAnalyses} />
+                        </div>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -651,10 +832,43 @@ const AIChat = () => {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.3 }}
                 >
-                  Ask about vulnerabilities, security scans, or get recommendations
+                  Ask about vulnerabilities, security scans, upload files, or get recommendations
                 </motion.p>
                 </div>
               )}
+
+              {/* File Upload Modal */}
+              <AnimatePresence>
+                {showFileUpload && (
+                  <motion.div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowFileUpload(false)}
+                  >
+                    <motion.div
+                      className="bg-black/90 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10"
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-white font-medium">Upload Code Files</h3>
+                        <button
+                          onClick={() => setShowFileUpload(false)}
+                          className="text-white/40 hover:text-white"
+                        >
+                          <XIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      <FileUploadArea onFilesSelected={handleFilesSelected} />
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <motion.div
                 className="relative backdrop-blur-2xl bg-white/[0.02] rounded-2xl border border-white/[0.05] shadow-2xl"
@@ -712,7 +926,7 @@ const AIChat = () => {
                     onKeyDown={handleKeyDown}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
-                    placeholder="Ask SecureThread AI a question..."
+                    placeholder="Ask SecureThread AI a question or upload files for analysis..."
                     containerClassName="w-full"
                     className={cn(
                       "w-full px-4 py-3",
@@ -731,25 +945,30 @@ const AIChat = () => {
                   />
                 </div>
 
+                {/* Attached Files Display */}
                 <AnimatePresence>
-                  {attachments.length > 0 && (
+                  {attachedFiles.length > 0 && (
                     <motion.div
                       className="px-4 pb-3 flex gap-2 flex-wrap"
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                     >
-                      {attachments.map((file, index) => (
+                      {attachedFiles.map((attachedFile) => (
                         <motion.div
-                          key={index}
-                          className="flex items-center gap-2 text-xs bg-white/[0.03] py-1.5 px-3 rounded-lg text-white/70"
+                          key={attachedFile.id}
+                          className="flex items-center gap-2 text-xs bg-white/[0.03] py-1.5 px-3 rounded-lg text-white/70 border border-white/10"
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
                         >
-                          <span>{file}</span>
+                          <FileText className="w-3 h-3" />
+                          <span className="truncate max-w-32">{attachedFile.file.name}</span>
+                          <span className="text-white/40">
+                            ({(attachedFile.file.size / 1024).toFixed(1)}KB)
+                          </span>
                           <button
-                            onClick={() => removeAttachment(index)}
+                            onClick={() => removeAttachedFile(attachedFile.id)}
                             className="text-white/40 hover:text-white transition-colors"
                           >
                             <XIcon className="w-3 h-3" />
@@ -799,11 +1018,11 @@ const AIChat = () => {
                     onClick={handleSendMessage}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
-                    disabled={isTyping || !value.trim()}
+                    disabled={isTyping || (!value.trim() && attachedFiles.length === 0)}
                     className={cn(
                       "px-4 py-2 rounded-lg text-sm font-medium transition-all",
                       "flex items-center gap-2",
-                      value.trim()
+                      (value.trim() || attachedFiles.length > 0)
                         ? "bg-white text-[#0A0A0B] shadow-lg shadow-white/10"
                         : "bg-white/[0.05] text-white/40"
                     )}
@@ -892,7 +1111,7 @@ const AIChat = () => {
                     <span className="text-xs font-medium text-white/90 mb-0.5">AI</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/70">
-                    <span>Thinking</span>
+                    <span>Analyzing</span>
                     <TypingDots />
                   </div>
                 </div>

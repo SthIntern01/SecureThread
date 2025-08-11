@@ -2,7 +2,7 @@ import httpx
 import requests
 from typing import Optional, List, Dict, Any
 from github import Github
-from app.config.settings import settings
+from app.core.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
