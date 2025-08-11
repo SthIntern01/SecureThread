@@ -20,3 +20,15 @@ class GitHubAuthResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict
+
+
+# Add the missing GitLab classes
+class GitLabAuthRequest(BaseModel):
+    code: str
+    state: Optional[str] = None
+
+
+class GitLabAuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict

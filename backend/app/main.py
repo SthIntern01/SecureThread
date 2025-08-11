@@ -33,3 +33,11 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+
+@app.get("/debug/settings")
+async def debug_settings():
+    return {
+        "API_V1_STR": settings.API_V1_STR,
+        "app_routes_count": len(app.routes)
+    }

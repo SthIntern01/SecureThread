@@ -6,16 +6,21 @@ from app.services.auth_service import AuthService
 from app.services.github_service import GitHubService
 from app.api.deps import get_current_active_user
 from app.models.user import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# ===============================
+# GITHUB AUTHENTICATION ROUTES ONLY
+# ===============================
 
 @router.get("/github/authorize")
 async def github_authorize():
     """Get GitHub OAuth authorization URL"""
     auth_url = GitHubService.get_authorization_url()
     return {"authorization_url": auth_url}
-
 
 @router.post("/github/callback", response_model=GitHubAuthResponse)
 async def github_callback(
@@ -34,26 +39,35 @@ async def github_callback(
     
     return result
 
+# ===============================
+# COMMON AUTHENTICATION ROUTES
+# ===============================
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
     current_user: User = Depends(get_current_active_user)
 ):
     """Refresh access token"""
-    from app.core.security import create_access_token
-    from datetime import timedelta
-    from app.config.settings import settings
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(current_user.id)}, expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
-
+    try:
+        from app.core.security import create_access_token
+        from datetime import timedelta
+        from app.config.settings import settings
+        
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(current_user.id)}, expires_delta=access_token_expires
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh token: {str(e)}"
+        )
 
 @router.get("/me")
 async def get_current_user_info(
@@ -63,7 +77,8 @@ async def get_current_user_info(
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "github_username": current_user.github_username,
+        "github_username": getattr(current_user, "github_username", None),
+        "gitlab_username": getattr(current_user, "gitlab_username", None),
         "full_name": current_user.full_name,
         "avatar_url": current_user.avatar_url,
         "created_at": current_user.created_at,
