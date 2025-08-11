@@ -47,13 +47,13 @@ const useInstanceId = (): string => {
 export function EtherealBackground({
     sizing = 'fill',
     color = 'rgba(255, 255, 255, 0.8)',
-    animation = { scale: 100, speed: 90 },
+    animation = { scale: 0, speed: 0 },
     noise = { opacity: 1, scale: 1.2 },
     style,
     className
 }: EtherealBackgroundProps) {
     const id = useInstanceId();
-    const animationEnabled = animation && animation.scale > 0;
+    const animationEnabled = false; // Always disable animation
     const feColorMatrixRef = useRef<SVGFEColorMatrixElement>(null);
     const hueRotateMotionValue = useMotionValue(180);
     const hueRotateAnimation = useRef<AnimationPlaybackControls | null>(null);
