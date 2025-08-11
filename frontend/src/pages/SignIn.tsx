@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { EtherealBackground } from "../components/ui/ethereal-background";
@@ -10,18 +10,21 @@ import {
   IconLink,
   IconBolt,
   IconTool,
-  IconCheck,
 } from "@tabler/icons-react";
 
 const SignInPage = () => {
-  const [isLoading, setIsLoading] = useState(false);
+  // Use a string to track which provider is loading
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  const popup = useRef<Window | null>(null);
+  // Ref to hold the interval ID for the popup checker
+  const popupInterval = useRef<number | null>(null);
 
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       const from = location.state?.from?.pathname || "/";
@@ -29,278 +32,281 @@ const SignInPage = () => {
     }
   }, [isAuthenticated, navigate, location]);
 
-  // Handle OAuth callbacks
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
+    const code = urlParams.get("code");
+    const state = urlParams.get("state");
+    const errorParam = urlParams.get("error");
 
-    if (code && state) {
-      if (state === 'securethread_gitlab_auth') {
-        handleGitLabCallback(code);
-      } else if (state === 'securethread_github_auth') {
-        handleGitHubCallback(code);
+    // If this page is running inside a popup...
+    if (window.opener) {
+      if (code && state) {
+        // Send a success message to the parent window
+        window.opener.postMessage(
+          { type: "oauth-success", code, state },
+          window.location.origin
+        );
+      } else if (errorParam) {
+        // Send an error message to the parent window
+        window.opener.postMessage(
+          { type: "oauth-error", error: errorParam },
+          window.location.origin
+        );
       }
+      // Close the popup
+      window.close();
+      return;
     }
+
+    // This handles non-popup auth flows (like GitHub)
+    if (code && state && state === "securethread_github_auth") {
+      handleGitHubCallback(code);
+    }
+  }, []);
+
+  // Listens for messages from the popup window
+  useEffect(() => {
+    const handlePopupMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      const { type, code, state, error } = event.data;
+
+      // When a message is received, stop checking if the popup is closed
+      if (popupInterval.current) {
+        window.clearInterval(popupInterval.current);
+      }
+
+      if (type === "oauth-success" && state === "securethread_gitlab_auth") {
+        handleGitLabCallback(code);
+        if (popup.current) popup.current.close();
+      } else if (type === "oauth-error") {
+        setError("Authentication was cancelled or failed.");
+        setLoadingProvider(null);
+        if (popup.current) popup.current.close();
+      }
+    };
+
+    window.addEventListener("message", handlePopupMessage);
+
+    return () => {
+      window.removeEventListener("message", handlePopupMessage);
+      if (popupInterval.current) {
+        window.clearInterval(popupInterval.current);
+      }
+    };
   }, []);
 
   const handleGitHubLogin = async () => {
     try {
-      setIsLoading(true);
+      setLoadingProvider("github");
       setError("");
-
-      // Get GitHub authorization URL from backend
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/github/authorize`
       );
       const data = await response.json();
-
       if (data.authorization_url) {
-        // Redirect to GitHub OAuth
         window.location.href = data.authorization_url;
       } else {
         setError("Failed to get GitHub authorization URL");
+        setLoadingProvider(null);
       }
     } catch (error) {
       console.error("GitHub login error:", error);
       setError("Failed to initiate GitHub login");
-    } finally {
-      setIsLoading(false);
+      setLoadingProvider(null);
     }
   };
 
-  const handleGitHubCallback = async (code) => {
-    setIsLoading(true);
-    setError("");
-
+  const handleGitHubCallback = async (code: string) => {
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/github/callback`,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
         }
       );
-
-      if (!response.ok) {
-        throw new Error('Failed to authenticate with GitHub');
-      }
-
+      if (!response.ok) throw new Error("Failed to authenticate with GitHub");
       const data = await response.json();
-      console.log('GitHub callback data:', data);
-      
-      // Check what your backend actually returns
-      if (data.access_token && data.user) {
-        login(data.access_token, data.user);
-      } else if (data.access_token) {
-        // If backend only returns token, we need to fetch user separately
-        // For now, create a minimal user object
-        const user = {
-          id: data.user_id || 1,
-          email: data.email || 'user@example.com',
-          github_username: data.username || 'user',
-          full_name: data.name || 'User',
-          avatar_url: data.avatar_url || ''
-        };
-        login(data.access_token, user);
+      if (data.access_token) {
+        login(data.access_token, data.user || {});
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+        const from = location.state?.from?.pathname || "/dashboard";
+        navigate(from, { replace: true });
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error("Invalid response from server");
       }
-      
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Navigate to dashboard
-      const from = location.state?.from?.pathname || "/dashboard";
-      navigate(from, { replace: true });
-      
     } catch (err) {
-      console.error('GitHub callback error:', err);
-      setError('Failed to sign in with GitHub. Please try again.');
-      // Clean up URL on error
+      console.error("GitHub callback error:", err);
+      setError("Failed to sign in with GitHub. Please try again.");
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
-      setIsLoading(false);
+      setLoadingProvider(null);
     }
   };
 
   const handleGitLabLogin = async () => {
-  try {
-    setIsLoading(true);
-    setError("");
-
-    // Get GitLab authorization URL from the backend
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/authorize`
-    );
-    const data = await response.json();
-
-    if (data.authorization_url) {
-      // Redirect to GitLab for authorization
-      window.location.href = data.authorization_url;
-    } else {
-      setError("Failed to get GitLab authorization URL");
-    }
-  } catch (error) {
-    console.error("GitLab login error:", error);
-    setError("Failed to initiate GitLab login");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-  const handleGitLabCallback = async (code) => {
-    setIsLoading(true);
-    setError("");
-
-    console.log('Processing GitLab callback with code:', code);
-
     try {
+      setLoadingProvider("gitlab");
+      setError("");
       const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/callback`,  // Changed from /auth/gitlab/callback
-      {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code }),
-        }
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/authorize`
       );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('GitLab callback error:', errorText);
-        throw new Error(`Failed to authenticate with GitLab: ${response.status}`);
-      }
-
       const data = await response.json();
-      console.log('GitLab callback data:', data);
-      
-      // Check what your backend actually returns
-      if (data.access_token && data.user) {
-        login(data.access_token, data.user);
-      } else if (data.access_token) {
-        // If backend only returns token, create a minimal user object
-        const user = {
-          id: data.user_id || 1,
-          email: data.email || 'user@example.com',
-          github_username: data.username || 'user',
-          full_name: data.name || 'User',
-          avatar_url: data.avatar_url || ''
-        };
-        login(data.access_token, user);
+      if (data.authorization_url) {
+        const width = 600,
+          height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        popup.current = window.open(
+          data.authorization_url,
+          "gitlab-auth-popup",
+          `width=${width},height=${height},top=${top},left=${left}`
+        );
+
+        popupInterval.current = window.setInterval(() => {
+          if (popup.current && popup.current.closed) {
+            window.clearInterval(popupInterval.current!);
+            setLoadingProvider(null);
+          }
+        }, 500);
       } else {
-        throw new Error('Invalid response from server');
+        setError("Failed to get GitLab authorization URL");
+        setLoadingProvider(null);
       }
-      
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Navigate to dashboard
-      const from = location.state?.from?.pathname || "/dashboard";
-      navigate(from, { replace: true });
-      
-    } catch (err) {
-      console.error('GitLab callback error:', err);
-      setError('Failed to sign in with GitLab. Please try again.');
-      // Clean up URL on error
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      console.error("GitLab login error:", error);
+      setError("Failed to initiate GitLab login");
+      setLoadingProvider(null);
     }
   };
 
-  const handleComingSoonProvider = (provider) => {
+  const handleGitLabCallback = async (code: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/callback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        }
+      );
+      if (!response.ok)
+        throw new Error(
+          `Failed to authenticate with GitLab: ${response.status}`
+        );
+      const data = await response.json();
+      if (data.access_token) {
+        login(data.access_token, data.user || {});
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+        const from = location.state?.from?.pathname || "/dashboard";
+        navigate(from, { replace: true });
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (err) {
+      console.error("GitLab callback error:", err);
+      setError("Failed to sign in with GitLab. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
+  const handleComingSoonProvider = (provider: string) => {
     setError(`${provider} integration coming soon!`);
     setTimeout(() => setError(""), 3000);
   };
 
   return (
-    <div className="min-h-screen w-full flex relative overflow-hidden">
-      {/* Ethereal Background */}
+    <div className="min-h-screen w-full flex relative overflow-hidden bg-[#111111]">
       <EtherealBackground
+        className="absolute inset-0"
         color="rgba(255, 255, 255, 0.6)"
         animation={{ scale: 100, speed: 90 }}
         noise={{ opacity: 0.8, scale: 1.2 }}
         sizing="fill"
       />
-
-      {/* Left Side - Hero Section */}
       <div className="hidden lg:flex lg:w-1/2 relative z-10 overflow-hidden">
-        {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent"></div>
-          <div 
+          <div
             className="absolute inset-0"
             style={{
               backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-              backgroundSize: '50px 50px'
+              backgroundSize: "50px 50px",
             }}
           ></div>
         </div>
-
-        {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
-          {/* Logo */}
           <div className="flex items-center space-x-3 mb-12">
-            <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#FF6B00] rounded-lg flex items-center justify-center">
               <IconShield className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold">SECURE THREAD</span>
           </div>
-
-          {/* Main Tagline */}
           <div className="mb-12">
             <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">
-            One dashboard for risk, threat, and project security.
+              One dashboard for risk, threat, and project security.
             </h1>
           </div>
-
-          {/* Feature List */}
           <div className="space-y-6">
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconLink className="w-6 h-6 text-accent" />
+              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconLink className="w-6 h-6 text-[#FF6B00]" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Link your projects effortlessly</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  Link your projects effortlessly
+                </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Connect GitHub, GitLab, and other repositories with one-click integration
+                  Connect GitHub, GitLab, and other repositories with one-click
+                  integration
                 </p>
               </div>
             </div>
-
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconBolt className="w-6 h-6 text-accent" />
+              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconBolt className="w-6 h-6 text-[#FF6B00]" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Detect vulnerabilities in real time</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  Detect vulnerabilities in real time
+                </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Advanced AI-powered scanning identifies security threats as they emerge
+                  Advanced AI-powered scanning identifies security threats as
+                  they emerge
                 </p>
               </div>
             </div>
-
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-accent/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconTool className="w-6 h-6 text-accent" />
+              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconTool className="w-6 h-6 text-[#FF6B00]" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Apply rapid, step-by-step fixes</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  Apply rapid, step-by-step fixes
+                </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Get actionable remediation guidance with automated fix suggestions
+                  Get actionable remediation guidance with automated fix
+                  suggestions
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Trust Indicators */}
           <div className="mt-16 pt-8 border-t border-gray-700">
-            <p className="text-sm text-gray-400 mb-4">Trusted by leading software companies</p>
+            <p className="text-sm text-gray-400 mb-4">
+              Trusted by leading software companies
+            </p>
             <div className="flex items-center space-x-6 opacity-60">
               <div className="text-xs font-medium">SOC 2</div>
               <div className="w-1 h-1 bg-gray-500 rounded-full"></div>
@@ -311,19 +317,14 @@ const SignInPage = () => {
           </div>
         </div>
       </div>
-
-      {/* Right Side - Authentication */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10">
         <div className="w-full max-w-md">
-          {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center space-x-2 mb-8">
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-[#FF6B00] rounded-lg flex items-center justify-center">
               <IconShield className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold text-white">SECURE THREAD</span>
           </div>
-
-          {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-white mb-2">
               Get started for free
@@ -332,113 +333,115 @@ const SignInPage = () => {
               Secure in seconds – Start free, no card required
             </p>
           </div>
-
-          {/* Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 text-red-100 rounded-lg text-sm">
               {error}
             </div>
           )}
-
-          {/* Authentication Options */}
           <div className="space-y-4 mb-6">
-            {/* GitHub Login */}
             <button
               onClick={handleGitHubLogin}
-              disabled={isLoading}
+              disabled={loadingProvider !== null}
               className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e]/90 hover:bg-[#1a1e22]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
             >
               <IconBrandGithub className="w-5 h-5" />
-              <span>{isLoading ? "Connecting..." : "Continue with GitHub"}</span>
+              <span>
+                {loadingProvider === "github"
+                  ? "Connecting..."
+                  : "Continue with GitHub"}
+              </span>
             </button>
-
-            {/* Google Login */}
             <button
               onClick={() => handleComingSoonProvider("Google")}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md"
+              disabled={loadingProvider !== null}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
             >
               <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
               <span>Continue with Google</span>
             </button>
-
-            {/* GitLab Login - NOW FUNCTIONAL */}
             <button
               onClick={handleGitLabLogin}
-              disabled={isLoading}
+              disabled={loadingProvider !== null}
               className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
             >
               <IconBrandGitlab className="w-5 h-5" />
-              <span>{isLoading ? "Connecting..." : "Continue with GitLab"}</span>
+              <span>
+                {loadingProvider === "gitlab"
+                  ? "Connecting..."
+                  : "Continue with GitLab"}
+              </span>
             </button>
-
-            {/* Bitbucket Login */}
             <button
               onClick={() => handleComingSoonProvider("Bitbucket")}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10"
+              disabled={loadingProvider !== null}
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10 disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/>
+                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
               </svg>
               <span>Continue with Bitbucket</span>
             </button>
           </div>
-
-          {/* Additional Options */}
           <div className="text-center mb-6">
             <p className="text-sm text-white/80">
               Or sign up with{" "}
-              <button 
+              <button
                 onClick={() => handleComingSoonProvider("Enterprise SSO")}
-                className="text-accent hover:text-accent/80 font-medium transition-colors"
+                className="text-[#FF6B00] hover:text-[#FF6B00]/80 font-medium transition-colors"
               >
                 Enterprise SSO
               </button>{" "}
               |{" "}
-              <button 
+              <button
                 onClick={() => handleComingSoonProvider("Docker ID")}
-                className="text-accent hover:text-accent/80 font-medium transition-colors"
+                className="text-[#FF6B00] hover:text-[#FF6B00]/80 font-medium transition-colors"
               >
                 Docker ID
               </button>
             </p>
           </div>
-
-          {/* Security Notice */}
           <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
               <IconShield className="w-5 h-5 text-blue-300 mt-0.5 flex-shrink-0" />
               <div>
-                <h4 className="font-semibold text-blue-100 text-sm">Secure read-only access</h4>
+                <h4 className="font-semibold text-blue-100 text-sm">
+                  Secure read-only access
+                </h4>
                 <p className="text-xs text-blue-200 mt-1">
-                  Our analysis does not require any agents, just read-only API access. 
-                  We never store your code.
+                  Our analysis does not require any agents, just read-only API
+                  access. We never store your code.
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Remember Login */}
           <div className="flex items-center justify-center mb-6">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="w-4 h-4 text-accent bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
+                className="w-4 h-4 text-[#FF6B00] bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
               />
-              <span className="text-sm text-white/80">Remember my login details</span>
+              <span className="text-sm text-white/80">
+                Remember my login details
+              </span>
             </label>
           </div>
-
-          {/* Footer */}
           <div className="text-center">
             <p className="text-xs text-white/70 leading-relaxed">
-              We will not make any use of the auth provider without your permission.
+              We will not make any use of the auth provider without your
+              permission.
               <br />
               By logging in or signing up, you agree to abide by our{" "}
-              <a href="#" className="text-accent hover:text-accent/80 transition-colors">
+              <a
+                href="#"
+                className="text-[#FF6B00] hover:text-[#FF6B00]/80 transition-colors"
+              >
                 Terms of Service
               </a>{" "}
               and{" "}
-              <a href="#" className="text-accent hover:text-accent/80 transition-colors">
+              <a
+                href="#"
+                className="text-[#FF6B00] hover:text-[#FF6B00]/80 transition-colors"
+              >
                 Privacy Policy
               </a>
             </p>
