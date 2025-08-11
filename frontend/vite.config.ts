@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    // 👇 This ensures /auth/gitlab/callback is handled by React Router
+    historyApiFallback: true
   },
   plugins: [
     react(),

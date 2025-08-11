@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: str
     GITHUB_REDIRECT_URI: str
     
-    #LLM Configuration
+    # GitLab OAuth
+    GITLAB_CLIENT_ID: str
+    GITLAB_CLIENT_SECRET: str
+    GITLAB_REDIRECT_URI: str
+
+    # LLM Configuration
     DEEPSEEK_API_KEY: str
     
     # Frontend
@@ -28,7 +33,9 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:8080",
+        "http://localhost:8081",  # ADD THIS LINE - your actual frontend URL
         "http://localhost:5173",
+        "http://127.0.0.1:8081"
     ]
     
     # Environment
@@ -37,6 +44,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # This line fixes the validation error
 
 
 settings = Settings()

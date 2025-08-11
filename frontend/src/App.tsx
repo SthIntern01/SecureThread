@@ -15,8 +15,9 @@ import AIChat from "./pages/AIChat";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
+import GitLabCallback from "./pages/GitLabCallback"; // Make sure this is imported
 import NotFound from "./pages/NotFound";
-import RepositoryDetailsPage from "./pages/RepositoryDetails"; // Changed this line
+import RepositoryDetailsPage from "./pages/RepositoryDetails";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,9 @@ const App = () => (
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/auth/github/callback" element={<GitHubCallback />} />
+            
+            {/* ADD THIS LINE FOR THE GITLAB CALLBACK */}
+            <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
 
             {/* Protected routes */}
             <Route
@@ -58,7 +62,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* Removed the duplicate route */}
             <Route
               path="/members"
               element={
