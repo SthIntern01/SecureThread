@@ -270,7 +270,7 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
     },
     {
       label: "Docs",
-      href: "#",
+      href: "/docs",
       icon: <IconBook className="h-5 w-5 shrink-0" />,
     },
     {

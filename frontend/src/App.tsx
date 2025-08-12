@@ -9,10 +9,11 @@ import Index from "./pages/Index";
 import Projects from "./pages/Projects";
 import Members from "./pages/Members";
 import Integrations from "./pages/Integrations";
-import Settings from "./pages/Settings";
+import Docs from "./pages/Docs"; 
 import Solved from "./pages/Solved";
 import AIChat from "./pages/AIChat";
 import SignIn from "./pages/SignIn";
+import Settings from "./pages/Settings";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
 import GitLabCallback from "./pages/GitLabCallback"; // Make sure this is imported
@@ -36,6 +37,7 @@ const App = () => (
             
             {/* ADD THIS LINE FOR THE GITLAB CALLBACK */}
             <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
+            <Route path="/docs" element={<Docs />} />
 
             {/* Protected routes */}
             <Route
