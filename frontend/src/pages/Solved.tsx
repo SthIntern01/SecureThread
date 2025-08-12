@@ -545,7 +545,7 @@ const Solved = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-brand-black mb-2">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">
                   Solved Issues
                 </h1>
                 <p className="text-brand-gray">Security vulnerabilities and issues that have been resolved</p>

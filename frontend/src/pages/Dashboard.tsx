@@ -1,42 +1,37 @@
-import React, { useState, useEffect } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  AlertTriangle,
-  ArrowUp,
-  Play,
-  Pause,
-  Square,
-  Shield,
-  Bug,
-  CheckCircle,
-  Clock,
-  Zap,
-  Activity,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import { ChevronRight } from "lucide-react";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { EtherealBackground } from "../components/ui/ethereal-background";
-import { Sidebar, SidebarBody, SidebarLink } from "../components/ui/sidebar";
+import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  IconActivity,
-  IconSettings,
-  IconBug,
-  IconMoon,
-  IconCircleCheck,
-  IconDatabase,
-  IconContainer,
-  IconCloud,
-  IconDeviceDesktop,
-  IconApi,
-  IconShield,
+  Shield,
+  AlertTriangle,
+  TrendingUp,
+  Activity,
+  Users,
+  ChevronRight,
+  Play,
+  Pause,
+  MoreHorizontal,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Zap,
+  Eye,
+  GitBranch,
+  Settings,
+  BarChart3,
+} from "lucide-react";
+import {
   IconDashboard,
   IconFolder,
   IconUsers,
   IconBrandGithub,
+  IconCircleCheck,
   IconMessageCircle,
+  IconSettings,
   IconBook,
   IconHelp,
   IconUser,
@@ -44,20 +39,14 @@ import {
   IconRobot,
 } from "@tabler/icons-react";
 
-interface DashboardStats {
-  activeProjects: number;
-  totalVulnerabilities: number;
-  securityScore: number;
-}
-
 const Logo = () => {
   return (
-    <a
-      href="#"
+    <Link
+      to="/"
       className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
     >
       <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </a>
+    </Link>
   );
 };
 
@@ -74,7 +63,7 @@ const ResponsiveSidebar = ({
   const feedLinks = [
     {
       label: "Dashboard",
-      href: "#",
+      href: "/",
       icon: <IconDashboard className="h-5 w-5 shrink-0" />,
       active: true,
     },
@@ -124,7 +113,7 @@ const ResponsiveSidebar = ({
     },
     {
       label: "Docs",
-      href: "#",
+      href: "/docs",
       icon: <IconBook className="h-5 w-5 shrink-0" />,
     },
     {
@@ -148,7 +137,8 @@ const ResponsiveSidebar = ({
     ),
   };
 
-  const handleProfileClick = () => {
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
     setShowLogout(!showLogout);
   };
 
@@ -196,682 +186,124 @@ const ResponsiveSidebar = ({
   );
 };
 
-const StatsRow = () => {
-  const stats = [
-    {
-      label: "Critical Issues",
-      value: "12",
-      bgColor: "bg-red-500",
-      textColor: "text-white",
-      trend: "down",
-    },
-    {
-      label: "Security Score",
-      value: "94%",
-      bgColor: "bg-green-500",
-      textColor: "text-white",
-      trend: "up",
-    },
-    {
-      label: "Code Coverage",
-      value: "87%",
-      bgColor: "bg-accent",
-      textColor: "text-accent-foreground",
-      pattern: true,
-      trend: "up",
-    },
-    {
-      label: "Scans Today",
-      value: "8",
-      bgColor: "bg-brand-light",
-      textColor: "text-brand-black",
-      trend: "up",
-    },
-  ];
-
-  return (
-    <div className="flex flex-wrap gap-3 mb-6">
-      {stats.map((stat, index) => (
-        <div
-          key={index}
-          className={`${stat.bgColor} ${
-            stat.textColor
-          } px-4 py-2 rounded-full text-sm font-medium ${
-            stat.pattern ? "relative overflow-hidden" : ""
-          } flex items-center space-x-2`}
-        >
-          {stat.pattern && (
-            <div
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(45deg, transparent, transparent 4px, white 4px, white 8px)",
-              }}
-            ></div>
-          )}
-          <span className="relative font-semibold">
-            {stat.label} {stat.value}
-          </span>
-          {stat.trend === "up" ? (
-            <TrendingUp size={14} className="relative" />
-          ) : (
-            <TrendingDown size={14} className="relative" />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const TopStatsCards = ({ stats }: { stats: DashboardStats }) => {
-  const statsCards = [
-    {
-      number: stats.activeProjects.toString(),
-      label: "Active Projects",
-      icon: <IconFolder className="w-6 h-6" />,
-    },
-    {
-      number: stats.totalVulnerabilities.toString(),
-      label: "Vulnerabilities",
-      icon: <IconBug className="w-6 h-6" />,
-    },
-    {
-      number: `${stats.securityScore}%`,
-      label: "Security Score",
-      icon: <IconShield className="w-6 h-6" />,
-    },
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      {statsCards.map((stat, index) => (
-        <div
-          key={index}
-          className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-3xl font-bold text-brand-black">
-                {stat.number}
-              </div>
-              <div className="text-sm text-brand-gray font-medium">
-                {stat.label}
-              </div>
-            </div>
-            <div className="text-accent opacity-60">{stat.icon}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const SecurityOverviewCard = () => {
-  const [expandedSection, setExpandedSection] = useState("Recent Scans");
-
-  const sections = [
-    {
-      name: "Recent Scans",
-      content: (
-        <div className="space-y-3 mt-3 pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-brand-black">
-                  E-commerce Platform
-                </span>
-                <div className="text-xs text-brand-gray">2 hours ago</div>
-              </div>
-            </div>
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-              Clean
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-brand-black">
-                  API Gateway
-                </span>
-                <div className="text-xs text-brand-gray">4 hours ago</div>
-              </div>
-            </div>
-            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
-              3 Critical
-            </span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      name: "Vulnerability Types",
-      content: (
-        <div className="space-y-2 mt-3 pb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">SQL Injection</span>
-            <span className="text-sm font-medium text-red-600">8</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">XSS</span>
-            <span className="text-sm font-medium text-orange-600">12</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">Dependency Issues</span>
-            <span className="text-sm font-medium text-yellow-600">24</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      name: "Security Policies",
-      content: (
-        <div className="space-y-2 mt-3 pb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">Password Policy</span>
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-              Active
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">2FA Enforcement</span>
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-              Enabled
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">Access Control</span>
-            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-              Review
-            </span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      name: "Compliance Status",
-      content: (
-        <div className="space-y-2 mt-3 pb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">SOC 2 Type II</span>
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-              Compliant
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">ISO 27001</span>
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-              Certified
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-brand-black">GDPR</span>
-            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-              In Progress
-            </span>
-          </div>
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-      <div className="flex flex-col items-center mb-6">
-        <div className="w-32 h-32 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full mb-4 border-4 border-white/50 flex items-center justify-center">
-          <IconShield className="w-16 h-16 text-accent" />
-        </div>
-        <div className="text-center">
-          <h3 className="text-xl font-bold text-brand-black mb-1">
-            Security Overview
-          </h3>
-          <p className="text-sm text-brand-gray font-medium mb-3">
-            SecureThread Platform
-          </p>
-          <div className="bg-accent/20 text-brand-black px-4 py-2 rounded-full text-sm font-bold">
-            94% Secure
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {sections.map((section, index) => (
-          <div
-            key={index}
-            className="border-b border-gray-200/50 last:border-b-0"
-          >
-            <button
-              onClick={() =>
-                setExpandedSection(
-                  expandedSection === section.name ? null : section.name
-                )
-              }
-              className="w-full flex items-center justify-between py-3 text-left"
-            >
-              <span className="text-sm font-semibold text-brand-black">
-                {section.name}
-              </span>
-              {expandedSection === section.name ? (
-                <ChevronUp size={16} className="text-brand-gray" />
-              ) : (
-                <ChevronDown size={16} className="text-brand-gray" />
-              )}
-            </button>
-            {expandedSection === section.name && section.content && (
-              <div>{section.content}</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const SecurityScoreWidget = () => {
-  const scoreHistory = [
-    { day: "M", score: 87 },
-    { day: "T", score: 91 },
-    { day: "W", score: 89 },
-    { day: "T", score: 94 },
-    { day: "F", score: 96 },
-    { day: "S", score: 94 },
-  ];
-
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-brand-black">
-          Security Score
-        </h3>
-        <TrendingUp size={16} className="text-green-500" />
-      </div>
-      <p className="text-sm text-brand-gray mb-6 font-medium">
-        Weekly security trend
-      </p>
-
-      <div className="flex items-end space-x-3 h-24 mb-4">
-        {scoreHistory.map((item, index) => (
-          <div key={index} className="flex-1 flex flex-col items-center">
-            <div className="w-full relative">
-              <div
-                className={`w-full rounded-t ${
-                  index === 4 ? "bg-accent" : "bg-gray-200"
-                }`}
-                style={{ height: `${item.score}%`, minHeight: "8px" }}
-              ></div>
-              {index === 4 && (
-                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-accent text-accent-foreground text-xs px-2 py-1 rounded font-semibold whitespace-nowrap">
-                  {item.score}%
-                </div>
-              )}
-            </div>
-            <span className="text-xs text-brand-gray mt-2 font-medium">
-              {item.day}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="text-center">
-        <div className="text-2xl font-bold text-brand-black">94%</div>
-        <div className="text-sm text-brand-gray">Current Score</div>
-      </div>
-    </div>
-  );
-};
-
-const ScanStatusWidget = () => {
-  const [isScanning, setIsScanning] = useState(true);
-
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-brand-black">Active Scans</h3>
-        <Activity size={16} className="text-blue-500" />
-      </div>
-
-      <div className="flex flex-col items-center">
-        <div className="relative w-32 h-32 mb-6">
-          <svg
-            className="w-full h-full transform -rotate-90"
-            viewBox="0 0 100 100"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              stroke="#E5E7EB"
-              strokeWidth="8"
-              fill="none"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="40"
-              stroke="hsl(var(--accent))"
-              strokeWidth="8"
-              fill="none"
-              strokeDasharray={`${75} ${225}`}
-              strokeLinecap="round"
-              className={isScanning ? "animate-pulse" : ""}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-2xl font-bold text-brand-black">3/5</div>
-            <div className="text-xs text-brand-gray font-medium">Projects</div>
-          </div>
-        </div>
-
-        <div className="w-full space-y-2 mb-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-brand-black">E-commerce API</span>
-            <span className="text-blue-600">Scanning...</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-brand-black">Mobile App</span>
-            <span className="text-green-600">Complete</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setIsScanning(!isScanning)}
-            className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            {isScanning ? <Pause size={14} /> : <Play size={14} />}
-          </button>
-          <button className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors">
-            <Square size={14} />
-          </button>
-          <button className="w-8 h-8 bg-brand-black rounded-full flex items-center justify-center text-brand-light hover:bg-brand-black/80 transition-colors">
-            <Zap size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const SecurityAlertsPanel = () => {
-  const alerts = [
-    {
-      id: 1,
-      type: "Critical",
-      message: "SQL Injection detected in user authentication",
-      project: "E-commerce Platform",
-      time: "5 min ago",
-      status: "new",
-    },
-    {
-      id: 2,
-      type: "High",
-      message: "Outdated dependency with known CVE",
-      project: "Mobile Banking App",
-      time: "15 min ago",
-      status: "investigating",
-    },
-    {
-      id: 3,
-      type: "Medium",
-      message: "Weak password policy detected",
-      project: "Admin Dashboard",
-      time: "1 hour ago",
-      status: "acknowledged",
-    },
-    {
-      id: 4,
-      type: "High",
-      message: "Cross-site scripting vulnerability",
-      project: "User Portal",
-      time: "2 hours ago",
-      status: "fixed",
-    },
-    {
-      id: 5,
-      type: "Critical",
-      message: "Exposed API keys in repository",
-      project: "Payment Gateway",
-      time: "3 hours ago",
-      status: "new",
-    },
-  ];
-
-  const getAlertColor = (type: string) => {
-    switch (type) {
-      case "Critical":
-        return "bg-red-500";
-      case "High":
-        return "bg-orange-500";
-      case "Medium":
-        return "bg-yellow-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "new":
-        return "text-red-600";
-      case "investigating":
-        return "text-blue-600";
-      case "acknowledged":
-        return "text-yellow-600";
-      case "fixed":
-        return "text-green-600";
-      default:
-        return "text-gray-600";
-    }
-  };
-
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-brand-black">
-          Security Alerts
-        </h3>
-        <span className="text-lg font-bold text-brand-black">12</span>
-      </div>
-
-      <div className="mb-6">
-        <div className="flex space-x-2 mb-3">
-          <div className="flex-1 bg-red-500 h-2 rounded-full"></div>
-          <div className="flex-1 bg-orange-500 h-2 rounded-full"></div>
-          <div className="flex-1 bg-yellow-500 h-2 rounded-full"></div>
-          <div className="flex-1 bg-gray-200 h-2 rounded-full"></div>
-        </div>
-        <div className="flex justify-between text-xs text-brand-gray font-medium">
-          <span>5 Critical</span>
-          <span>4 High</span>
-          <span>3 Medium</span>
-          <span>0 Low</span>
-        </div>
-      </div>
-
-      <div className="mb-4">
-        <span className="text-sm font-semibold text-brand-gray">
-          Recent Alerts
-        </span>
-      </div>
-
-      <div className="bg-brand-black/95 backdrop-blur-sm rounded-xl p-4">
-        <div className="text-brand-light text-sm font-semibold mb-4">
-          Priority Queue
-        </div>
-
-        <div className="space-y-3 max-h-64 overflow-y-auto">
-          {alerts.map((alert) => (
-            <div key={alert.id} className="flex items-start space-x-3">
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white ${getAlertColor(
-                  alert.type
-                )}`}
-              >
-                !
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-brand-light text-sm font-medium truncate">
-                  {alert.message}
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <div className="text-brand-gray text-xs truncate">
-                    {alert.project}
-                  </div>
-                  <div className="text-brand-gray text-xs">{alert.time}</div>
-                </div>
-                <div
-                  className={`text-xs mt-1 ${getStatusColor(
-                    alert.status
-                  )} capitalize`}
-                >
-                  {alert.status}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const RecentActivityStrip = () => {
-  const activities = [
-    {
-      time: "8:00 am",
-      type: "scan",
-      project: "E-commerce Platform",
-      status: "completed",
-    },
-    {
-      time: "9:15 am",
-      type: "alert",
-      project: "Mobile Banking App",
-      status: "critical",
-    },
-    {
-      time: "10:30 am",
-      type: "scan",
-      project: "User Portal",
-      status: "in-progress",
-    },
-    {
-      time: "11:45 am",
-      type: "fix",
-      project: "API Gateway",
-      status: "resolved",
-    },
-  ];
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "scan":
-        return <Shield className="w-3 h-3" />;
-      case "alert":
-        return <AlertTriangle className="w-3 h-3" />;
-      case "fix":
-        return <CheckCircle className="w-3 h-3" />;
-      default:
-        return <Clock className="w-3 h-3" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-500";
-      case "critical":
-        return "bg-red-500";
-      case "in-progress":
-        return "bg-blue-500";
-      case "resolved":
-        return "bg-green-600";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
-      <div className="flex items-center justify-between mb-6">
-        <div className="text-lg font-semibold text-brand-black">
-          Recent Activity
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {activities.map((activity, index) => (
-          <div key={index} className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="text-xs text-brand-gray font-medium w-16">
-                {activity.time}
-              </div>
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-white ${getStatusColor(
-                  activity.status
-                )}`}
-              >
-                {getActivityIcon(activity.type)}
-              </div>
-              <div>
-                <div className="text-sm font-medium text-brand-black">
-                  {activity.project}
-                </div>
-                <div className="text-xs text-brand-gray capitalize">
-                  {activity.type} - {activity.status}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [stats, setStats] = useState<DashboardStats>({
-    activeProjects: 0,
-    totalVulnerabilities: 156,
+
+  // Mock data - replace with actual API calls
+  const dashboardData = {
     securityScore: 94,
-  });
+    criticalIssues: 12,
+    totalVulnerabilities: 156,
+    activeProjects: 1,
+    scansToday: 8,
+    codeCoverage: 87,
+    activeScanningProjects: 3,
+    totalProjects: 5,
+    recentScans: [
+      {
+        id: 1,
+        name: "E-commerce Platform",
+        status: "Complete",
+        time: "2 hours ago",
+        result: "Clean",
+      },
+      {
+        id: 2,
+        name: "API Gateway",
+        status: "Scanning",
+        time: "4 hours ago",
+        result: "3 Critical",
+      },
+      {
+        id: 3,
+        name: "Mobile Banking App",
+        status: "Complete",
+        time: "1 day ago",
+        result: "2 High",
+      },
+    ],
+    vulnerabilityTypes: [
+      { type: "SQL Injection", count: 45, severity: "critical" },
+      { type: "XSS", count: 32, severity: "high" },
+      { type: "CSRF", count: 28, severity: "medium" },
+      { type: "Outdated Dependencies", count: 51, severity: "low" },
+    ],
+    recentActivity: [
+      {
+        id: 1,
+        action: "E-commerce Platform scan completed",
+        time: "8:00 am",
+        status: "success",
+      },
+      {
+        id: 2,
+        action: "Mobile Banking App scan completed",
+        time: "9:15 am",
+        status: "warning",
+      },
+      {
+        id: 3,
+        action: "API Gateway scan started",
+        time: "10:30 am",
+        status: "info",
+      },
+    ],
+  };
 
-  useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+  const getSecurityScoreColor = (score: number) => {
+    if (score >= 90) return "text-green-400";
+    if (score >= 70) return "text-yellow-400";
+    return "text-red-400";
+  };
 
-  const fetchDashboardStats = async () => {
-    try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/repositories/`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const repositories = data.repositories || [];
-
-        setStats({
-          activeProjects: repositories.length,
-          totalVulnerabilities: 156, // Static for now
-          securityScore: 94, // Static for now
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "Complete":
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case "Scanning":
+        return <Activity className="w-4 h-4 text-blue-400 animate-pulse" />;
+      case "Failed":
+        return <XCircle className="w-4 h-4 text-red-400" />;
+      default:
+        return <Clock className="w-4 h-4 text-gray-400" />;
     }
+  };
+
+  // Vulnerability chart component
+  const VulnerabilityChart = () => {
+    const maxCount = Math.max(...dashboardData.vulnerabilityTypes.map(v => v.count));
+    
+    return (
+      <div className="space-y-4">
+        {dashboardData.vulnerabilityTypes.map((vuln, index) => {
+          const percentage = (vuln.count / maxCount) * 100;
+          const getSeverityColor = (severity: string) => {
+            switch (severity) {
+              case "critical": return "bg-red-500";
+              case "high": return "bg-orange-500";
+              case "medium": return "bg-yellow-500";
+              case "low": return "bg-gray-500";
+              default: return "bg-gray-500";
+            }
+          };
+          
+          return (
+            <div key={index} className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-white/90 font-medium">{vuln.type}</span>
+                <span className="text-white/70">{vuln.count}</span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${getSeverityColor(vuln.severity)} transition-all duration-500`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -889,36 +321,289 @@ const Dashboard = () => {
       />
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
-        <div className="p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center space-x-2 text-sm mb-4">
-              <span className="font-medium text-white">SecureThread</span>
-              <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium text-white">Dashboard</span>
-            </div>
-
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-6">
-              Security Dashboard
-            </h1>
-
-            <StatsRow />
-            <TopStatsCards stats={stats} />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-6">
-              <div className="lg:col-span-4 xl:col-span-3">
-                <SecurityOverviewCard />
-              </div>
-
-              <div className="lg:col-span-5 xl:col-span-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <SecurityScoreWidget />
-                  <ScanStatusWidget />
+        <div className="p-6 lg:p-8">
+          <div className="max-w-[95%] mx-auto">
+            {/* Single unified container */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border-2 border-white/30 shadow-2xl overflow-hidden min-h-[85vh]">
+              
+              {/* Header Section */}
+              <div className="p-6 border-b border-white/10">
+                {/* Breadcrumb */}
+                <div className="flex items-center space-x-2 text-sm mb-3">
+                  <span className="font-medium text-white">SecureThread</span>
+                  <ChevronRight size={16} className="text-white/60" />
+                  <span className="font-medium text-white">Dashboard</span>
                 </div>
-                <RecentActivityStrip />
+
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold text-white mb-2">
+                      Security Dashboard
+                    </h1>
+                    <p className="text-white/80">
+                      Monitor your security posture and vulnerabilities
+                    </p>
+                  </div>
+                  
+                  {/* Quick Action Badges */}
+                  <div className="flex flex-wrap gap-2 mt-4 lg:mt-0">
+                    <Badge className="bg-red-500/20 text-red-300 border-red-500/30">
+                      Critical Issues {dashboardData.criticalIssues} 
+                    </Badge>
+                    <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                      Security Score {dashboardData.securityScore}%
+                    </Badge>
+                    <Badge className="bg-orange-500/20 text-orange-300 border-orange-500/30">
+                      Code Coverage {dashboardData.codeCoverage}%
+                    </Badge>
+                    <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">
+                      Scans Today {dashboardData.scansToday}
+                    </Badge>
+                  </div>
+                </div>
               </div>
 
-              <div className="lg:col-span-3">
-                <SecurityAlertsPanel />
+              {/* Main Metrics Row */}
+              <div className="p-6 border-b border-white/10">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-br from-green-500/20 to-green-600/30 rounded-2xl flex items-center justify-center">
+                      <Shield className="w-8 h-8 text-green-400" />
+                    </div>
+                    <div className={`text-3xl font-bold mb-1 ${getSecurityScoreColor(dashboardData.securityScore)}`}>
+                      {dashboardData.securityScore}%
+                    </div>
+                    <div className="text-white/70 font-medium">Security Score</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-br from-red-500/20 to-red-600/30 rounded-2xl flex items-center justify-center">
+                      <AlertTriangle className="w-8 h-8 text-red-400" />
+                    </div>
+                    <div className="text-3xl font-bold text-red-400 mb-1">
+                      {dashboardData.totalVulnerabilities}
+                    </div>
+                    <div className="text-white/70 font-medium">Vulnerabilities</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-br from-blue-500/20 to-blue-600/30 rounded-2xl flex items-center justify-center">
+                      <Activity className="w-8 h-8 text-blue-400" />
+                    </div>
+                    <div className="text-3xl font-bold text-blue-400 mb-1">
+                      {dashboardData.activeScanningProjects}/{dashboardData.totalProjects}
+                    </div>
+                    <div className="text-white/70 font-medium">Active Scans</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-br from-purple-500/20 to-purple-600/30 rounded-2xl flex items-center justify-center">
+                      <GitBranch className="w-8 h-8 text-purple-400" />
+                    </div>
+                    <div className="text-3xl font-bold text-white mb-1">
+                      {dashboardData.activeProjects}
+                    </div>
+                    <div className="text-white/70 font-medium">Active Projects</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content Grid */}
+              <div className="grid lg:grid-cols-3 gap-0">
+                
+                {/* Security Overview & Recent Scans */}
+                <div className="lg:col-span-2 p-6 border-r border-white/10">
+                  
+                  {/* Security Overview */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-white flex items-center">
+                        <Shield className="w-5 h-5 mr-2 text-accent" />
+                        Security Overview
+                      </h3>
+                      <Button variant="ghost" size="sm" className="text-white/70 hover:text-white">
+                        <Settings className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    <div className="text-center mb-4">
+                      <div className="text-4xl font-bold text-white mb-2">
+                        SecureThread Platform
+                      </div>
+                      <div className={`text-2xl font-semibold ${getSecurityScoreColor(dashboardData.securityScore)}`}>
+                        {dashboardData.securityScore}% Secure
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thin divider */}
+                  <div className="border-b border-white/10 mb-6"></div>
+
+                  {/* Recent Scans */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <Activity className="w-5 h-5 mr-2 text-accent" />
+                      Recent Scans
+                    </h3>
+                    <div className="space-y-1">
+                      {dashboardData.recentScans.map((scan) => (
+                        <div key={scan.id} className="flex items-center justify-between py-1.5">
+                          <div className="flex items-center space-x-3">
+                            {getStatusIcon(scan.status)}
+                            <div>
+                              <div className="text-white font-medium">{scan.name}</div>
+                              <div className="text-white/60 text-xs">{scan.time}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge
+                              className={`text-xs ${
+                                scan.result === "Clean"
+                                  ? "bg-green-500/20 text-green-300 border-green-500/30"
+                                  : scan.result.includes("Critical")
+                                  ? "bg-red-500/20 text-red-300 border-red-500/30"
+                                  : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                              }`}
+                            >
+                              {scan.result}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Thin divider */}
+                  <div className="border-b border-white/10 my-6"></div>
+
+                  {/* Vulnerability Types */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <AlertTriangle className="w-5 h-5 mr-2 text-accent" />
+                      Vulnerability Types
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {dashboardData.vulnerabilityTypes.map((vuln, index) => (
+                        <div key={index} className="flex items-center justify-between py-2">
+                          <span className="text-white/80 text-sm">{vuln.type}</span>
+                          <Badge
+                            className={`text-xs ${
+                              vuln.severity === "critical"
+                                ? "bg-red-500/20 text-red-300 border-red-500/30"
+                                : vuln.severity === "high"
+                                ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
+                                : vuln.severity === "medium"
+                                ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                                : "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                            }`}
+                          >
+                            {vuln.count}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side - Activity & Quick Actions */}
+                <div className="p-6">
+                  
+                  {/* Security Alerts */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Zap className="w-5 h-5 mr-2 text-accent" />
+                        Security Alerts
+                      </div>
+                      <span className="text-sm text-red-400 font-medium">12</span>
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="text-center">
+                        <div className="text-red-400 font-bold text-lg">5</div>
+                        <div className="text-white/60 text-xs">Critical</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-orange-400 font-bold text-lg">4</div>
+                        <div className="text-white/60 text-xs">High</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-yellow-400 font-bold text-lg">3</div>
+                        <div className="text-white/60 text-xs">Medium</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-400 font-bold text-lg">0</div>
+                        <div className="text-white/60 text-xs">Low</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thin divider */}
+                  <div className="border-b border-white/10 mb-6"></div>
+
+                  {/* Recent Activity */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <Clock className="w-5 h-5 mr-2 text-accent" />
+                      Recent Activity
+                    </h3>
+                    
+                    <div className="space-y-3">
+                      {dashboardData.recentActivity.map((activity) => (
+                        <div key={activity.id} className="flex items-start space-x-3">
+                          <div className={`w-2 h-2 rounded-full mt-2 ${
+                            activity.status === "success" ? "bg-green-400" :
+                            activity.status === "warning" ? "bg-yellow-400" :
+                            "bg-blue-400"
+                          }`}></div>
+                          <div className="flex-1">
+                            <div className="text-white/90 text-sm">{activity.action}</div>
+                            <div className="text-white/50 text-xs">{activity.time}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Thin divider */}
+                  <div className="border-b border-white/10 mb-6"></div>
+
+                  {/* Priority Queue */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                      <TrendingUp className="w-5 h-5 mr-2 text-accent" />
+                      Priority Queue
+                    </h3>
+                    
+                    <div className="bg-black/20 rounded-lg p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                            <span className="text-white/90 text-sm">SQL Injection detected</span>
+                          </div>
+                          <span className="text-white/50 text-xs">5 min ago</span>
+                        </div>
+                        <div className="text-white/60 text-xs ml-4">E-commerce Platform - New</div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                            <span className="text-white/90 text-sm">Outdated dependencies</span>
+                          </div>
+                          <span className="text-white/50 text-xs">15 min ago</span>
+                        </div>
+                        <div className="text-white/60 text-xs ml-4">Mobile Banking - Investigating</div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                            <span className="text-white/90 text-sm">Weak password policy</span>
+                          </div>
+                          <span className="text-white/50 text-xs">1 hour ago</span>
+                        </div>
+                        <div className="text-white/60 text-xs ml-4">Admin Dashboard - Acknowledged</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

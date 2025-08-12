@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { EtherealBackground } from '../components/ui/ethereal-background';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { useAuth } from "../contexts/AuthContext"; // Add this import
 import { Plus, Search, Settings, ExternalLink, Check, AlertCircle, ChevronRight } from 'lucide-react';
 import {
   IconDashboard,
@@ -29,9 +30,13 @@ import {
   IconBug,
   IconActivity,
   IconRobot,
+  IconLogout, // Add this import
 } from '@tabler/icons-react';
 
 const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean; setSidebarOpen: (open: boolean) => void }) => {
+  const { user, logout } = useAuth(); // Add this line
+  const [showLogout, setShowLogout] = useState(false); // Add this state
+
   const feedLinks = [
     {
       label: "Dashboard",
@@ -55,7 +60,7 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
       label: "Integrations",
       href: "/integrations",
       icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
-      active: true,
+      active: true, // Keep this true since this is the Integrations page
       count: "99+",
     },
     {
@@ -80,12 +85,12 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
     },
     {
       label: "Settings",
-      href: "#",
+      href: "/settings",
       icon: <IconSettings className="h-5 w-5 shrink-0" />,
     },
     {
       label: "Docs",
-      href: "#",
+      href: "/docs",
       icon: <IconBook className="h-5 w-5 shrink-0" />,
     },
     {
@@ -95,10 +100,25 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
     },
   ];
 
+  // Update the profileLink to use actual user data
   const profileLink = {
-    label: "Lora Piterson",
+    label: user?.full_name || user?.github_username || "Lora Piterson", // Use actual user data or fallback
     href: "#",
-    icon: <IconUser className="h-5 w-5 shrink-0" />,
+    icon: user?.avatar_url ? (
+      <img
+        src={user.avatar_url}
+        alt={user.full_name || user.github_username}
+        className="h-5 w-5 rounded-full shrink-0"
+      />
+    ) : (
+      <IconUser className="h-5 w-5 shrink-0" />
+    ),
+  };
+
+  // Add the click handler for profile
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowLogout(!showLogout);
   };
 
   return (
@@ -119,8 +139,26 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
             ))}
           </div>
 
-          <div className="pt-4 border-t border-brand-gray/30">
-            <SidebarLink link={profileLink} />
+          {/* Update the profile section with logout functionality */}
+          <div className="pt-4 border-t border-brand-gray/30 relative">
+            <div onClick={handleProfileClick} className="cursor-pointer">
+              <SidebarLink link={profileLink} />
+            </div>
+
+            {showLogout && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowLogout(false);
+                  }}
+                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <IconLogout className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </SidebarBody>
@@ -440,7 +478,7 @@ const Integrations = () => {
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-6">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-brand-black mb-2">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">
                 Integrations
               </h1>
               <p className="text-brand-gray">Connect your tools and services to SecureThread</p>
