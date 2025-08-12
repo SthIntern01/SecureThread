@@ -1,5 +1,3 @@
-// frontend/src/pages/AiChat.tsx - Complete Working Version
-
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
@@ -465,6 +463,7 @@ const AIChat = () => {
   });
   const [inputFocused, setInputFocused] = useState(false);
   const commandPaletteRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const commandSuggestions: CommandSuggestion[] = [
     {
@@ -498,6 +497,11 @@ const AIChat = () => {
       prefix: "/fix"
     },
   ];
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversation, isTyping]);
 
   // Load user context on component mount
   useEffect(() => {
@@ -721,7 +725,7 @@ const AIChat = () => {
   };
 
   return (
-    <div className="w-full h-screen font-sans relative flex overflow-hidden">
+    <div className="w-full h-screen font-sans relative flex overflow-hidden bg-[#0a0a0a]">
       <EtherealBackground 
         color="rgba(255, 255, 255, 0.6)"
         animation={{ scale: 0, speed: 0 }}
@@ -731,12 +735,12 @@ const AIChat = () => {
       
       <ResponsiveSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       
-      <div className="flex-1 overflow-hidden relative z-10 flex flex-col">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         {/* Header */}
-        <div className="p-4 lg:p-6 flex-shrink-0">
-          <div className="max-w-7xl mx-auto">
+        <div className="flex-shrink-0 p-4 lg:p-6 border-b border-white/10">
+          <div className="max-w-none">
             {/* Breadcrumb Navigation */}
-            <div className="flex items-center space-x-2 text-sm mb-4">
+            <div className="flex items-center space-x-2 text-sm">
               <span className="font-medium text-white">User</span>
               <ChevronRight size={16} className="text-gray-300" />
               <span className="font-medium text-white">AI Chat</span>
@@ -744,26 +748,65 @@ const AIChat = () => {
           </div>
         </div>
 
-        {/* Chat Content */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-          <div className="absolute inset-0 w-full h-full overflow-hidden">
-            <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full mix-blend-normal filter blur-[128px] animate-pulse" />
-            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full mix-blend-normal filter blur-[128px] animate-pulse delay-700" />
-            <div className="absolute top-1/4 right-1/3 w-64 h-64 bg-fuchsia-500/10 rounded-full mix-blend-normal filter blur-[96px] animate-pulse delay-1000" />
-          </div>
-          
-          <div className="w-full max-w-2xl mx-auto relative z-10">
-            <motion.div
-              className="relative space-y-12"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            >
+        {/* Chat Content Area */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Messages Container */}
+          <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-6">
+            <div className="max-w-4xl mx-auto">
+              {/* Welcome Message */}
+              {conversation.length === 0 && (
+                <div className="text-center space-y-6 py-12">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.5 }}
+                    className="inline-block"
+                  >
+                    <h1 className="text-4xl font-medium tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white/90 to-white/40 pb-1">
+                      How can I help with security today?
+                    </h1>
+                    <motion.div
+                      className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: "100%", opacity: 1 }}
+                      transition={{ delay: 0.5, duration: 0.8 }}
+                    />
+                  </motion.div>
+                  <motion.p
+                    className="text-sm text-white/40"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    Ask about vulnerabilities, security scans, upload files, or get recommendations
+                  </motion.p>
+
+                  {/* Quick Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-8">
+                    {commandSuggestions.map((suggestion, index) => (
+                      <motion.button
+                        key={suggestion.prefix}
+                        onClick={() => selectCommandSuggestion(index)}
+                        className="flex items-center gap-2 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] rounded-lg text-sm text-white/60 hover:text-white/90 transition-all relative group border border-white/[0.05] hover:border-white/[0.15]"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {suggestion.icon}
+                        <span>{suggestion.label}</span>
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Chat Messages */}
               <AnimatePresence>
                 {conversation.length > 0 && (
                   <motion.div
-                    className="space-y-4 mb-8 max-h-96 overflow-y-auto"
+                    className="space-y-6"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -781,10 +824,10 @@ const AIChat = () => {
                       >
                         <div
                           className={cn(
-                            "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
+                            "max-w-[85%] rounded-2xl px-6 py-4 text-sm leading-relaxed",
                             message.role === 'user'
-                              ? "bg-white/10 text-white ml-auto"
-                              : "bg-white/5 text-white/90 border border-white/10"
+                              ? "bg-white/10 text-white ml-auto backdrop-blur-sm border border-white/10"
+                              : "bg-white/5 text-white/90 border border-white/10 backdrop-blur-sm"
                           )}
                         >
                           <div className="whitespace-pre-wrap">{message.content}</div>
@@ -799,8 +842,30 @@ const AIChat = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                       >
-                        <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-white/5 border border-white/10">
+                        <div className="max-w-[85%] rounded-2xl px-6 py-4 bg-white/5 border border-white/10 backdrop-blur-sm">
                           <FileAnalysisResults analyses={fileAnalyses} />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Typing Indicator */}
+                    {isTyping && (
+                      <motion.div
+                        className="flex justify-start"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                      >
+                        <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center">
+                              <span className="text-xs font-medium text-white/90">AI</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-white/70">
+                              <span>Analyzing</span>
+                              <TypingDots />
+                            </div>
+                          </div>
                         </div>
                       </motion.div>
                     )}
@@ -808,35 +873,41 @@ const AIChat = () => {
                 )}
               </AnimatePresence>
 
-              {conversation.length === 0 && (
-                <div className="text-center space-y-3">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2, duration: 0.5 }}
-                  className="inline-block"
-                >
-                  <h1 className="text-3xl font-medium tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white/90 to-white/40 pb-1">
-                    How can I help with security today?
-                  </h1>
+              {/* AI Suggestions */}
+              <AnimatePresence>
+                {suggestions.length > 0 && conversation.length > 0 && (
                   <motion.div
-                    className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: "100%", opacity: 1 }}
-                    transition={{ delay: 0.5, duration: 0.8 }}
-                  />
-                </motion.div>
-                <motion.p
-                  className="text-sm text-white/40"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  Ask about vulnerabilities, security scans, upload files, or get recommendations
-                </motion.p>
-                </div>
-              )}
+                    className="flex flex-wrap items-center justify-center gap-2 pt-6"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <div className="text-xs text-white/40 mb-2 w-full text-center">
+                      Suggested follow-ups:
+                    </div>
+                    {suggestions.map((suggestion, index) => (
+                      <motion.button
+                        key={index}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-xs text-white/60 hover:text-white/90 transition-all border border-white/[0.05]"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        {suggestion}
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="flex-shrink-0 p-4 lg:p-6 border-t border-white/10">
+            <div className="max-w-4xl mx-auto">
               {/* File Upload Modal */}
               <AnimatePresence>
                 {showFileUpload && (
@@ -1020,10 +1091,10 @@ const AIChat = () => {
                     whileTap={{ scale: 0.98 }}
                     disabled={isTyping || (!value.trim() && attachedFiles.length === 0)}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                      "px-6 py-2 rounded-lg text-sm font-medium transition-all",
                       "flex items-center gap-2",
                       (value.trim() || attachedFiles.length > 0)
-                        ? "bg-white text-[#0A0A0B] shadow-lg shadow-white/10"
+                        ? "bg-white text-[#0A0A0B] shadow-lg shadow-white/10 hover:bg-white/90"
                         : "bg-white/[0.05] text-white/40"
                     )}
                   >
@@ -1036,104 +1107,8 @@ const AIChat = () => {
                   </motion.button>
                 </div>
               </motion.div>
-
-              {/* Quick Action Buttons */}
-              {conversation.length === 0 && (
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                {commandSuggestions.map((suggestion, index) => (
-                  <motion.button
-                    key={suggestion.prefix}
-                    onClick={() => selectCommandSuggestion(index)}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-sm text-white/60 hover:text-white/90 transition-all relative group"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                  >
-                    {suggestion.icon}
-                    <span>{suggestion.label}</span>
-                    <motion.div
-                      className="absolute inset-0 border border-white/[0.05] rounded-lg"
-                      initial={false}
-                      animate={{
-                        opacity: [0, 1],
-                        scale: [0.98, 1],
-                      }}
-                      transition={{
-                        duration: 0.3,
-                        ease: "easeOut",
-                      }}
-                    />
-                  </motion.button>
-                ))}
-                </div>
-              )}
-
-              {/* AI Suggestions */}
-              <AnimatePresence>
-                {suggestions.length > 0 && (
-                  <motion.div
-                    className="flex flex-wrap items-center justify-center gap-2"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                  >
-                    <div className="text-xs text-white/40 mb-2 w-full text-center">
-                      Suggested follow-ups:
-                    </div>
-                    {suggestions.map((suggestion, index) => (
-                      <motion.button
-                        key={index}
-                        onClick={() => handleSuggestionClick(suggestion)}
-                        className="px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-xs text-white/60 hover:text-white/90 transition-all border border-white/[0.05]"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.05 }}
-                      >
-                        {suggestion}
-                      </motion.button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+            </div>
           </div>
-
-          <AnimatePresence>
-            {isTyping && (
-              <motion.div
-                className="fixed bottom-8 left-1/2 transform -translate-x-1/2 backdrop-blur-2xl bg-white/[0.02] rounded-full px-4 py-2 shadow-lg border border-white/[0.05]"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-7 rounded-full bg-white/[0.05] flex items-center justify-center text-center">
-                    <span className="text-xs font-medium text-white/90 mb-0.5">AI</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-white/70">
-                    <span>Analyzing</span>
-                    <TypingDots />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {inputFocused && (
-            <motion.div
-              className="fixed w-[50rem] h-[50rem] rounded-full pointer-events-none z-0 opacity-[0.02] bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 blur-[96px]"
-              animate={{
-                x: mousePosition.x - 400,
-                y: mousePosition.y - 400,
-              }}
-              transition={{
-                type: "spring",
-                damping: 25,
-                stiffness: 150,
-                mass: 0.5,
-              }}
-            />
-          )}
         </div>
       </div>
     </div>

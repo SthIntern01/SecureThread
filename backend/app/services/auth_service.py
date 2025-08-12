@@ -4,7 +4,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate
 from app.core.security import create_access_token
 from app.services.github_service import GitHubService
-from app.services.gitlab_services import GitLabService  # Add this import
+from app.services.gitlab_services import GitLabService  
 from datetime import timedelta
 from app.config.settings import settings
 import logging
