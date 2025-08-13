@@ -1,5 +1,3 @@
-# backend/app/core/settings.py
-
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
@@ -22,10 +20,15 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_SECRET: Optional[str] = None
     GITHUB_REDIRECT_URI: Optional[str] = None
     
-    # GitLab Integration (Added to fix the error)
+    # GitLab Integration
     GITLAB_CLIENT_ID: Optional[str] = None
     GITLAB_CLIENT_SECRET: Optional[str] = None
     GITLAB_REDIRECT_URI: Optional[str] = None
+    
+    # Google Integration - ADD THESE LINES
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = None
     
     # AI Services
     DEEPSEEK_API_KEY: Optional[str] = None
@@ -45,19 +48,18 @@ class Settings(BaseSettings):
     FRONTEND_URL: Optional[str] = None
     ENVIRONMENT: Optional[str] = None
     
-    # CORS Configuration - Updated to include your frontend port
+    # CORS Configuration
     BACKEND_CORS_ORIGINS: list = [
         "http://localhost:3000",
         "http://localhost:3001", 
-        "http://localhost:8080",  # Added for your frontend
+        "http://localhost:8080",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:8080"   # Added for your frontend
+        "http://127.0.0.1:8080"
     ]
     
     class Config:
         env_file = ".env"
         case_sensitive = True
-        # Allow extra fields to prevent validation errors
         extra = "allow"
 
 # Create settings instance

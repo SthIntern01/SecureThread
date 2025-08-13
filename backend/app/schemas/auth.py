@@ -22,13 +22,24 @@ class GitHubAuthResponse(BaseModel):
     user: dict
 
 
-# Add the missing GitLab classes
 class GitLabAuthRequest(BaseModel):
     code: str
     state: Optional[str] = None
 
 
 class GitLabAuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict
+
+
+# ADD THESE GOOGLE CLASSES
+class GoogleAuthRequest(BaseModel):
+    code: str
+    state: Optional[str] = None
+
+
+class GoogleAuthResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict

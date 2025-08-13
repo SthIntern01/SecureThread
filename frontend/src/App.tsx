@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard"; // Add this import
 import Projects from "./pages/Projects";
 import Members from "./pages/Members";
 import Integrations from "./pages/Integrations";
@@ -16,7 +17,7 @@ import SignIn from "./pages/SignIn";
 import Settings from "./pages/Settings";
 import SignUp from "./pages/SignUp";
 import GitHubCallback from "./pages/GitHubCallback";
-import GitLabCallback from "./pages/GitLabCallback"; // Make sure this is imported
+import GitLabCallback from "./pages/GitLabCallback";
 import NotFound from "./pages/NotFound";
 import RepositoryDetailsPage from "./pages/RepositoryDetails";
 
@@ -34,8 +35,6 @@ const App = () => (
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/auth/github/callback" element={<GitHubCallback />} />
-            
-            {/* ADD THIS LINE FOR THE GITLAB CALLBACK */}
             <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
             <Route path="/docs" element={<Docs />} />
 
@@ -45,6 +44,15 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Index />
+                </ProtectedRoute>
+              }
+            />
+            {/* Add Dashboard route */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
                 </ProtectedRoute>
               }
             />
