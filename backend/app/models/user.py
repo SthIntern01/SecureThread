@@ -20,6 +20,12 @@ class User(Base):
     gitlab_username = Column(String, nullable=True)
     gitlab_access_token = Column(Text, nullable=True)
 
+    # Google fields - ADD THESE LINES
+    google_id = Column(String, unique=True, index=True, nullable=True)
+    google_email = Column(String, nullable=True)  
+    google_access_token = Column(Text, nullable=True)
+    google_refresh_token = Column(Text, nullable=True)
+
     full_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)

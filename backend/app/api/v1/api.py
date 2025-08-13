@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1 import auth, repositories, scans, gitlab_auth
 from app.api.v1 import ai_chat
+from app.api.v1 import google_auth
 import logging
 
 # Set up logging
@@ -15,5 +16,7 @@ api_router.include_router(gitlab_auth.router, prefix="/auth", tags=["GitLab Auth
 api_router.include_router(repositories.router, prefix="/repositories", tags=["repositories"])
 api_router.include_router(scans.router, prefix="/scans", tags=["scans"])
 api_router.include_router(ai_chat.router, prefix="/ai-chat", tags=["ai-chat"])
+api_router.include_router(google_auth.router, prefix="/auth", tags=["google-auth"])
+
 
 logger.info("✅ All routers included successfully - GitHub and GitLab separate")

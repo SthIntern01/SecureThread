@@ -58,9 +58,13 @@ const SignInPage = () => {
       return;
     }
 
-    // This handles non-popup auth flows (like GitHub)
-    if (code && state && state === "securethread_github_auth") {
-      handleGitHubCallback(code);
+    // Handle callbacks in main window
+    if (code && state) {
+      if (state === "securethread_github_auth") {
+        handleGitHubCallback(code);
+      } else if (state === "securethread_google_auth") {
+        handleGoogleCallbackInMainWindow(code);
+      }
     }
   }, []);
 
@@ -74,15 +78,35 @@ const SignInPage = () => {
       // When a message is received, stop checking if the popup is closed
       if (popupInterval.current) {
         window.clearInterval(popupInterval.current);
+        popupInterval.current = null;
       }
 
-      if (type === "oauth-success" && state === "securethread_gitlab_auth") {
-        handleGitLabCallback(code);
-        if (popup.current) popup.current.close();
+      if (type === "oauth-success") {
+        if (state === "securethread_gitlab_auth") {
+          handleGitLabCallback(code);
+        }
+        // Google is handled via direct redirect, not popup
+        if (popup.current) {
+          try {
+            popup.current.close();
+          } catch (e) {
+            // Ignore errors when closing popup
+            console.log("Could not close popup window");
+          }
+          popup.current = null;
+        }
       } else if (type === "oauth-error") {
         setError("Authentication was cancelled or failed.");
         setLoadingProvider(null);
-        if (popup.current) popup.current.close();
+        if (popup.current) {
+          try {
+            popup.current.close();
+          } catch (e) {
+            // Ignore errors when closing popup
+            console.log("Could not close popup window");
+          }
+          popup.current = null;
+        }
       }
     };
 
@@ -92,9 +116,34 @@ const SignInPage = () => {
       window.removeEventListener("message", handlePopupMessage);
       if (popupInterval.current) {
         window.clearInterval(popupInterval.current);
+        popupInterval.current = null;
       }
     };
   }, []);
+
+  // Safe popup checking function
+  const checkPopupClosed = () => {
+    if (popup.current) {
+      try {
+        if (popup.current.closed) {
+          if (popupInterval.current) {
+            window.clearInterval(popupInterval.current);
+            popupInterval.current = null;
+          }
+          setLoadingProvider(null);
+          popup.current = null;
+        }
+      } catch (e) {
+        // If we can't access popup.closed due to CORS, clear the interval
+        if (popupInterval.current) {
+          window.clearInterval(popupInterval.current);
+          popupInterval.current = null;
+        }
+        setLoadingProvider(null);
+        popup.current = null;
+      }
+    }
+  };
 
   const handleGitHubLogin = async () => {
     try {
@@ -136,7 +185,7 @@ const SignInPage = () => {
           document.title,
           window.location.pathname
         );
-        const from = location.state?.from?.pathname || "/dashboard";
+        const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
         throw new Error("Invalid response from server");
@@ -144,6 +193,65 @@ const SignInPage = () => {
     } catch (err) {
       console.error("GitHub callback error:", err);
       setError("Failed to sign in with GitHub. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setLoadingProvider("google");
+      setError("");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/google/authorize`
+      );
+      const data = await response.json();
+      if (data.authorization_url) {
+        // Use direct redirect instead of popup for Google OAuth
+        window.location.href = data.authorization_url;
+      } else {
+        setError("Failed to get Google authorization URL");
+        setLoadingProvider(null);
+      }
+    } catch (error) {
+      console.error("Google login error:", error);
+      setError("Failed to initiate Google login");
+      setLoadingProvider(null);
+    }
+  };
+
+  const handleGoogleCallbackInMainWindow = async (code: string) => {
+    try {
+      setLoadingProvider("google");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/google/callback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        }
+      );
+      if (!response.ok)
+        throw new Error(
+          `Failed to authenticate with Google: ${response.status}`
+        );
+      const data = await response.json();
+      if (data.access_token) {
+        login(data.access_token, data.user || {});
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+        const from = location.state?.from?.pathname || "/";
+        navigate(from, { replace: true });
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (err) {
+      console.error("Google callback error:", err);
+      setError("Failed to sign in with Google. Please try again.");
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
       setLoadingProvider(null);
@@ -169,12 +277,7 @@ const SignInPage = () => {
           `width=${width},height=${height},top=${top},left=${left}`
         );
 
-        popupInterval.current = window.setInterval(() => {
-          if (popup.current && popup.current.closed) {
-            window.clearInterval(popupInterval.current!);
-            setLoadingProvider(null);
-          }
-        }, 500);
+        popupInterval.current = window.setInterval(checkPopupClosed, 1000);
       } else {
         setError("Failed to get GitLab authorization URL");
         setLoadingProvider(null);
@@ -208,7 +311,7 @@ const SignInPage = () => {
           document.title,
           window.location.pathname
         );
-        const from = location.state?.from?.pathname || "/dashboard";
+        const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
         throw new Error("Invalid response from server");
@@ -352,12 +455,16 @@ const SignInPage = () => {
               </span>
             </button>
             <button
-              onClick={() => handleComingSoonProvider("Google")}
+              onClick={handleGoogleLogin}
               disabled={loadingProvider !== null}
               className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
             >
               <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
-              <span>Continue with Google</span>
+              <span>
+                {loadingProvider === "google"
+                  ? "Connecting..."
+                  : "Continue with Google"}
+              </span>
             </button>
             <button
               onClick={handleGitLabLogin}
