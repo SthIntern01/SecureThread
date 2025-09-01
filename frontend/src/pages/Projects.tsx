@@ -623,21 +623,21 @@ const ProjectCard = ({
     project.latest_scan?.status === "pending";
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
+    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-accent/20 rounded-lg flex items-center justify-center">
             {getSourceIcon(project.source)}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-brand-black">
+            <h3 className="text-lg font-semibold text-white">
               {project.name}
             </h3>
-            <p className="text-sm text-brand-gray">{project.owner}</p>
+            <p className="text-sm text-white/70">{project.owner}</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className="text-brand-gray hover:text-accent transition-colors">
+          <button className="text-white/70 hover:text-accent transition-colors">
             <Star
               className={`w-4 h-4 ${
                 project.isStarred ? "fill-yellow-400 text-yellow-400" : ""
@@ -646,7 +646,7 @@ const ProjectCard = ({
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-brand-gray hover:text-brand-black transition-colors p-1 rounded-md hover:bg-gray-100">
+              <button className="text-white/70 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10">
                 <MoreHorizontal className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
@@ -674,7 +674,7 @@ const ProjectCard = ({
           </DropdownMenu>
         </div>
       </div>
-      <p className="text-sm text-brand-gray mb-4 line-clamp-2">
+      <p className="text-sm text-white/70 mb-4 line-clamp-2">
         {project.description}
       </p>
       <div className="flex items-center space-x-4 mb-4">
@@ -684,7 +684,7 @@ const ProjectCard = ({
             {project.status}
           </Badge>
         </div>
-        <div className="flex items-center space-x-2 text-sm text-brand-gray">
+        <div className="flex items-center space-x-2 text-sm text-white/70">
           <GitBranch className="w-4 h-4" />
           <span>{project.branch}</span>
         </div>
@@ -699,10 +699,10 @@ const ProjectCard = ({
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <div className="text-xs text-brand-gray mb-1">Vulnerabilities</div>
+          <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
           {hasScanned ? (
             <>
-              <div className="text-lg font-semibold text-brand-black">
+              <div className="text-lg font-semibold text-white">
                 {totalVulnerabilities}
               </div>
               {totalVulnerabilities && totalVulnerabilities > 0 && (
@@ -724,19 +724,19 @@ const ProjectCard = ({
             </>
           ) : (
             <>
-              <div className="text-lg font-semibold text-gray-400">N/A</div>
-              <div className="text-xs text-gray-500">Scan to get details</div>
+              <div className="text-lg font-semibold text-white/40">N/A</div>
+              <div className="text-xs text-white/50">Scan to get details</div>
             </>
           )}
         </div>
         <div>
-          <div className="text-xs text-brand-gray mb-1">Coverage</div>
+          <div className="text-xs text-white/70 mb-1">Coverage</div>
           {hasScanned ? (
             <>
-              <div className="text-lg font-semibold text-brand-black">
+              <div className="text-lg font-semibold text-white">
                 {project.coverage}%
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+              <div className="w-full bg-white/20 rounded-full h-1 mt-1">
                 <div
                   className="bg-accent h-1 rounded-full"
                   style={{ width: `${project.coverage}%` }}
@@ -745,13 +745,13 @@ const ProjectCard = ({
             </>
           ) : (
             <>
-              <div className="text-lg font-semibold text-gray-400">N/A</div>
-              <div className="text-xs text-gray-500">Scan to get details</div>
+              <div className="text-lg font-semibold text-white/40">N/A</div>
+              <div className="text-xs text-white/50">Scan to get details</div>
             </>
           )}
         </div>
       </div>
-      <div className="flex items-center justify-between text-xs text-brand-gray mb-4">
+      <div className="flex items-center justify-between text-xs text-white/70 mb-4">
         <div className="flex items-center space-x-1">
           <Clock className="w-3 h-3" />
           <span>
@@ -767,12 +767,12 @@ const ProjectCard = ({
           </div>
         )}
       </div>
-      <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200/50">
+      <div className="flex flex-col space-y-2 pt-4 border-t border-white/20">
         {/* Top row - View Details always shown */}
         <Button
           size="sm"
           variant="outline"
-          className="w-full"
+          className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
           onClick={() => onViewDetails(project)}
         >
           <Eye className="w-4 h-4 mr-2" />
@@ -785,7 +785,7 @@ const ProjectCard = ({
             <Button
               size="sm"
               variant="outline"
-              className="flex-1"
+              className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={() => onViewFileScanStatus(project)}
             >
               <FileText className="w-4 h-4 mr-1" />
@@ -794,7 +794,7 @@ const ProjectCard = ({
             <Button
               size="sm"
               variant="outline"
-              className="flex-1"
+              className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20"
               onClick={() => onViewScanDetails(project)}
             >
               <Activity className="w-4 h-4 mr-1" />
@@ -808,7 +808,7 @@ const ProjectCard = ({
           <Button
             size="sm"
             variant="outline"
-            className="w-full text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            className="w-full text-red-400 hover:text-red-300 border-red-300 hover:border-red-400 bg-white/10 hover:bg-white/20"
             onClick={() => onStopScan(project.id)}
           >
             <StopCircle className="w-4 h-4 mr-2" />
@@ -1394,171 +1394,180 @@ const Projects = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center space-x-2 text-sm mb-4">
-              <span className="font-medium text-white">SecureThread</span>
-              <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium text-white">Projects</span>
-            </div>
+            {/* Single unified container */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              
+              {/* Header Section */}
+              <div className="p-8 border-b border-white/10">
+                {/* Breadcrumb */}
+                <div className="flex items-center space-x-2 text-sm mb-4">
+                  <span className="font-medium text-white">SecureThread</span>
+                  <ChevronRight size={16} className="text-white/60" />
+                  <span className="font-medium text-white">Projects</span>
+                </div>
 
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
-              <div>
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">
-                  Projects
-                </h1>
-                <p className="text-white/80">
-                  Manage and monitor your security projects
-                </p>
-              </div>
-              <div className="mt-4 lg:mt-0">
-                <Button
-                  onClick={() => setShowImportModal(true)}
-                  className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                >
-                  <Github className="w-4 h-4 mr-2" />
-                  Import Repositories
-                </Button>
-              </div>
-            </div>
-
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-                <div className="text-2xl font-bold text-brand-black">
-                  {stats.total}
-                </div>
-                <div className="text-sm text-brand-gray font-medium">
-                  Total Projects
-                </div>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.active}
-                </div>
-                <div className="text-sm text-brand-gray font-medium">
-                  Active
-                </div>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {stats.scanning}
-                </div>
-                <div className="text-sm text-brand-gray font-medium">
-                  Scanning
-                </div>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-                <div className="text-2xl font-bold text-red-600">
-                  {stats.failed}
-                </div>
-                <div className="text-sm text-brand-gray font-medium">
-                  Failed
-                </div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 shadow-lg">
-              <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search projects..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full lg:w-48">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="scanning">Scanning</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                  <SelectTrigger className="w-full lg:w-48">
-                    <SelectValue placeholder="Filter by source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sources</SelectItem>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="gitlab">GitLab</SelectItem>
-                    <SelectItem value="docker">Docker</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Projects Grid */}
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                <p className="text-white">Loading projects...</p>
-              </div>
-            ) : error ? (
-              <div className="text-center py-12">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-12 border border-white/20 shadow-lg">
-                  <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-brand-black mb-2">
-                    Error Loading Projects
-                  </h3>
-                  <p className="text-red-600 mb-6">{error}</p>
-                  <Button
-                    onClick={fetchProjects}
-                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              </div>
-            ) : filteredProjects.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-12 border border-white/20 shadow-lg">
-                  <IconFolder className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-brand-black mb-2">
-                    {projects.length === 0
-                      ? "No Projects Yet"
-                      : "No Projects Found"}
-                  </h3>
-                  <p className="text-brand-gray mb-6">
-                    {projects.length === 0
-                      ? "Get started by importing your first repository from GitHub."
-                      : "Try adjusting your search or filter criteria."}
-                  </p>
-                  {projects.length === 0 && (
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                      Projects
+                    </h1>
+                    <p className="text-white/80">
+                      Manage and monitor your security projects
+                    </p>
+                  </div>
+                  <div className="mt-6 lg:mt-0">
                     <Button
                       onClick={() => setShowImportModal(true)}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
                       <Github className="w-4 h-4 mr-2" />
-                      Import from GitHub
+                      Import Repositories
                     </Button>
-                  )}
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
-                {filteredProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    onDelete={handleDeleteProject}
-                    onSync={handleSyncProject}
-                    onViewDetails={handleViewDetails}
-                    onStartScan={handleStartScan}
-                    onStopScan={handleStopScan}
-                    onViewFileScanStatus={handleViewFileScanStatus}
-                    onViewScanDetails={handleViewScanDetails}
-                  />
-                ))}
+
+              {/* Stats Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-white mb-1">
+                      {stats.total}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Total Projects
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-green-400 mb-1">
+                      {stats.active}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Active
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-400 mb-1">
+                      {stats.scanning}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Scanning
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-red-400 mb-1">
+                      {stats.failed}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Failed
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {/* Filters Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                    <Input
+                      placeholder="Search projects..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="scanning">Scanning</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                      <SelectValue placeholder="Filter by source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="github">GitHub</SelectItem>
+                      <SelectItem value="gitlab">GitLab</SelectItem>
+                      <SelectItem value="docker">Docker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Projects Content Section */}
+              <div className="p-8">
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                    <p className="text-white">Loading projects...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      Error Loading Projects
+                    </h3>
+                    <p className="text-red-400 mb-6">{error}</p>
+                    <Button
+                      onClick={fetchProjects}
+                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredProjects.length === 0 ? (
+                  <div className="text-center py-12">
+                    <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {projects.length === 0
+                        ? "No Projects Yet"
+                        : "No Projects Found"}
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      {projects.length === 0
+                        ? "Get started by importing your first repository from GitHub."
+                        : "Try adjusting your search or filter criteria."}
+                    </p>
+                    {projects.length === 0 && (
+                      <Button
+                        onClick={() => setShowImportModal(true)}
+                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                      >
+                        <Github className="w-4 h-4 mr-2" />
+                        Import from GitHub
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredProjects.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        onDelete={handleDeleteProject}
+                        onSync={handleSyncProject}
+                        onViewDetails={handleViewDetails}
+                        onStartScan={handleStartScan}
+                        onStopScan={handleStopScan}
+                        onViewFileScanStatus={handleViewFileScanStatus}
+                        onViewScanDetails={handleViewScanDetails}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
