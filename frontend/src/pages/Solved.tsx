@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { Link, useLocation } from "react-router-dom";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { EtherealBackground } from '../components/ui/ethereal-background';
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar';
+import { useAuth } from "../contexts/AuthContext";
 import { 
   Search, 
   ChevronRight,
@@ -38,9 +40,24 @@ import {
   IconBrandDocker,
   IconCode,
   IconRobot,
+  IconLogout,
 } from '@tabler/icons-react';
 
+const Logo = () => {
+  return (
+    <Link
+      to="/"
+      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
+    >
+      <span className="font-medium text-brand-light">SECURE THREAD</span>
+    </Link>
+  );
+};
+
 const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boolean; setSidebarOpen: (open: boolean) => void }) => {
+  const { user, logout } = useAuth();
+  const [showLogout, setShowLogout] = useState(false);
+
   const feedLinks = [
     {
       label: "Dashboard",
@@ -77,14 +94,14 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
       label: "Solved",
       href: "/solved",
       icon: <IconCircleCheck className="h-5 w-5 shrink-0" />,
-      active: true,
+      active: true, // Set to true since this is the Solved page
     },
   ];
 
   const bottomLinks = [
     {
       label: "Feedback",
-      href: "#",
+      href: "/feedback",
       icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
     },
     {
@@ -94,20 +111,33 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
     },
     {
       label: "Docs",
-      href: "#",
+      href: "/docs",
       icon: <IconBook className="h-5 w-5 shrink-0" />,
     },
     {
       label: "Help",
-      href: "#",
+      href: "/help",
       icon: <IconHelp className="h-5 w-5 shrink-0" />,
     },
   ];
 
   const profileLink = {
-    label: "Lora Piterson",
+    label: user?.full_name || user?.github_username || "User",
     href: "#",
-    icon: <IconUser className="h-5 w-5 shrink-0" />,
+    icon: user?.avatar_url ? (
+      <img
+        src={user.avatar_url}
+        alt={user.full_name || user.github_username}
+        className="h-5 w-5 rounded-full shrink-0"
+      />
+    ) : (
+      <IconUser className="h-5 w-5 shrink-0" />
+    ),
+  };
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowLogout(!showLogout);
   };
 
   return (
@@ -128,23 +158,29 @@ const ResponsiveSidebar = ({ sidebarOpen, setSidebarOpen }: { sidebarOpen: boole
             ))}
           </div>
 
-          <div className="pt-4 border-t border-brand-gray/30">
-            <SidebarLink link={profileLink} />
+          <div className="pt-4 border-t border-brand-gray/30 relative">
+            <div onClick={handleProfileClick} className="cursor-pointer">
+              <SidebarLink link={profileLink} />
+            </div>
+
+            {showLogout && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowLogout(false);
+                  }}
+                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <IconLogout className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </SidebarBody>
     </Sidebar>
-  );
-};
-
-const Logo = () => {
-  return (
-    <a
-      href="#"
-      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
-    >
-      <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </a>
   );
 };
 
@@ -218,29 +254,33 @@ const SolvedIssueCard = ({ issue, onClick }: { issue: SolvedIssue; onClick: () =
 
   return (
     <div 
-      className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+      className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20 shadow-sm hover:shadow-md transition-all cursor-pointer group"
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-start space-x-3 flex-1 min-w-0">
           <div className="flex items-center space-x-2 mt-1">
-            {getCategoryIcon()}
-            {getSourceIcon()}
+            <div className="text-white/70">
+              {getCategoryIcon()}
+            </div>
+            <div className="text-white/70">
+              {getSourceIcon()}
+            </div>
           </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2 mb-2">
-              <h3 className="font-semibold text-brand-black group-hover:text-accent transition-colors truncate">
+              <h3 className="font-semibold text-white group-hover:text-accent transition-colors truncate">
                 {issue.title}
               </h3>
-              <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+              <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
             </div>
             
-            <p className="text-sm text-brand-gray line-clamp-2 mb-3">
+            <p className="text-sm text-white/70 line-clamp-2 mb-3">
               {issue.description}
             </p>
             
-            <div className="flex items-center space-x-4 text-xs text-brand-gray">
+            <div className="flex items-center space-x-4 text-xs text-white/70">
               <span className="flex items-center space-x-1">
                 <User className="w-3 h-3" />
                 <span>{issue.resolvedBy}</span>
@@ -264,8 +304,8 @@ const SolvedIssueCard = ({ issue, onClick }: { issue: SolvedIssue; onClick: () =
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
-        <div className="flex items-center space-x-4 text-sm text-brand-gray">
+      <div className="flex items-center justify-between pt-4 border-t border-white/10">
+        <div className="flex items-center space-x-4 text-sm text-white/70">
           <span className="font-medium">{issue.project}</span>
           <span>•</span>
           <span className="truncate font-mono text-xs">{issue.repository}</span>
@@ -279,11 +319,11 @@ const SolvedIssueCard = ({ issue, onClick }: { issue: SolvedIssue; onClick: () =
         
         <div className="flex items-center space-x-2">
           {issue.pullRequest && (
-            <Badge variant="outline" className="text-xs bg-white/50">
+            <Badge variant="outline" className="text-xs bg-white/10 border-white/20 text-white/70">
               PR #{issue.pullRequest}
             </Badge>
           )}
-          <Button variant="outline" size="sm" className="bg-white/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white/70 opacity-0 group-hover:opacity-100 transition-opacity">
             <Eye className="w-3 h-3" />
           </Button>
         </div>
@@ -303,10 +343,10 @@ const ResolutionTimelineCard = () => {
   ];
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm">
+    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20 shadow-sm">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-brand-black">Resolution Timeline</h3>
-        <Button variant="outline" size="sm" className="bg-white/50">
+        <h3 className="text-lg font-semibold text-white">Resolution Timeline</h3>
+        <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white/70">
           <Download className="w-3 h-3 mr-1" />
           Export
         </Button>
@@ -321,11 +361,11 @@ const ResolutionTimelineCard = () => {
                 style={{ height: `${(data.resolved / 80) * 100}%`, minHeight: '8px' }}
               ></div>
               <div 
-                className="w-full bg-gray-200 rounded-t absolute bottom-0 -z-10"
+                className="w-full bg-white/20 rounded-t absolute bottom-0 -z-10"
                 style={{ height: `${(data.target / 80) * 100}%`, minHeight: '4px' }}
               ></div>
             </div>
-            <span className="text-xs text-brand-gray mt-2">{data.month}</span>
+            <span className="text-xs text-white/70 mt-2">{data.month}</span>
           </div>
         ))}
       </div>
@@ -334,14 +374,14 @@ const ResolutionTimelineCard = () => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <div className="w-3 h-3 bg-accent rounded"></div>
-            <span className="text-brand-gray">Resolved</span>
+            <span className="text-white/70">Resolved</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-gray-200 rounded"></div>
-            <span className="text-brand-gray">Target</span>
+            <div className="w-3 h-3 bg-white/20 rounded"></div>
+            <span className="text-white/70">Target</span>
           </div>
         </div>
-        <span className="text-brand-gray">Issues per month</span>
+        <span className="text-white/70">Issues per month</span>
       </div>
     </div>
   );
@@ -534,199 +574,191 @@ const Solved = () => {
       
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
-            {/* Breadcrumb Navigation */}
-            <div className="flex items-center space-x-2 text-sm mb-4">
-              <span className="font-medium text-white">User</span>
-              <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium text-white">Solved</span>
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-2">
-                  Solved Issues
-                </h1>
-                <p className="text-brand-gray">Security vulnerabilities and issues that have been resolved</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Button variant="outline" className="bg-white/50">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Report
-                </Button>
-                <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Award className="w-4 h-4 mr-2" />
-                  View Achievements
-                </Button>
-              </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-brand-black">{totalSolved}</div>
-                    <div className="text-sm text-brand-gray">Total Solved</div>
-                  </div>
-                </div>
-              </div>
+          <div className="max-w-6xl mx-auto">
+            {/* Single unified container */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
-              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                  </div>
+              {/* Header Section */}
+              <div className="p-8 border-b border-white/10">
+                {/* Breadcrumb */}
+                <div className="flex items-center space-x-2 text-sm mb-4">
+                  <span className="font-medium text-white">SecureThread</span>
+                  <ChevronRight size={16} className="text-white/60" />
+                  <span className="font-medium text-white">Solved</span>
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <div className="text-2xl font-bold text-brand-black">{criticalSolved}</div>
-                    <div className="text-sm text-brand-gray">Critical Fixed</div>
+                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                      Solved Issues
+                    </h1>
+                    <p className="text-white/80">
+                      Security vulnerabilities and issues that have been resolved
+                    </p>
                   </div>
-                </div>
-              </div>
-              
-              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-brand-black">{avgResolutionTime}</div>
-                    <div className="text-sm text-brand-gray">Avg Resolution</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 border border-white/20 shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-brand-black">{thisMonthSolved}</div>
-                    <div className="text-sm text-brand-gray">This Month</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Resolution Timeline */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              <div className="lg:col-span-2">
-                <ResolutionTimelineCard />
-              </div>
-              
-              {/* Quick Stats */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm">
-                <h3 className="text-lg font-semibold text-brand-black mb-4">Resolution Stats</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-brand-gray">Fastest Resolution</span>
-                    <span className="font-semibold text-brand-black">45m</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-brand-gray">Most Active Resolver</span>
-                    <span className="font-semibold text-brand-black">John Doe</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-brand-gray">Top Category</span>
-                    <span className="font-semibold text-brand-black">Vulnerabilities</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-brand-gray">Success Rate</span>
-                    <span className="font-semibold text-green-600">94.2%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Filters and Search */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm mb-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
-                    <SelectTrigger className="w-[140px] bg-white/50">
-                      <SelectValue placeholder="Severity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Severities</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-[160px] bg-white/50">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="vulnerability">Vulnerabilities</SelectItem>
-                      <SelectItem value="code-quality">Code Quality</SelectItem>
-                      <SelectItem value="security-hotspot">Security Hotspots</SelectItem>
-                      <SelectItem value="bug">Bugs</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={selectedProject} onValueChange={setSelectedProject}>
-                    <SelectTrigger className="w-[180px] bg-white/50">
-                      <SelectValue placeholder="Project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Projects</SelectItem>
-                      {projects.map((project) => (
-                        <SelectItem key={project} value={project}>{project}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
-                    <SelectTrigger className="w-[140px] bg-white/50">
-                      <SelectValue placeholder="Timeframe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Time</SelectItem>
-                      <SelectItem value="week">This Week</SelectItem>
-                      <SelectItem value="month">This Month</SelectItem>
-                      <SelectItem value="quarter">This Quarter</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-brand-gray w-4 h-4" />
-                  <Input
-                    placeholder="Search solved issues..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 w-64 bg-white/50"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Solved Issues List */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-lg border border-white/20 shadow-sm">
-              <div className="p-6 border-b border-gray-200/50">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-brand-black">
-                    Resolved Issues ({filteredIssues.length})
-                  </h2>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" className="bg-white/50">
-                      <Filter className="w-3 h-3 mr-1" />
-                      More Filters
+                  <div className="mt-6 lg:mt-0 flex items-center space-x-3">
+                    <Button variant="outline" className="bg-white/10 border-white/20 text-white/70">
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Report
+                    </Button>
+                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                      <Award className="w-4 h-4 mr-2" />
+                      View Achievements
                     </Button>
                   </div>
                 </div>
               </div>
-              
-              <div className="p-6">
+
+              {/* Stats Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-white mb-1">
+                      {totalSolved}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Total Solved
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-red-400 mb-1">
+                      {criticalSolved}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Critical Fixed
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-400 mb-1">
+                      {avgResolutionTime}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Avg Resolution
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-400 mb-1">
+                      {thisMonthSolved}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      This Month
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resolution Timeline Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2">
+                    <ResolutionTimelineCard />
+                  </div>
+                  
+                  {/* Quick Stats */}
+                  <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20 shadow-sm">
+                    <h3 className="text-lg font-semibold text-white mb-4">Resolution Stats</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Fastest Resolution</span>
+                        <span className="font-semibold text-white">45m</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Most Active Resolver</span>
+                        <span className="font-semibold text-white">John Doe</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Top Category</span>
+                        <span className="font-semibold text-white">Vulnerabilities</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white/70">Success Rate</span>
+                        <span className="font-semibold text-green-400">94.2%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Select value={selectedSeverity} onValueChange={setSelectedSeverity}>
+                      <SelectTrigger className="w-[140px] bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Severity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Severities</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[160px] bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        <SelectItem value="vulnerability">Vulnerabilities</SelectItem>
+                        <SelectItem value="code-quality">Code Quality</SelectItem>
+                        <SelectItem value="security-hotspot">Security Hotspots</SelectItem>
+                        <SelectItem value="bug">Bugs</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                      <SelectTrigger className="w-[180px] bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {projects.map((project) => (
+                          <SelectItem key={project} value={project}>{project}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
+                      <SelectTrigger className="w-[140px] bg-white/10 border-white/20 text-white">
+                        <SelectValue placeholder="Timeframe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Time</SelectItem>
+                        <SelectItem value="week">This Week</SelectItem>
+                        <SelectItem value="month">This Month</SelectItem>
+                        <SelectItem value="quarter">This Quarter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white/70">
+                      <Filter className="w-3 h-3 mr-1" />
+                      More Filters
+                    </Button>
+                  </div>
+                  
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                    <Input
+                      placeholder="Search solved issues..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 w-64 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Solved Issues List Section */}
+              <div className="p-8 border-b border-white/10">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-white">
+                    Resolved Issues ({filteredIssues.length})
+                  </h2>
+                </div>
+                
                 {filteredIssues.length > 0 ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {filteredIssues.map((issue) => (
@@ -739,14 +771,34 @@ const Solved = () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Search className="w-8 h-8 text-brand-gray" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-brand-black mb-2">No solved issues found</h3>
-                    <p className="text-brand-gray mb-4">Try adjusting your search or filter criteria</p>
+                    <Search className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No Solved Issues Found
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      Try adjusting your search or filter criteria.
+                    </p>
                   </div>
                 )}
               </div>
+
+              {/* Bottom Section */}
+              <div className="p-8 bg-white/5 text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-accent" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  Excellence in Security Resolution
+                </h3>
+                <p className="text-white/70 mb-6 max-w-md mx-auto">
+                  Your team's commitment to resolving security issues keeps your projects safe and secure.
+                </p>
+                <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                  <Award className="w-4 h-4 mr-2" />
+                  View Team Achievements
+                </Button>
+              </div>
+
             </div>
           </div>
         </div>

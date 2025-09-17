@@ -1,0 +1,564 @@
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EtherealBackground } from "../components/ui/ethereal-background";
+import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  ChevronRight,
+  Upload,
+  Send,
+  CheckCircle,
+  AlertTriangle,
+  MessageSquare,
+  Bug,
+  Lightbulb,
+  Shield,
+  FileText,
+  X,
+} from "lucide-react";
+import {
+  IconDashboard,
+  IconFolder,
+  IconUsers,
+  IconBrandGithub,
+  IconCircleCheck,
+  IconMessageCircle,
+  IconSettings,
+  IconBook,
+  IconHelp,
+  IconUser,
+  IconLogout,
+  IconRobot,
+} from "@tabler/icons-react";
+
+const Logo = () => {
+  return (
+    <Link
+      to="/"
+      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
+    >
+      <span className="font-medium text-brand-light">SECURE THREAD</span>
+    </Link>
+  );
+};
+
+const ResponsiveSidebar = ({
+  sidebarOpen,
+  setSidebarOpen,
+}: {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+}) => {
+  const { user, logout } = useAuth();
+  const [showLogout, setShowLogout] = useState(false);
+
+  const feedLinks = [
+    {
+      label: "Dashboard",
+      href: "/",
+      icon: <IconDashboard className="h-5 w-5 shrink-0" />,
+      active: false,
+    },
+    {
+      label: "Projects",
+      href: "/projects",
+      icon: <IconFolder className="h-5 w-5 shrink-0" />,
+      active: false,
+    },
+    {
+      label: "Members",
+      href: "/members",
+      icon: <IconUsers className="h-5 w-5 shrink-0" />,
+      active: false,
+    },
+    {
+      label: "Integrations",
+      href: "/integrations",
+      icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
+      active: false,
+      count: "99+",
+    },
+    {
+      label: "AI Chat",
+      href: "/ai-chat",
+      icon: <IconRobot className="h-5 w-5 shrink-0" />,
+      active: false,
+    },
+    {
+      label: "Solved",
+      href: "/solved",
+      icon: <IconCircleCheck className="h-5 w-5 shrink-0" />,
+      active: false,
+    },
+  ];
+
+  const bottomLinks = [
+    {
+      label: "Feedback",
+      href: "/feedback",
+      icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
+      active: true, // Set to true since this is the Feedback page
+    },
+    {
+      label: "Settings",
+      href: "/settings",
+      icon: <IconSettings className="h-5 w-5 shrink-0" />,
+    },
+    {
+      label: "Docs",
+      href: "/docs",
+      icon: <IconBook className="h-5 w-5 shrink-0" />,
+    },
+    {
+      label: "Help",
+      href: "/help",
+      icon: <IconHelp className="h-5 w-5 shrink-0" />,
+    },
+  ];
+
+  const profileLink = {
+    label: user?.full_name || user?.github_username || "User",
+    href: "#",
+    icon: user?.avatar_url ? (
+      <img
+        src={user.avatar_url}
+        alt={user.full_name || user.github_username}
+        className="h-5 w-5 rounded-full shrink-0"
+      />
+    ) : (
+      <IconUser className="h-5 w-5 shrink-0" />
+    ),
+  };
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowLogout(!showLogout);
+  };
+
+  return (
+    <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
+      <SidebarBody className="justify-between gap-10">
+        <div className="flex flex-1 flex-col">
+          <Logo />
+
+          <div className="mt-8 flex flex-col gap-2">
+            {feedLinks.map((link, idx) => (
+              <SidebarLink key={idx} link={link} />
+            ))}
+          </div>
+
+          <div className="mt-auto flex flex-col gap-2">
+            {bottomLinks.map((link, idx) => (
+              <SidebarLink key={idx} link={link} />
+            ))}
+          </div>
+
+          <div className="pt-4 border-t border-brand-gray/30 relative">
+            <div onClick={handleProfileClick} className="cursor-pointer">
+              <SidebarLink link={profileLink} />
+            </div>
+
+            {showLogout && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowLogout(false);
+                  }}
+                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <IconLogout className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </SidebarBody>
+    </Sidebar>
+  );
+};
+
+const SuccessModal = ({
+  isOpen,
+  onClose,
+  trackingId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  trackingId: string;
+}) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2 text-green-600">
+            <CheckCircle size={20} />
+            <span>Feedback Submitted</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="text-center py-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <CheckCircle className="w-8 h-8 text-green-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Thank you for your feedback!
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Our team will review it and get back to you if needed.
+            </p>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">Tracking ID:</span> {trackingId}
+              </p>
+            </div>
+          </div>
+
+          <Button onClick={onClose} className="w-full bg-accent hover:bg-accent/90">
+            Continue
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const Feedback = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [trackingId, setTrackingId] = useState("");
+
+  // Form state
+  const [formData, setFormData] = useState({
+    type: "",
+    severity: "Medium",
+    description: "",
+    stepsToReproduce: "",
+    userEmail: "",
+  });
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const feedbackTypes = [
+    { value: "bug", label: "Bug Report", icon: Bug, color: "text-red-500" },
+    { value: "feature", label: "Feature Request", icon: Lightbulb, color: "text-blue-500" },
+    { value: "security", label: "Security Concern", icon: Shield, color: "text-orange-500" },
+    { value: "general", label: "General Suggestion", icon: MessageSquare, color: "text-green-500" },
+  ];
+
+  const severityLevels = [
+    { value: "Low", color: "bg-green-100 text-green-800" },
+    { value: "Medium", color: "bg-yellow-100 text-yellow-800" },
+    { value: "High", color: "bg-red-100 text-red-800" },
+  ];
+
+  const showSeverityField = formData.type === "bug" || formData.type === "security";
+  const showStepsField = formData.type === "bug";
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setAttachments(prev => [...prev, ...files].slice(0, 5)); // Limit to 5 files
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const generateTrackingId = () => {
+    return `FBK-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const newTrackingId = generateTrackingId();
+    setTrackingId(newTrackingId);
+    setShowSuccessModal(true);
+    setIsSubmitting(false);
+
+    // Reset form
+    setFormData({
+      type: "",
+      severity: "Medium",
+      description: "",
+      stepsToReproduce: "",
+      userEmail: "",
+    });
+    setAttachments([]);
+  };
+
+  const isFormValid = formData.type && formData.description.trim().length >= 10;
+
+  return (
+    <div className="w-full h-screen font-sans relative flex overflow-hidden">
+      <EtherealBackground
+        color="rgba(255, 255, 255, 0.6)"
+        animation={{ scale: 100, speed: 90 }}
+        noise={{ opacity: 0.8, scale: 1.2 }}
+        sizing="fill"
+      />
+
+      <ResponsiveSidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
+
+      <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
+        <div className="p-4 lg:p-6">
+          <div className="max-w-6xl mx-auto">
+            {/* Single unified container */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              
+              {/* Header Section */}
+              <div className="p-8 border-b border-white/10">
+                {/* Breadcrumb */}
+                <div className="flex items-center space-x-2 text-sm mb-4">
+                  <span className="font-medium text-white">SecureThread</span>
+                  <ChevronRight size={16} className="text-white/60" />
+                  <span className="font-medium text-white">Feedback</span>
+                </div>
+
+                <div className="text-center">
+                  <h1 className="text-3xl lg:text-4xl font-bold text-white mb-4">
+                    Feedback & Suggestions
+                  </h1>
+                  <p className="text-white/80 text-lg max-w-2xl mx-auto">
+                    We'd love to hear your thoughts! Share bugs, feature requests, or ideas to help us improve the platform.
+                  </p>
+                </div>
+              </div>
+
+              {/* Feedback Form Section */}
+              <div className="p-8">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Feedback Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-3">
+                      Feedback Type *
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {feedbackTypes.map((type) => {
+                        const IconComponent = type.icon;
+                        return (
+                          <button
+                            key={type.value}
+                            type="button"
+                            onClick={() => handleInputChange("type", type.value)}
+                            className={`p-4 rounded-lg border-2 transition-all text-left ${
+                              formData.type === type.value
+                                ? "border-accent bg-accent/20"
+                                : "border-white/20 bg-white/5 hover:bg-white/10"
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <IconComponent className={`w-5 h-5 ${type.color}`} />
+                              <span className="font-medium text-white">{type.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Severity/Priority */}
+                  {showSeverityField && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-3">
+                        Severity/Priority *
+                      </label>
+                      <Select value={formData.severity} onValueChange={(value) => handleInputChange("severity", value)}>
+                        <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {severityLevels.map((level) => (
+                            <SelectItem key={level.value} value={level.value}>
+                              <Badge className={`text-xs ${level.color}`}>
+                                {level.value}
+                              </Badge>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-3">
+                      Description *
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => handleInputChange("description", e.target.value)}
+                      placeholder="Please provide detailed information about your feedback..."
+                      className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 resize-none h-32 focus:ring-2 focus:ring-accent focus:border-transparent"
+                      required
+                      minLength={10}
+                    />
+                    <p className="text-xs text-white/70 mt-1">
+                      Minimum 10 characters ({formData.description.length}/10)
+                    </p>
+                  </div>
+
+                  {/* Steps to Reproduce */}
+                  {showStepsField && (
+                    <div>
+                      <label className="block text-sm font-medium text-white mb-3">
+                        Steps to Reproduce (Optional)
+                      </label>
+                      <textarea
+                        value={formData.stepsToReproduce}
+                        onChange={(e) => handleInputChange("stepsToReproduce", e.target.value)}
+                        placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."
+                        className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 resize-none h-24 focus:ring-2 focus:ring-accent focus:border-transparent"
+                      />
+                    </div>
+                  )}
+
+                  {/* File Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-3">
+                      Attachments (Optional)
+                    </label>
+                    <div className="border-2 border-dashed border-white/30 rounded-lg p-6 text-center">
+                      <Upload className="w-8 h-8 text-white/50 mx-auto mb-2" />
+                      <p className="text-white/70 mb-2">
+                        Drop files here or click to upload
+                      </p>
+                      <p className="text-xs text-white/50 mb-4">
+                        Screenshots, logs, or other files (Max 5 files, 10MB each)
+                      </p>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".png,.jpg,.jpeg,.pdf,.txt,.log,.json"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="inline-flex items-center px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 cursor-pointer transition-colors"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Choose Files
+                      </label>
+                    </div>
+
+                    {attachments.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {attachments.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-white/10 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="w-4 h-4 text-white/70" />
+                              <span className="text-white text-sm">{file.name}</span>
+                              <span className="text-white/50 text-xs">
+                                ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeAttachment(index)}
+                              className="text-white/70 hover:text-red-400 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <div>
+                    <Button
+                      type="submit"
+                      disabled={!isFormValid || isSubmitting}
+                      className="w-full bg-accent hover:bg-accent/90 text-accent-foreground py-3 text-lg"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-5 h-5 mr-2" />
+                          Submit Feedback
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Security Disclosure Section */}
+              <div className="p-8 bg-orange-500/10 border-t border-white/10">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      Security Disclosure Notice
+                    </h3>
+                    <p className="text-white/80 leading-relaxed">
+                      If you've discovered a critical security vulnerability in this platform, 
+                      please submit it under <span className="font-semibold">Security Concern</span> or 
+                      email us directly at{" "}
+                      <a 
+                        href="mailto:security@securethread.com" 
+                        className="text-accent hover:text-accent/80 underline"
+                      >
+                        security@securethread.com
+                      </a>
+                      . We follow responsible disclosure practices and will work with you to 
+                      address any security issues promptly.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        trackingId={trackingId}
+      />
+    </div>
+  );
+};
+
+export default Feedback;
