@@ -133,7 +133,7 @@ const ResponsiveSidebar = ({
   const bottomLinks = [
     {
       label: "Feedback",
-      href: "#",
+      href: "/feedback",
       icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
     },
     {
@@ -148,7 +148,7 @@ const ResponsiveSidebar = ({
     },
     {
       label: "Help",
-      href: "#",
+      href: "/help",
       icon: <IconHelp className="h-5 w-5 shrink-0" />,
     },
   ];
