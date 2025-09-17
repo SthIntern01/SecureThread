@@ -6,6 +6,7 @@ from app.core.security import create_access_token
 from app.services.github_service import GitHubService
 from app.services.gitlab_services import GitLabService  
 from app.services.google_service import GoogleService  # ADD THIS IMPORT
+from app.services.bitbucket_services import BitbucketService
 from datetime import timedelta
 from app.config.settings import settings
 import logging
@@ -252,9 +253,87 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error in authenticate_google: {str(e)}")
             return None
-
+        
+    async def authenticate_bitbucket(self, code: str) -> Optional[dict]:
+        """Authenticate user with Bitbucket OAuth and link accounts if email exists."""
+        try:
+            bitbucket_service = BitbucketService()
+            
+            # Exchange code for access token
+            access_token = await bitbucket_service.exchange_code_for_token(code)
+            if not access_token:
+                logger.error("Failed to exchange code for token")
+                return None
+            
+            # Get user info from Bitbucket
+            bitbucket_user = await bitbucket_service.get_user_info(access_token)
+            if not bitbucket_user:
+                logger.error("Failed to get user info from Bitbucket")
+                return None
+            
+            # Get email (fallback if no email available)
+            email = bitbucket_user.get("email")
+            
+            # --- MODIFIED LOGIC TO PREVENT DUPLICATE USERS (like other methods) ---
+            
+            # 1. First, try to find the user by their unique Bitbucket ID.
+            user = self.db.query(User).filter(User.bitbucket_user_id == bitbucket_user.get("uuid")).first()
+            
+            # 2. If no user is found by Bitbucket ID, check if a user exists with that email.
+            if not user and email:
+                user = self.db.query(User).filter(User.email == email).first()
+            
+            # 3. Now, decide whether to create a new user or update the existing one.
+            if not user:
+                # If no user was found, create a new one.
+                user_create = UserCreate(
+                    email=email,
+                    full_name=bitbucket_user.get("display_name"),
+                    avatar_url=bitbucket_user.get("links", {}).get("avatar", {}).get("href"),
+                    bitbucket_access_token=access_token,
+                    bitbucket_username=bitbucket_user.get("username"),
+                    bitbucket_user_id=bitbucket_user.get("uuid")
+                )
+                user = self.create_user(user_create)
+            else:
+                # If a user was found, update their record with Bitbucket info.
+                user.bitbucket_access_token = access_token
+                user.bitbucket_username = bitbucket_user.get("username")
+                user.bitbucket_user_id = bitbucket_user.get("uuid")
+                if bitbucket_user.get("display_name"):
+                    user.full_name = bitbucket_user.get("display_name")
+                if bitbucket_user.get("links", {}).get("avatar", {}).get("href"):
+                    user.avatar_url = bitbucket_user.get("links", {}).get("avatar", {}).get("href")
+                self.db.commit()
+                self.db.refresh(user)
+            
+            # --- END OF MODIFIED LOGIC ---
+            
+            # Create JWT token (FIXED: use same pattern as other methods)
+            access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            jwt_token = create_access_token(
+                data={"sub": str(user.id)}, expires_delta=access_token_expires
+            )
+            
+            return {
+                "access_token": jwt_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "github_username": user.github_username,
+                    "gitlab_username": user.gitlab_username,
+                    "bitbucket_username": user.bitbucket_username,
+                    "full_name": user.full_name,
+                    "avatar_url": user.avatar_url,
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in authenticate_bitbucket: {str(e)}")
+            return None
     def create_user(self, user_create: UserCreate) -> User:
-        """Create new user - updated to handle GitHub, GitLab, and Google"""
+        """Create new user - updated to handle GitHub, GitLab, Google, and Bitbucket"""
         db_user = User(
             email=user_create.email,
             full_name=user_create.full_name,
@@ -280,6 +359,12 @@ class AuthService:
             db_user.google_access_token = user_create.google_access_token
             db_user.google_refresh_token = user_create.google_refresh_token
         
+        # Add Bitbucket fields if present
+        if user_create.bitbucket_user_id:
+            db_user.bitbucket_user_id = user_create.bitbucket_user_id
+            db_user.bitbucket_username = user_create.bitbucket_username
+            db_user.bitbucket_access_token = user_create.bitbucket_access_token
+        
         self.db.add(db_user)
         self.db.commit()
         self.db.refresh(db_user)
@@ -304,3 +389,7 @@ class AuthService:
     def get_user_by_google_id(self, google_id: str) -> Optional[User]:
         """Get user by Google ID"""
         return self.db.query(User).filter(User.google_id == str(google_id)).first()
+    
+    def get_user_by_bitbucket_id(self, bitbucket_user_id: str) -> Optional[User]:
+        """Get user by Bitbucket user ID"""
+        return self.db.query(User).filter(User.bitbucket_user_id == bitbucket_user_id).first()

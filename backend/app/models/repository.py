@@ -23,7 +23,6 @@ class Repository(Base):
     # Relationships
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="repositories")
-    # Relationships
     scans = relationship("Scan", back_populates="repository", cascade="all, delete-orphan")
     ai_recommendations = relationship("AIRecommendation", back_populates="repository", cascade="all, delete-orphan")
     ai_analysis_requests = relationship("AIAnalysisRequest", back_populates="repository")

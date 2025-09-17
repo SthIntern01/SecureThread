@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
+
 
 
 class Token(BaseModel):
@@ -43,3 +44,19 @@ class GoogleAuthResponse(BaseModel):
     access_token: str
     token_type: str
     user: dict
+
+
+class BitbucketAuthRequest(BaseModel):
+    code: str
+
+class BitbucketAuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: Dict[str, Any]
+
+class BitbucketUserInfo(BaseModel):
+    bitbucket_connected: bool
+    bitbucket_username: Optional[str] = None
+    bitbucket_display_name: Optional[str] = None
+    bitbucket_email: Optional[str] = None
+    bitbucket_avatar_url: Optional[str] = None

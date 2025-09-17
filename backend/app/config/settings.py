@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     GITLAB_CLIENT_SECRET: str
     GITLAB_REDIRECT_URI: str
 
+    # Bitbucket OAuth
+    BITBUCKET_CLIENT_ID: str = ""
+    BITBUCKET_CLIENT_SECRET: str = ""
+    BITBUCKET_REDIRECT_URI: str = "http://localhost:3000/auth/bitbucket/callback"
+
     # LLM Configuration
     DEEPSEEK_API_KEY: str
     

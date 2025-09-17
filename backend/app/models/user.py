@@ -29,7 +29,13 @@ class User(Base):
     full_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    
+
+    # Bitbucket Integration
+    bitbucket_access_token = Column(String, nullable=True)
+    bitbucket_username = Column(String, nullable=True)
+    bitbucket_user_id = Column(String, nullable=True)
+
+
     # Relationships
     repositories = relationship("Repository", back_populates="owner", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")

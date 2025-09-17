@@ -11,7 +11,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(BaseModel):
-    email: str
+    email: Optional[str] = None  # Changed from: email: str
     
     # GitHub fields
     github_id: Optional[int] = None
@@ -28,6 +28,11 @@ class UserCreate(BaseModel):
     google_email: Optional[str] = None
     google_access_token: Optional[str] = None
     google_refresh_token: Optional[str] = None
+    
+    # Bitbucket fields (add these too)
+    bitbucket_user_id: Optional[str] = None
+    bitbucket_username: Optional[str] = None
+    bitbucket_access_token: Optional[str] = None
     
     # Common fields
     full_name: Optional[str] = None

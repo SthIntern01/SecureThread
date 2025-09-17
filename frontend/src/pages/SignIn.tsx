@@ -71,6 +71,9 @@ const SignInPage = () => {
   // Listens for messages from the popup window
   useEffect(() => {
     const handlePopupMessage = (event: MessageEvent) => {
+  console.log("SignIn: Received message from popup:", event.data);
+  console.log("SignIn: Event origin:", event.origin);
+  console.log("SignIn: Window origin:", window.location.origin);
       if (event.origin !== window.location.origin) return;
 
       const { type, code, state, error } = event.data;
@@ -84,6 +87,8 @@ const SignInPage = () => {
       if (type === "oauth-success") {
         if (state === "securethread_gitlab_auth") {
           handleGitLabCallback(code);
+        } else if (state === "securethread_bitbucket_auth") {
+          handleBitbucketCallback(code);
         }
         // Google is handled via direct redirect, not popup
         if (popup.current) {
@@ -325,6 +330,73 @@ const SignInPage = () => {
     }
   };
 
+  const handleBitbucketLogin = async () => {
+    try {
+      setLoadingProvider("bitbucket");
+      setError("");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
+      );
+      const data = await response.json();
+      if (data.authorization_url) {
+        const width = 600,
+          height = 700;
+        const left = window.screen.width / 2 - width / 2;
+        const top = window.screen.height / 2 - height / 2;
+        popup.current = window.open(
+          data.authorization_url,
+          "bitbucket-auth-popup",
+          `width=${width},height=${height},top=${top},left=${left}`
+        );
+
+        popupInterval.current = window.setInterval(checkPopupClosed, 1000);
+      } else {
+        setError("Failed to get Bitbucket authorization URL");
+        setLoadingProvider(null);
+      }
+    } catch (error) {
+      console.error("Bitbucket login error:", error);
+      setError("Failed to initiate Bitbucket login");
+      setLoadingProvider(null);
+    }
+  };
+
+  const handleBitbucketCallback = async (code: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/callback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        }
+      );
+      if (!response.ok)
+        throw new Error(
+          `Failed to authenticate with Bitbucket: ${response.status}`
+        );
+      const data = await response.json();
+      if (data.access_token) {
+        login(data.access_token, data.user || {});
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+        const from = location.state?.from?.pathname || "/";
+        navigate(from, { replace: true });
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (err) {
+      console.error("Bitbucket callback error:", err);
+      setError("Failed to sign in with Bitbucket. Please try again.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } finally {
+      setLoadingProvider(null);
+    }
+  };
+
   const handleComingSoonProvider = (provider: string) => {
     setError(`${provider} integration coming soon!`);
     setTimeout(() => setError(""), 3000);
@@ -372,7 +444,7 @@ const SignInPage = () => {
                   Link your projects effortlessly
                 </h3>
                 <p className="text-gray-300 leading-relaxed">
-                  Connect GitHub, GitLab, and other repositories with one-click
+                  Connect GitHub, GitLab, Bitbucket, and other repositories with one-click
                   integration
                 </p>
               </div>
@@ -479,14 +551,18 @@ const SignInPage = () => {
               </span>
             </button>
             <button
-              onClick={() => handleComingSoonProvider("Bitbucket")}
+              onClick={handleBitbucketLogin}
               disabled={loadingProvider !== null}
               className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10 disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
               </svg>
-              <span>Continue with Bitbucket</span>
+              <span>
+                {loadingProvider === "bitbucket"
+                  ? "Connecting..."
+                  : "Continue with Bitbucket"}
+              </span>
             </button>
           </div>
           <div className="text-center mb-6">
