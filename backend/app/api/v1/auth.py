@@ -71,15 +71,20 @@ async def refresh_token(
 
 @router.get("/me")
 async def get_current_user_info(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
 ):
-    """Get current user information"""
+    """Get current authenticated user's information"""
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "github_username": getattr(current_user, "github_username", None),
-        "gitlab_username": getattr(current_user, "gitlab_username", None),
+        "github_username": current_user.github_username,
+        "gitlab_username": current_user.gitlab_username,
+        "bitbucket_username": current_user.bitbucket_username,  # ← THIS WAS MISSING!
+        "google_email": current_user.google_email,
         "full_name": current_user.full_name,
         "avatar_url": current_user.avatar_url,
-        "created_at": current_user.created_at,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
     }

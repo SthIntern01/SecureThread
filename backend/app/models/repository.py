@@ -8,7 +8,13 @@ class Repository(Base):
     __tablename__ = "repositories"
 
     id = Column(Integer, primary_key=True, index=True)
-    github_id = Column(Integer, unique=True, index=True, nullable=False)
+    
+    # OAuth provider IDs - only one should be set per repository
+    github_id = Column(Integer, index=True, nullable=True)  # Changed to nullable
+    bitbucket_id = Column(String, index=True, nullable=True)  # Bitbucket uses UUID strings
+    gitlab_id = Column(String, index=True, nullable=True)  # GitLab uses integer but store as string
+    
+    # Common repository fields
     name = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
@@ -31,5 +37,29 @@ class Repository(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    @property
+    def source_type(self) -> str:
+        """Determine the source type of this repository"""
+        if self.github_id:
+            return "github"
+        elif self.bitbucket_id:
+            return "bitbucket"
+        elif self.gitlab_id:
+            return "gitlab"
+        else:
+            return "unknown"
+
+    @property
+    def external_id(self) -> str:
+        """Get the external ID regardless of source"""
+        if self.github_id:
+            return str(self.github_id)
+        elif self.bitbucket_id:
+            return self.bitbucket_id
+        elif self.gitlab_id:
+            return self.gitlab_id
+        else:
+            return ""
+
     def __repr__(self):
-        return f"<Repository(name='{self.name}', full_name='{self.full_name}')>"
+        return f"<Repository(name='{self.name}', full_name='{self.full_name}', source='{self.source_type}')>"

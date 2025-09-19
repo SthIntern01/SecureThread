@@ -17,9 +17,10 @@ import SignIn from "./pages/SignIn";
 import Settings from "./pages/Settings";
 import SignUp from "./pages/SignUp";
 import Feedback from "./pages/Feedback"; 
-import Help from "./pages/help";
+import Help from "./pages/Help";
 import GitHubCallback from "./pages/GitHubCallback";
 import GitLabCallback from "./pages/GitLabCallback";
+import BitbucketCallback from "./pages/BitbucketCallback";
 import NotFound from "./pages/NotFound";
 import RepositoryDetailsPage from "./pages/RepositoryDetails";
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/signup" element={<SignUp />} />
             <Route path="/auth/github/callback" element={<GitHubCallback />} />
             <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
+            <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
             <Route path="/docs" element={<Docs />} />
 
             {/* Protected routes */}

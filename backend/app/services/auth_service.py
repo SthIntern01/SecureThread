@@ -92,6 +92,80 @@ class AuthService:
             }
         }
 
+    async def authenticate_github(self, code: str) -> Optional[dict]:
+        """Authenticate user with GitHub OAuth and link accounts if email exists."""
+        # Exchange code for access token
+        access_token = await self.github_service.exchange_code_for_token(code)
+        if not access_token:
+            return None
+
+        # Get user info from GitHub
+        github_user = await self.github_service.get_user_info(access_token)
+        if not github_user:
+            return None
+
+        # Get user email
+        email = await self.github_service.get_user_email(access_token)
+        if not email:
+            return None
+
+        # --- MODIFIED LOGIC TO PREVENT DUPLICATE USERS ---
+
+        # 1. First, try to find the user by their unique GitHub ID.
+        user = self.db.query(User).filter(User.github_id == github_user["id"]).first()
+        
+        # 2. If no user is found by GitHub ID, check if a user exists with that email.
+        if not user:
+            user = self.db.query(User).filter(User.email == email).first()
+
+        # 3. Now, decide whether to create a new user or update the existing one.
+        if not user:
+            # If no user was found by ID or email, create a new one.
+            user_create = UserCreate(
+                email=email,
+                github_id=github_user["id"],
+                github_username=github_user["login"],
+                full_name=github_user.get("name"),
+                avatar_url=github_user.get("avatar_url"),
+                github_access_token=access_token
+            )
+            user = self.create_user(user_create)
+        else:
+            # If a user was found (by either ID or email), update their record
+            # with the new GitHub information to link the accounts.
+            user.github_id = github_user["id"]
+            user.github_username = github_user["login"]
+            user.github_access_token = access_token
+            if github_user.get("name"):
+                 user.full_name = github_user.get("name")
+            if github_user.get("avatar_url"):
+                user.avatar_url = github_user.get("avatar_url")
+            self.db.commit()
+            self.db.refresh(user)
+            
+        # --- END OF MODIFIED LOGIC ---
+
+        # Create JWT token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        jwt_token = create_access_token(
+            data={"sub": str(user.id)}, expires_delta=access_token_expires
+        )
+
+        return {
+            "access_token": jwt_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "github_username": user.github_username,
+                "gitlab_username": user.gitlab_username,
+                "bitbucket_username": user.bitbucket_username,  # ← ADDED THIS
+                "google_email": user.google_email,  # ← ADDED THIS
+                "full_name": user.full_name,
+                "avatar_url": user.avatar_url,
+            }
+        }
+
     async def authenticate_gitlab(self, code: str) -> Optional[dict]:
         """Authenticate user with GitLab OAuth and link accounts if email exists."""
         try:
@@ -161,6 +235,8 @@ class AuthService:
                     "email": user.email,
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
+                    "bitbucket_username": user.bitbucket_username,  # ← ADDED THIS
+                    "google_email": user.google_email,  # ← ADDED THIS
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
                 }
@@ -245,6 +321,8 @@ class AuthService:
                     "email": user.email,
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
+                    "bitbucket_username": user.bitbucket_username,  # ← ADDED THIS
+                    "google_email": user.google_email,
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
                 }
@@ -324,6 +402,7 @@ class AuthService:
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
                     "bitbucket_username": user.bitbucket_username,
+                    "google_email": user.google_email,  # ← ADDED THIS
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
                 }
