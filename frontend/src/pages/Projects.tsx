@@ -205,12 +205,12 @@ const ResponsiveSidebar = ({
   ];
 
   const profileLink = {
-    label: user?.full_name || user?.github_username || "User",
+    label: user?.full_name || user?.github_username || user?.bitbucket_username || "User",
     href: "#",
     icon: user?.avatar_url ? (
       <img
         src={user.avatar_url}
-        alt={user.full_name || user.github_username}
+        alt={user.full_name || user.github_username || user.bitbucket_username}
         className="h-5 w-5 rounded-full shrink-0"
       />
     ) : (
@@ -513,6 +513,244 @@ const ImportRepositoriesModal = ({
                         selectedRepos.length === 1
                           ? "Repository"
                           : "Repositories"
+                      }`
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const ImportBitbucketRepositoriesModal = ({
+  isOpen,
+  onClose,
+  onImport,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onImport: (repoIds: string[]) => void;
+}) => {
+  const [repositories, setRepositories] = useState<any[]>([]);
+  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedRepos([]);
+      fetchAvailableBitbucketRepositories();
+    }
+  }, [isOpen]);
+
+  const fetchAvailableBitbucketRepositories = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/bitbucket/available`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setRepositories(data.repositories || []);
+      } else {
+        const errorData = await response.text();
+        setError(
+          `Failed to fetch repositories: ${response.status} ${response.statusText}`
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching Bitbucket repositories:", error);
+      setError("Network error occurred while fetching repositories");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRepoToggle = (repoId: string) => {
+    setSelectedRepos((prev) => {
+      const newSelection = prev.includes(repoId)
+        ? prev.filter((id) => id !== repoId)
+        : [...prev, repoId];
+      return newSelection;
+    });
+  };
+
+  const handleImport = async () => {
+    if (selectedRepos.length === 0) return;
+
+    setImporting(true);
+    try {
+      await onImport(selectedRepos);
+      setSelectedRepos([]);
+      onClose();
+    } catch (error) {
+      console.error("Error importing repositories:", error);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const filteredRepos = repositories
+    .filter((repo) => !repo.is_imported)
+    .filter(
+      (repo) =>
+        repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        repo.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+            </svg>
+            <span>Import Bitbucket Repositories</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+          {loading ? (
+            <div className="text-center py-8 flex-1 flex items-center justify-center">
+              <div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
+                <p className="text-brand-gray">Loading repositories...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 flex-1 flex items-center justify-center">
+              <div>
+                <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+                <p className="text-red-600 mb-4">{error}</p>
+                <Button onClick={fetchAvailableBitbucketRepositories} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center space-x-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search repositories..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <div className="text-sm text-brand-gray">
+                  {selectedRepos.length} selected
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto border rounded-lg">
+                {filteredRepos.length === 0 ? (
+                  <div className="text-center py-8">
+                    <svg className="w-12 h-12 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                    </svg>
+                    <p className="text-brand-gray">
+                      {repositories.filter((r) => !r.is_imported).length === 0
+                        ? "All your repositories have been imported!"
+                        : "No repositories found matching your search."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {filteredRepos.map((repo, index) => (
+                      <div
+                        key={`bitbucket-repo-${repo.id}-${index}`}
+                        className="p-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="flex items-center mt-1">
+                            <input
+                              type="checkbox"
+                              id={`bitbucket-repo-checkbox-${repo.id}`}
+                              checked={selectedRepos.includes(repo.id)}
+                              onChange={(e) => handleRepoToggle(repo.id)}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="text-sm font-medium text-brand-black truncate">
+                                {repo.full_name}
+                              </h3>
+                              {repo.is_private && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Private
+                                </Badge>
+                              )}
+                              {repo.language && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-blue-100 text-blue-800"
+                                >
+                                  {repo.language}
+                                </Badge>
+                              )}
+                            </div>
+                            {repo.description && (
+                              <p className="text-sm text-brand-gray mb-2 line-clamp-2">
+                                {repo.description}
+                              </p>
+                            )}
+                            <div className="flex items-center text-xs text-brand-gray space-x-4">
+                              <span>Branch: {repo.default_branch}</span>
+                              <span>
+                                Updated:{" "}
+                                {new Date(repo.updated_at || "").toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="text-sm text-brand-gray">
+                  {filteredRepos.length} repositories available for import
+                </div>
+                <div className="flex space-x-3">
+                  <Button variant="outline" onClick={onClose}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleImport}
+                    disabled={selectedRepos.length === 0 || importing}
+                    className="min-w-[120px]"
+                  >
+                    {importing ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Importing...</span>
+                      </div>
+                    ) : (
+                      `Import ${selectedRepos.length} ${
+                        selectedRepos.length === 1 ? "Repository" : "Repositories"
                       }`
                     )}
                   </Button>
@@ -839,7 +1077,7 @@ const Projects = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [importProvider, setImportProvider] = useState<'github' | 'bitbucket' | null>(null);
   const [loading, setLoading] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
@@ -849,12 +1087,66 @@ const Projects = () => {
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Polling management
   const [pollIntervals, setPollIntervals] = useState<
     Map<number, NodeJS.Timeout>
   >(new Map());
+
+  // Helper functions for dynamic provider detection
+  const getAuthProvider = (): 'github' | 'bitbucket' | null => {
+  console.log('=== DEBUG AUTH PROVIDER ===');
+  console.log('User object:', user);
+  console.log('user.github_username:', user?.github_username);
+  console.log('user.bitbucket_username:', user?.bitbucket_username);
+  
+  if (!user) {
+    console.log('No user - returning null');
+    return null;
+  }
+  if (user.github_username) {
+    console.log('Found GitHub username - returning github');
+    return 'github';
+  }
+  if (user.bitbucket_username) {
+    console.log('Found Bitbucket username - returning bitbucket');
+    return 'bitbucket';
+  }
+  console.log('No provider found - returning null');
+  return null;
+};
+
+  const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
+    switch (provider) {
+      case 'github':
+        return <Github className="w-4 h-4 mr-2" />;
+      case 'bitbucket':
+        return (
+          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+          </svg>
+        );
+      default:
+        return <Github className="w-4 h-4 mr-2" />;
+    }
+  };
+
+  const getProviderName = (provider: 'github' | 'bitbucket' | null) => {
+    switch (provider) {
+      case 'github': return 'GitHub';
+      case 'bitbucket': return 'Bitbucket';
+      default: return 'GitHub';
+    }
+  };
+
+  const handleImportClick = () => {
+  const provider = getAuthProvider();
+  console.log('=== IMPORT CLICK ===');
+  console.log('Detected provider:', provider);
+  setImportProvider(provider);
+};
 
   useEffect(() => {
     fetchProjects();
@@ -901,7 +1193,7 @@ const Projects = () => {
             is_fork: repo.is_fork,
             owner: repo.full_name.split("/")[0],
             repository: repo.name,
-            source: "github" as const,
+            source: repo.source || "github" as const,
             status:
               repo.latest_scan?.status === "running"
                 ? ("scanning" as const)
@@ -1368,6 +1660,40 @@ const Projects = () => {
     }
   };
 
+  const handleImportBitbucketRepositories = async (repoIds: string[]) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/repositories/bitbucket/import`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            repository_ids: repoIds,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Import error:", errorData);
+        throw new Error(`Failed to import repositories: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Import successful:", result);
+      await fetchProjects();
+    } catch (error) {
+      console.error("Error importing repositories:", error);
+      throw error;
+    }
+  };
+
   const stats = {
     total: projects.length,
     active: projects.filter(
@@ -1417,11 +1743,11 @@ const Projects = () => {
                   </div>
                   <div className="mt-6 lg:mt-0">
                     <Button
-                      onClick={() => setShowImportModal(true)}
+                      onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      <Github className="w-4 h-4 mr-2" />
-                      Import Repositories
+                      {getProviderIcon(getAuthProvider())}
+                      Import from {getProviderName(getAuthProvider())}
                     </Button>
                   </div>
                 </div>
@@ -1535,16 +1861,16 @@ const Projects = () => {
                     </h3>
                     <p className="text-white/70 mb-6">
                       {projects.length === 0
-                        ? "Get started by importing your first repository from GitHub."
+                        ? `Get started by importing your first repository from ${getProviderName(getAuthProvider())}.`
                         : "Try adjusting your search or filter criteria."}
                     </p>
                     {projects.length === 0 && (
                       <Button
-                        onClick={() => setShowImportModal(true)}
+                        onClick={handleImportClick}
                         className="bg-accent hover:bg-accent/90 text-accent-foreground"
                       >
-                        <Github className="w-4 h-4 mr-2" />
-                        Import from GitHub
+                        {getProviderIcon(getAuthProvider())}
+                        Import from {getProviderName(getAuthProvider())}
                       </Button>
                     )}
                   </div>
@@ -1572,12 +1898,22 @@ const Projects = () => {
         </div>
       </div>
 
-      {/* Import Modal */}
-      <ImportRepositoriesModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onImport={handleImportRepositories}
-      />
+      {/* Dynamic Import Modals */}
+      {importProvider === 'github' && (
+        <ImportRepositoriesModal
+          isOpen={true}
+          onClose={() => setImportProvider(null)}
+          onImport={handleImportRepositories}
+        />
+      )}
+
+      {importProvider === 'bitbucket' && (
+        <ImportBitbucketRepositoriesModal
+          isOpen={true}
+          onClose={() => setImportProvider(null)}
+          onImport={handleImportBitbucketRepositories}
+        />
+      )}
 
       {/* Scan Details Modal */}
       <ScanDetailsModal
