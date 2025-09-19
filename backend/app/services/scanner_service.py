@@ -1,5 +1,3 @@
-# Replace: backend/app/services/scanner_service.py - Fix datetime issues
-
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
@@ -45,18 +43,17 @@ class ScannerService:
         """Get current UTC datetime - consistent timezone handling"""
         return datetime.now(timezone.utc)
     
-    # Replace the entire start_repository_scan method in backend/app/services/scanner_service.py
-
     async def start_repository_scan(
         self, 
         repository_id: int, 
-        github_access_token: str,
+        access_token: str,  # Generic access token
+        provider_type: str,  # "github", "bitbucket", "gitlab"
         scan_config: Optional[Dict[str, Any]] = None
     ) -> Scan:
         """
-        Start a limited security scan of a repository
+        Start a limited security scan of a repository - MULTI-PROVIDER SUPPORT
         """
-        logger.info(f"🚀 Starting repository scan for repository {repository_id}")
+        logger.info(f"Starting {provider_type} repository scan for repository {repository_id}")
         
         # Initialize variables early to prevent scope errors
         scan_results = {
@@ -75,6 +72,10 @@ class ScannerService:
         if not repository:
             raise ValueError(f"Repository {repository_id} not found")
         
+        # Verify provider type matches repository
+        if repository.source_type != provider_type:
+            raise ValueError(f"Repository source type '{repository.source_type}' doesn't match provider '{provider_type}'")
+        
         # Check for existing running scan - FIXED: Only check for truly active scans
         existing_scan = self.db.query(Scan).filter(
             Scan.repository_id == repository_id,
@@ -82,7 +83,7 @@ class ScannerService:
         ).first()
         
         if existing_scan:
-            logger.warning(f"❌ Scan already running for repository {repository_id} (scan {existing_scan.id})")
+            logger.warning(f"Scan already running for repository {repository_id} (scan {existing_scan.id})")
             raise ValueError("A scan is already running for this repository")
         
         # Find the pending scan that was created by the API
@@ -92,17 +93,18 @@ class ScannerService:
         ).order_by(Scan.started_at.desc()).first()
         
         if not pending_scan:
-            logger.error(f"❌ No pending scan found for repository {repository_id}")
+            logger.error(f"No pending scan found for repository {repository_id}")
             raise ValueError("No pending scan found to execute")
         
         scan = pending_scan
-        logger.info(f"📋 Found pending scan {scan.id}, starting execution...")
+        logger.info(f"Found pending scan {scan.id}, starting execution...")
         
         try:
             # Update scan status to running
             scan.status = "running"
             scan.scan_metadata = {
                 "scan_started": True,
+                "provider_type": provider_type,
                 "max_files": self.MAX_FILES_TO_SCAN,
                 "max_vulnerabilities": self.MAX_VULNERABLE_FILES,
                 "scan_start_time": self._get_utc_now().isoformat()
@@ -110,27 +112,28 @@ class ScannerService:
             self.db.commit()
             self.db.refresh(scan)
             
-            logger.info(f"▶️ Scan {scan.id} status updated to 'running'")
+            logger.info(f"Scan {scan.id} status updated to 'running'")
             
-            # Get repository file tree
-            logger.info(f"📁 Fetching repository files for {repository.full_name}")
+            # Get repository file tree - MULTI-PROVIDER
+            logger.info(f"Fetching repository files for {repository.full_name}")
             file_tree = await self._get_repository_files(
-                github_access_token, 
-                repository.full_name
+                access_token, 
+                repository.full_name,
+                provider_type
             )
             
             if not file_tree:
                 raise Exception("Failed to retrieve repository files")
             
-            logger.info(f"📂 Found {len(file_tree)} total files in repository")
+            logger.info(f"Found {len(file_tree)} total files in repository")
             
             # Filter and prioritize scannable files
             scannable_files = self._filter_and_prioritize_files(file_tree)
-            logger.info(f"🔍 Filtered to {len(scannable_files)} scannable files")
+            logger.info(f"Filtered to {len(scannable_files)} scannable files")
             
             # Limit files for scanning - take only the most important ones
             files_to_scan = scannable_files[:self.MAX_FILES_TO_SCAN]
-            logger.info(f"📝 Limited to {len(files_to_scan)} files for actual scanning")
+            logger.info(f"Limited to {len(files_to_scan)} files for actual scanning")
             
             # Update scan with initial info
             scan.total_files_scanned = len(files_to_scan)
@@ -143,14 +146,14 @@ class ScannerService:
             })
             self.db.commit()
             
-            logger.info(f"🔬 Starting file analysis...")
+            logger.info(f"Starting file analysis...")
             
-            # Scan files with strict limits
+            # Scan files with strict limits - MULTI-PROVIDER
             scan_results = await self._scan_files_with_strict_limits(
-                files_to_scan, github_access_token, repository.full_name, scan.id
+                files_to_scan, access_token, repository.full_name, provider_type, scan.id
             )
             
-            logger.info(f"📊 Scan results: {scan_results['files_scanned']} scanned, {scan_results['vulnerable_files_count']} vulnerable")
+            logger.info(f"Scan results: {scan_results['files_scanned']} scanned, {scan_results['vulnerable_files_count']} vulnerable")
             
             # Calculate security metrics
             security_metrics = await self._calculate_security_metrics(
@@ -197,15 +200,15 @@ class ScannerService:
             self.db.commit()
             self.db.refresh(scan)
             
-            logger.info(f"✅ Completed scan {scan.id} with {len(scan_results['vulnerabilities'])} vulnerabilities")
-            logger.info(f"📈 Security Score: {scan.security_score}, Coverage: {scan.code_coverage}%")
-            logger.info(f"⏱️ Scan duration: {scan.scan_duration}")
+            logger.info(f"Completed scan {scan.id} with {len(scan_results['vulnerabilities'])} vulnerabilities")
+            logger.info(f"Security Score: {scan.security_score}, Coverage: {scan.code_coverage}%")
+            logger.info(f"Scan duration: {scan.scan_duration}")
             
             return scan
             
         except Exception as e:
             # Update scan with error - FIXED: Use consistent datetime
-            logger.error(f"❌ Scan {scan.id} failed: {e}")
+            logger.error(f"Scan {scan.id} failed: {e}")
             current_time = self._get_utc_now()
             scan.status = "failed"
             scan.completed_at = current_time
@@ -285,12 +288,13 @@ class ScannerService:
     async def _scan_files_with_strict_limits(
         self, 
         files: List[Dict[str, Any]], 
-        github_access_token: str, 
+        access_token: str, 
         repo_full_name: str,
+        provider_type: str,  # NEW: Provider type
         scan_id: int
     ) -> Dict[str, Any]:
         """
-        Scan files with strict token and count limits
+        Scan files with strict token and count limits - MULTI-PROVIDER
         """
         all_vulnerabilities = []
         files_scanned = 0
@@ -302,29 +306,29 @@ class ScannerService:
         # Track file scan results for detailed reporting
         file_scan_results = []
         
-        logger.info(f"🔍 Starting to scan {len(files)} files...")
+        logger.info(f"Starting to scan {len(files)} files...")
         
         for i, file_info in enumerate(files):
             # Check multiple stop conditions
             if vulnerable_files_count >= self.MAX_VULNERABLE_FILES:
                 stop_reason = "vulnerability_limit_reached"
-                logger.info(f"🛑 Stopping: reached {self.MAX_VULNERABLE_FILES} vulnerable files")
+                logger.info(f"Stopping: reached {self.MAX_VULNERABLE_FILES} vulnerable files")
                 break
             
             if estimated_tokens_used >= self.MAX_TOTAL_TOKENS:
                 stop_reason = "token_limit_reached"
-                logger.info(f"🛑 Stopping: reached {self.MAX_TOTAL_TOKENS} token limit")
+                logger.info(f"Stopping: reached {self.MAX_TOTAL_TOKENS} token limit")
                 break
             
             if files_scanned >= self.MAX_FILES_TO_SCAN:
                 stop_reason = "file_count_limit_reached"
-                logger.info(f"🛑 Stopping: reached {self.MAX_FILES_TO_SCAN} file limit")
+                logger.info(f"Stopping: reached {self.MAX_FILES_TO_SCAN} file limit")
                 break
             
-            # Scan single file
-            logger.info(f"📄 Scanning file {i+1}/{len(files)}: {file_info['path']}")
+            # Scan single file - MULTI-PROVIDER
+            logger.info(f"Scanning file {i+1}/{len(files)}: {file_info['path']}")
             file_result = await self._scan_single_file_with_tracking(
-                file_info, github_access_token, repo_full_name
+                file_info, access_token, repo_full_name, provider_type
             )
             
             files_scanned += 1
@@ -337,9 +341,9 @@ class ScannerService:
             if file_result["vulnerabilities"]:
                 vulnerable_files_count += 1
                 all_vulnerabilities.extend(file_result["vulnerabilities"])
-                logger.info(f"🚨 Found {len(file_result['vulnerabilities'])} vulnerabilities in {file_result['file_path']}")
+                logger.info(f"Found {len(file_result['vulnerabilities'])} vulnerabilities in {file_result['file_path']}")
             else:
-                logger.info(f"✅ No vulnerabilities found in {file_result['file_path']}")
+                logger.info(f"No vulnerabilities found in {file_result['file_path']}")
             
             # Small delay to prevent overwhelming the API
             await asyncio.sleep(1)  # Reduced from 2 seconds
@@ -357,10 +361,10 @@ class ScannerService:
         
         # Save vulnerabilities to database
         if all_vulnerabilities:
-            logger.info(f"💾 Saving {len(all_vulnerabilities)} vulnerabilities to database")
+            logger.info(f"Saving {len(all_vulnerabilities)} vulnerabilities to database")
             await self._save_vulnerabilities(scan_id, all_vulnerabilities)
         
-        logger.info(f"📊 Scan completed: {files_scanned} scanned, {files_skipped} skipped, {vulnerable_files_count} vulnerable files")
+        logger.info(f"Scan completed: {files_scanned} scanned, {files_skipped} skipped, {vulnerable_files_count} vulnerable files")
         
         return {
             "vulnerabilities": all_vulnerabilities,
@@ -375,20 +379,21 @@ class ScannerService:
     async def _scan_single_file_with_tracking(
         self, 
         file_info: Dict[str, Any], 
-        github_access_token: str, 
-        repo_full_name: str
+        access_token: str, 
+        repo_full_name: str,
+        provider_type: str  # NEW: Provider type
     ) -> Dict[str, Any]:
         """
-        Scan a single file and return detailed results with status tracking
+        Scan a single file and return detailed results with status tracking - MULTI-PROVIDER
         """
         file_path = file_info['path']
         
         try:
-            logger.info(f"🔍 Starting scan of file: {file_path}")
+            logger.info(f"Starting scan of file: {file_path}")
             
-            # Get file content
-            file_content_data = self.github_service.get_file_content(
-                github_access_token, repo_full_name, file_path
+            # Get file content - MULTI-PROVIDER
+            file_content_data = await self._get_file_content(
+                access_token, repo_full_name, file_path, provider_type
             )
             
             if not file_content_data or file_content_data.get('is_binary'):
@@ -399,7 +404,7 @@ class ScannerService:
                     "vulnerabilities": [],
                     "file_size": file_info.get('size', 0)
                 }
-                logger.info(f"⏭️ Skipped {file_path}: Binary or unavailable")
+                logger.info(f"Skipped {file_path}: Binary or unavailable")
                 return result
             
             file_content = file_content_data.get('content', '')
@@ -411,7 +416,7 @@ class ScannerService:
                     "vulnerabilities": [],
                     "file_size": file_info.get('size', 0)
                 }
-                logger.info(f"⏭️ Skipped {file_path}: Empty file")
+                logger.info(f"Skipped {file_path}: Empty file")
                 return result
             
             # Check if file content is too large for LLM
@@ -423,14 +428,14 @@ class ScannerService:
                     "vulnerabilities": [],
                     "file_size": len(file_content)
                 }
-                logger.info(f"⏭️ Skipped {file_path}: Too large ({len(file_content)} chars)")
+                logger.info(f"Skipped {file_path}: Too large ({len(file_content)} chars)")
                 return result
             
             # Determine file extension
             file_extension = '.' + file_path.split('.')[-1] if '.' in file_path else ''
             
             # Analyze with LLM
-            logger.info(f"🤖 Analyzing {file_path} with LLM...")
+            logger.info(f"Analyzing {file_path} with LLM...")
             vulnerabilities = await self.llm_service.analyze_code_for_vulnerabilities(
                 file_content, file_path, file_extension
             )
@@ -439,11 +444,11 @@ class ScannerService:
             if vulnerabilities and len(vulnerabilities) > 0:
                 status = "vulnerable"
                 reason = f"Found {len(vulnerabilities)} vulnerabilities"
-                logger.info(f"🚨 {file_path}: Found {len(vulnerabilities)} vulnerabilities!")
+                logger.info(f"{file_path}: Found {len(vulnerabilities)} vulnerabilities!")
             else:
                 status = "scanned"
                 reason = "No vulnerabilities found"
-                logger.info(f"✅ {file_path}: Clean scan, no vulnerabilities")
+                logger.info(f"{file_path}: Clean scan, no vulnerabilities")
             
             result = {
                 "file_path": file_path,
@@ -453,11 +458,11 @@ class ScannerService:
                 "file_size": len(file_content)
             }
             
-            logger.info(f"📋 Completed scan of {file_path}: {status} with {len(vulnerabilities)} vulns")
+            logger.info(f"Completed scan of {file_path}: {status} with {len(vulnerabilities)} vulns")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Error scanning file {file_path}: {e}")
+            logger.error(f"Error scanning file {file_path}: {e}")
             result = {
                 "file_path": file_path,
                 "status": "error",
@@ -469,35 +474,102 @@ class ScannerService:
     
     async def _get_repository_files(
         self, 
-        github_access_token: str, 
-        repo_full_name: str
+        access_token: str, 
+        repo_full_name: str,
+        provider_type: str  # NEW: Provider type
     ) -> List[Dict[str, Any]]:
         """
-        Get all files in the repository using GitHub API
+        Get all files in the repository using appropriate service - MULTI-PROVIDER
         """
         try:
-            # Get repository tree recursively
-            tree_data = self.github_service.get_repository_tree(
-                github_access_token, repo_full_name
-            )
-            
-            if not tree_data or 'tree' not in tree_data:
+            if provider_type == "github":
+                # Get repository tree recursively
+                tree_data = self.github_service.get_repository_tree(
+                    access_token, repo_full_name
+                )
+                
+                if not tree_data or 'tree' not in tree_data:
+                    return []
+                
+                files = []
+                for item in tree_data['tree']:
+                    if item.get('type') == 'blob':  # It's a file
+                        files.append({
+                            'path': item['path'],
+                            'sha': item['sha'],
+                            'size': item.get('size', 0)
+                        })
+                
+                return files
+                
+            elif provider_type == "bitbucket":
+                from app.services.bitbucket_services import BitbucketService
+                bitbucket_service = BitbucketService()
+                
+                # Extract workspace and repo_slug from full_name
+                workspace, repo_slug = repo_full_name.split("/", 1)
+                
+                # Get repository tree - use the NEW method
+                tree_data = bitbucket_service.get_repository_tree_all_files(
+                    access_token, workspace, repo_slug
+                )
+                
+                if not tree_data:
+                    return []
+                
+                return tree_data  # Already in the right format
+                
+            else:
+                logger.error(f"Unsupported provider type: {provider_type}")
                 return []
             
-            files = []
-            for item in tree_data['tree']:
-                if item.get('type') == 'blob':  # It's a file
-                    files.append({
-                        'path': item['path'],
-                        'sha': item['sha'],
-                        'size': item.get('size', 0)
-                    })
-            
-            return files
-            
         except Exception as e:
-            logger.error(f"❌ Error getting repository files: {e}")
+            logger.error(f"Error getting repository files: {e}")
             return []
+    
+    async def _get_file_content(
+        self,
+        access_token: str,
+        repo_full_name: str,
+        file_path: str,
+        provider_type: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get file content using appropriate service - MULTI-PROVIDER
+        """
+        try:
+            if provider_type == "github":
+                return self.github_service.get_file_content(
+                    access_token, repo_full_name, file_path
+                )
+                
+            elif provider_type == "bitbucket":
+                from app.services.bitbucket_services import BitbucketService
+                bitbucket_service = BitbucketService()
+                
+                # Extract workspace and repo_slug from full_name
+                workspace, repo_slug = repo_full_name.split("/", 1)
+                
+                # Get file content
+                content = bitbucket_service.get_file_content(
+                    access_token, workspace, repo_slug, file_path
+                )
+                
+                if content:
+                    return {
+                        'content': content,
+                        'is_binary': False
+                    }
+                else:
+                    return None
+            
+            else:
+                logger.error(f"Unsupported provider type: {provider_type}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting file content: {e}")
+            return None
     
     async def _save_vulnerabilities(
         self, 
@@ -529,10 +601,10 @@ class ScannerService:
                 )
                 self.db.add(vulnerability)
             except Exception as e:
-                logger.error(f"❌ Error saving vulnerability: {e}")
+                logger.error(f"Error saving vulnerability: {e}")
         
         self.db.commit()
-        logger.info(f"💾 Successfully saved {len(vulnerabilities)} vulnerabilities")
+        logger.info(f"Successfully saved {len(vulnerabilities)} vulnerabilities")
     
     async def _calculate_security_metrics(
         self, 

@@ -84,15 +84,16 @@ class VulnerabilityResponse(BaseModel):
 
 async def run_scan_background(
     repository_id: int,
-    github_access_token: str,
+    access_token: str,  # Generic token (not just GitHub)
+    provider_type: str,  # "github", "bitbucket", "gitlab"
     scan_config: Optional[Dict[str, Any]],
     db: Session
 ):
-    """Background task to run repository scan"""
+    """Background task to run repository scan - FIXED MULTI-PROVIDER"""
     try:
         scanner_service = ScannerService(db)
         await scanner_service.start_repository_scan(
-            repository_id, github_access_token, scan_config
+            repository_id, access_token, provider_type, scan_config  # FIXED: Use correct parameters
         )
     except Exception as e:
         logger.error(f"Background scan failed: {e}")
@@ -128,12 +129,37 @@ async def start_repository_scan(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Repository not found"
         )
-    
-    if not current_user.github_access_token:
+
+    # NEW: Multi-provider access token detection
+    access_token = None
+    if repository.source_type == "github":
+        access_token = current_user.github_access_token
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="GitHub access token not found"
+            )
+    elif repository.source_type == "bitbucket":
+        access_token = current_user.bitbucket_access_token
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Bitbucket access token not found"
+            )
+    elif repository.source_type == "gitlab":
+        access_token = current_user.gitlab_access_token
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="GitLab access token not found"
+            )
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="GitHub access token not found"
+            detail=f"Repository source '{repository.source_type}' not supported for scanning"
         )
+
+    
     
     # Check if there's already a running scan
     existing_scan = db.query(Scan).filter(
@@ -160,10 +186,12 @@ async def start_repository_scan(
         db.refresh(scan)
         
         # Start background scan
+        # CORRECT - use the multi-provider token:
         background_tasks.add_task(
             run_scan_background,
             scan_request.repository_id,
-            current_user.github_access_token,
+            access_token,  # <- Use the detected token
+            repository.source_type,  # <- Also pass the provider type
             scan_request.scan_config,
             db
         )
