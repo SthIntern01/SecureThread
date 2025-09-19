@@ -71,62 +71,73 @@ class BitbucketService:
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             repositories = []
-            url = f"{self.api_base_url}/repositories"
             
-            # Get user info first to get the username
+            # Get user info first to get the username and workspace
             user_info_response = requests.get(f"{self.api_base_url}/user", headers=headers)
             if user_info_response.status_code != 200:
                 logger.error(f"Failed to get user info: {user_info_response.text}")
                 return []
             
-            username = user_info_response.json().get("username")
-            if not username:
-                logger.error("Could not get username from user info")
+            user_data = user_info_response.json()
+            logger.error(f"DEBUG: User data: {user_data}")
+            
+            # Try to get repositories from user's workspaces
+            workspaces_response = requests.get(f"{self.api_base_url}/workspaces", headers=headers)
+            if workspaces_response.status_code != 200:
+                logger.error(f"Failed to get workspaces: {workspaces_response.text}")
                 return []
-
-            # Get repositories for the user
-            url = f"{self.api_base_url}/repositories/{username}"
-            page = 1
-            pagelen = 50
-
-            while True:
-                response = requests.get(
-                    url,
-                    headers=headers,
-                    params={"page": page, "pagelen": pagelen, "sort": "-updated_on"}
-                )
-
-                if response.status_code != 200:
-                    logger.error(f"Error fetching repositories: {response.text}")
-                    break
-
-                data = response.json()
-                page_repos = data.get("values", [])
+            
+            workspaces_data = workspaces_response.json()
+            logger.error(f"DEBUG: Found {len(workspaces_data.get('values', []))} workspaces")
+            
+            # Get repositories from each workspace the user has access to
+            for workspace in workspaces_data.get("values", []):
+                workspace_slug = workspace.get("slug")
+                logger.error(f"DEBUG: Checking workspace: {workspace_slug}")
                 
-                if not page_repos:
-                    break
-
-                for repo in page_repos:
-                    repositories.append({
-                        "id": repo["uuid"],  # Bitbucket uses UUID for repo ID
-                        "name": repo["name"],
-                        "full_name": repo["full_name"],
-                        "description": repo.get("description"),
-                        "html_url": repo["links"]["html"]["href"],
-                        "clone_url": repo["links"]["clone"][0]["href"] if repo["links"]["clone"] else "",
-                        "default_branch": repo.get("mainbranch", {}).get("name", "main"),
-                        "language": repo.get("language"),
-                        "is_private": repo["is_private"],
-                        "created_at": repo["created_on"],
-                        "updated_at": repo["updated_on"]
-                    })
-
-                # Check if there are more pages
-                if "next" not in data:
-                    break
-                page += 1
-
+                page = 1
+                pagelen = 50
+                
+                while True:
+                    response = requests.get(
+                        f"{self.api_base_url}/repositories/{workspace_slug}",
+                        headers=headers,
+                        params={"page": page, "pagelen": pagelen, "sort": "-updated_on"}
+                    )
+                    
+                    if response.status_code != 200:
+                        logger.error(f"Error fetching repositories for workspace {workspace_slug}: {response.text}")
+                        break
+                    
+                    data = response.json()
+                    page_repos = data.get("values", [])
+                    
+                    if not page_repos:
+                        break
+                    
+                    for repo in page_repos:
+                        repositories.append({
+                            "id": repo["uuid"],
+                            "name": repo["name"],
+                            "full_name": repo["full_name"],
+                            "description": repo.get("description"),
+                            "html_url": repo["links"]["html"]["href"],
+                            "clone_url": repo["links"]["clone"][0]["href"] if repo["links"]["clone"] else "",
+                            "default_branch": repo.get("mainbranch", {}).get("name", "main"),
+                            "language": repo.get("language"),
+                            "is_private": repo["is_private"],
+                            "created_at": repo["created_on"],
+                            "updated_at": repo["updated_on"]
+                        })
+                    
+                    # Check if there are more pages
+                    if "next" not in data:
+                        break
+                    page += 1
+            
+            logger.error(f"DEBUG: Total repositories found: {len(repositories)}")
             return repositories
+            
         except Exception as e:
             logger.error(f"Error fetching Bitbucket repositories: {e}")
             return []

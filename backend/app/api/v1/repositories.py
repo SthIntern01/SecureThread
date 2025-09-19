@@ -84,6 +84,10 @@ async def get_available_bitbucket_repositories(
     bitbucket_service = BitbucketService()
     repos = bitbucket_service.get_user_repositories(current_user.bitbucket_access_token)
     
+    logger.error(f"DEBUG: Found {len(repos)} repositories from Bitbucket API")
+    for repo in repos[:3]:  # Log first 3 repos
+        logger.error(f"DEBUG: Repo: {repo.get('name')} - ID: {repo.get('id')}")
+    
     # Get already imported repositories using bitbucket_id
     imported_repo_ids = set(
         repo.bitbucket_id for repo in db.query(Repository).filter(
@@ -92,9 +96,12 @@ async def get_available_bitbucket_repositories(
         ).all()
     )
     
+    logger.error(f"DEBUG: Already imported repo IDs: {imported_repo_ids}")
+    
     # Mark which repositories are already imported
     for repo in repos:
         repo["is_imported"] = repo["id"] in imported_repo_ids
+        logger.error(f"DEBUG: {repo['name']} - is_imported: {repo['is_imported']}")
     
     return {"repositories": repos}
 
