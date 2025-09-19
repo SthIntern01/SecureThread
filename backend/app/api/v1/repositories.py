@@ -417,6 +417,87 @@ async def get_repository_content(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch repository content"
+        )@router.get("/{repo_id}/content")
+async def get_repository_content(
+    repo_id: int,
+    path: str = "",
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get repository content for scanning - MULTI-PROVIDER SUPPORT"""
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    
+    try:
+        if repository.source_type == "github":
+            if not current_user.github_access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="GitHub access token not found"
+                )
+            
+            github_service = GitHubService()
+            content = github_service.get_repository_content(
+                current_user.github_access_token,
+                repository.full_name,
+                path
+            )
+            
+        elif repository.source_type == "bitbucket":
+            if not current_user.bitbucket_access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Bitbucket access token not found"
+                )
+            
+            from app.services.bitbucket_services import BitbucketService
+            bitbucket_service = BitbucketService()
+            
+            # Extract workspace and repo_slug from full_name
+            workspace, repo_slug = repository.full_name.split("/", 1)
+            
+            # NEW: Get repository content for Bitbucket
+            content = bitbucket_service.get_repository_content(
+                current_user.bitbucket_access_token,
+                workspace,
+                repo_slug,
+                path
+            )
+            
+        elif repository.source_type == "gitlab":
+            # Add GitLab support when ready
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="GitLab repositories not yet supported for content browsing"
+            )
+            
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Repository source '{repository.source_type}' not supported"
+            )
+        
+        if content is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Repository content not found"
+            )
+        
+        return {"content": content}
+    
+    except Exception as e:
+        logger.error(f"Error fetching repository content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch repository content"
         )
 
 
