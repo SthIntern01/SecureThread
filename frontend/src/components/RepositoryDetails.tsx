@@ -683,6 +683,20 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     }
   };
 
+  // Add this function inside your RepositoryDetails component
+const getVcsProviderName = (): string => {
+  if (project?.html_url) {
+    if (project.html_url.includes('github.com')) {
+      return 'GitHub';
+    } else if (project.html_url.includes('bitbucket.org')) {
+      return 'Bitbucket';
+    } else if (project.html_url.includes('gitlab.com')) {
+      return 'GitLab';
+    }
+  }
+  return 'Repository';
+};
+
   const fetchFileContent = async (filePath: string, fileName: string) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -1165,13 +1179,13 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                     </Button>
                   )}
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(project.html_url, "_blank")}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View on GitHub
-                  </Button>
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(project.html_url, "_blank")}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              View on {getVcsProviderName()}
+            </Button>
                 </div>
               </div>
 
