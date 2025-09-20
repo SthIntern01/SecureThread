@@ -98,7 +98,7 @@ interface Project {
   is_fork: boolean;
   owner: string;
   repository: string;
-  source: "github" | "gitlab" | "docker";
+  source: "github" | "gitlab" | "bitbucket"; 
   status: "active" | "scanning" | "failed" | "completed" | "pending";
   lastScan: string | null;
   vulnerabilities: {
@@ -124,6 +124,8 @@ interface Project {
   security_score?: number | null;
   code_coverage?: number | null;
 }
+
+
 
 const Logo = () => {
   return (
@@ -526,6 +528,8 @@ const ImportRepositoriesModal = ({
   );
 };
 
+
+
 const ImportBitbucketRepositoriesModal = ({
   isOpen,
   onClose,
@@ -817,17 +821,23 @@ const ProjectCard = ({
   };
 
   const getSourceIcon = (source: string) => {
-    switch (source) {
-      case "github":
-        return <IconBrandGithub className="w-4 h-4" />;
-      case "gitlab":
-        return <IconBrandGitlab className="w-4 h-4" />;
-      case "docker":
-        return <IconBrandDocker className="w-4 h-4" />;
-      default:
-        return <IconFolder className="w-4 h-4" />;
-    }
-  };
+  switch (source) {
+    case "github":
+      return <IconBrandGithub className="w-4 h-4" />;
+    case "gitlab":
+      return <IconBrandGitlab className="w-4 h-4" />;
+    case "bitbucket":
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+        </svg>
+      );
+    case "docker":
+      return <IconBrandDocker className="w-4 h-4" />;
+    default:
+      return <IconFolder className="w-4 h-4" />;
+  }
+};
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -1084,6 +1094,7 @@ const Projects = () => {
   const [selectedRepoName, setSelectedRepoName] = useState("");
   const [showFileScanModal, setShowFileScanModal] = useState(false);
   const [error, setError] = useState("");
+  const [showImportDropdown, setShowImportDropdown] = useState(false); 
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
@@ -1118,6 +1129,8 @@ const Projects = () => {
   return null;
 };
 
+  
+
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
     switch (provider) {
       case 'github':
@@ -1142,11 +1155,26 @@ const Projects = () => {
   };
 
   const handleImportClick = () => {
-  const provider = getAuthProvider();
   console.log('=== IMPORT CLICK ===');
-  console.log('Detected provider:', provider);
+  
+  // If user has a specific provider account, use it directly
+  const provider = getAuthProvider();
+  if (provider) {
+    console.log('Detected provider:', provider);
+    setImportProvider(provider);
+  } else {
+    // If Google login (no specific provider), show dropdown
+    setShowImportDropdown(true);
+  }
+};
+
+const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
+  console.log('Selected provider:', provider);
+  setShowImportDropdown(false);
   setImportProvider(provider);
 };
+
+
 
   useEffect(() => {
     fetchProjects();
@@ -1156,6 +1184,8 @@ const Projects = () => {
       pollIntervals.forEach((interval) => clearInterval(interval));
     };
   }, []);
+
+  
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -1625,7 +1655,23 @@ const Projects = () => {
 
     setFilteredProjects(filtered);
   }, [searchTerm, statusFilter, sourceFilter, projects]);
+  
+  // Add this useEffect after your other useEffects
+  useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (showImportDropdown) {
+      const target = event.target as Element;
+      if (!target.closest('.relative')) {
+        setShowImportDropdown(false);
+      }
+    }
+  };
 
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+  };
+}, [showImportDropdown]);
   const handleImportRepositories = async (repoIds: number[]) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -1704,234 +1750,265 @@ const Projects = () => {
   };
 
   return (
-    <div className="w-full h-screen font-sans relative flex overflow-hidden">
-      <EtherealBackground
-        color="rgba(255, 255, 255, 0.6)"
-        animation={{ scale: 100, speed: 90 }}
-        noise={{ opacity: 0.8, scale: 1.2 }}
-        sizing="fill"
-      />
+  <div className="w-full h-screen font-sans relative flex overflow-hidden">
+    <EtherealBackground
+      color="rgba(255, 255, 255, 0.6)"
+      animation={{ scale: 100, speed: 90 }}
+      noise={{ opacity: 0.8, scale: 1.2 }}
+      sizing="fill"
+    />
 
-      <ResponsiveSidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-      />
+    <ResponsiveSidebar
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+    />
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
-        <div className="p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
-            {/* Single unified container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-              
-              {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
-                {/* Breadcrumb */}
-                <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Projects</span>
+    <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
+      <div className="p-4 lg:p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Single unified container */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            
+            {/* Header Section */}
+            <div className="p-8 border-b border-white/10">
+              {/* Breadcrumb */}
+              <div className="flex items-center space-x-2 text-sm mb-4">
+                <span className="font-medium text-white">SecureThread</span>
+                <ChevronRight size={16} className="text-white/60" />
+                <span className="font-medium text-white">Projects</span>
+              </div>
+
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    Projects
+                  </h1>
+                  <p className="text-white/80">
+                    Manage and monitor your security projects
+                  </p>
                 </div>
+                <div className="mt-6 lg:mt-0 relative">
+                  <Button
+                    onClick={handleImportClick}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    {getAuthProvider() ? (
+                      <>
+                        {getProviderIcon(getAuthProvider())}
+                        Import from {getProviderName(getAuthProvider())}
+                      </>
+                    ) : (
+                      <>
+                        <Github className="w-4 h-4 mr-2" />
+                        Import Repository
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Import Provider Dropdown */}
+                  {showImportDropdown && (
+                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                      <button
+                        onClick={() => handleProviderSelection('github')}
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Github className="w-4 h-4" />
+                        <span>Import from GitHub</span>
+                      </button>
+                      <button
+                        onClick={() => handleProviderSelection('bitbucket')}
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                        </svg>
+                        <span>Import from Bitbucket</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
-                      Projects
-                    </h1>
-                    <p className="text-white/80">
-                      Manage and monitor your security projects
-                    </p>
+            {/* Stats Section */}
+            <div className="p-8 border-b border-white/10">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-1">
+                    {stats.total}
                   </div>
-                  <div className="mt-6 lg:mt-0">
+                  <div className="text-white/70 font-medium">
+                    Total Projects
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-400 mb-1">
+                    {stats.active}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Active
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-400 mb-1">
+                    {stats.scanning}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Scanning
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-red-400 mb-1">
+                    {stats.failed}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Failed
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters Section */}
+            <div className="p-8 border-b border-white/10">
+              <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                  <Input
+                    placeholder="Search projects..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="scanning">Scanning</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Filter by source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sources</SelectItem>
+                    <SelectItem value="github">GitHub</SelectItem>
+                    <SelectItem value="gitlab">GitLab</SelectItem>
+                    <SelectItem value="bitbucket">Bitbucket</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Projects Content Section */}
+            <div className="p-8">
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                  <p className="text-white">Loading projects...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Error Loading Projects
+                  </h3>
+                  <p className="text-red-400 mb-6">{error}</p>
+                  <Button
+                    onClick={fetchProjects}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className="text-center py-12">
+                  <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    {projects.length === 0
+                      ? "No Projects Yet"
+                      : "No Projects Found"}
+                  </h3>
+                  <p className="text-white/70 mb-6">
+                    {projects.length === 0
+                      ? "Get started by importing your first repository."
+                      : "Try adjusting your search or filter criteria."}
+                  </p>
+                  {projects.length === 0 && (
                     <Button
                       onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      {getProviderIcon(getAuthProvider())}
-                      Import from {getProviderName(getAuthProvider())}
+                      <Github className="w-4 h-4 mr-2" />
+                      Import Repository
                     </Button>
-                  </div>
+                  )}
                 </div>
-              </div>
-
-              {/* Stats Section */}
-              <div className="p-8 border-b border-white/10">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-white mb-1">
-                      {stats.total}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Total Projects
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-400 mb-1">
-                      {stats.active}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Active
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-400 mb-1">
-                      {stats.scanning}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Scanning
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-red-400 mb-1">
-                      {stats.failed}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Failed
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters Section */}
-              <div className="p-8 border-b border-white/10">
-                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                    <Input
-                      placeholder="Search projects..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredProjects.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onDelete={handleDeleteProject}
+                      onSync={handleSyncProject}
+                      onViewDetails={handleViewDetails}
+                      onStartScan={handleStartScan}
+                      onStopScan={handleStopScan}
+                      onViewFileScanStatus={handleViewFileScanStatus}
+                      onViewScanDetails={handleViewScanDetails}
                     />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="scanning">Scanning</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
-                      <SelectValue placeholder="Filter by source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sources</SelectItem>
-                      <SelectItem value="github">GitHub</SelectItem>
-                      <SelectItem value="gitlab">GitLab</SelectItem>
-                      <SelectItem value="docker">Docker</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  ))}
                 </div>
-              </div>
-
-              {/* Projects Content Section */}
-              <div className="p-8">
-                {loading ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                    <p className="text-white">Loading projects...</p>
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-12">
-                    <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      Error Loading Projects
-                    </h3>
-                    <p className="text-red-400 mb-6">{error}</p>
-                    <Button
-                      onClick={fetchProjects}
-                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                ) : filteredProjects.length === 0 ? (
-                  <div className="text-center py-12">
-                    <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      {projects.length === 0
-                        ? "No Projects Yet"
-                        : "No Projects Found"}
-                    </h3>
-                    <p className="text-white/70 mb-6">
-                      {projects.length === 0
-                        ? `Get started by importing your first repository from ${getProviderName(getAuthProvider())}.`
-                        : "Try adjusting your search or filter criteria."}
-                    </p>
-                    {projects.length === 0 && (
-                      <Button
-                        onClick={handleImportClick}
-                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                      >
-                        {getProviderIcon(getAuthProvider())}
-                        Import from {getProviderName(getAuthProvider())}
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onDelete={handleDeleteProject}
-                        onSync={handleSyncProject}
-                        onViewDetails={handleViewDetails}
-                        onStartScan={handleStartScan}
-                        onStopScan={handleStopScan}
-                        onViewFileScanStatus={handleViewFileScanStatus}
-                        onViewScanDetails={handleViewScanDetails}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
+              )}
             </div>
+
           </div>
         </div>
       </div>
-
-      {/* Dynamic Import Modals */}
-      {importProvider === 'github' && (
-        <ImportRepositoriesModal
-          isOpen={true}
-          onClose={() => setImportProvider(null)}
-          onImport={handleImportRepositories}
-        />
-      )}
-
-      {importProvider === 'bitbucket' && (
-        <ImportBitbucketRepositoriesModal
-          isOpen={true}
-          onClose={() => setImportProvider(null)}
-          onImport={handleImportBitbucketRepositories}
-        />
-      )}
-
-      {/* Scan Details Modal */}
-      <ScanDetailsModal
-        isOpen={showScanModal}
-        onClose={() => setShowScanModal(false)}
-        scanId={selectedScanId}
-        repositoryName={selectedRepoName}
-      />
-
-      {/* File Scan Status Modal */}
-      <FileScanStatus
-        isOpen={showFileScanModal}
-        onClose={() => setShowFileScanModal(false)}
-        scanId={selectedScanId}
-        repositoryName={selectedRepoName}
-      />
     </div>
-  );
+
+    {/* Dynamic Import Modals */}
+    {importProvider === 'github' && (
+      <ImportRepositoriesModal
+        isOpen={true}
+        onClose={() => setImportProvider(null)}
+        onImport={handleImportRepositories}
+      />
+    )}
+
+    {importProvider === 'bitbucket' && (
+      <ImportBitbucketRepositoriesModal
+        isOpen={true}
+        onClose={() => setImportProvider(null)}
+        onImport={handleImportBitbucketRepositories}
+      />
+    )}
+
+    {/* Scan Details Modal */}
+    <ScanDetailsModal
+      isOpen={showScanModal}
+      onClose={() => setShowScanModal(false)}
+      scanId={selectedScanId}
+      repositoryName={selectedRepoName}
+    />
+
+    {/* File Scan Status Modal */}
+    <FileScanStatus
+      isOpen={showFileScanModal}
+      onClose={() => setShowFileScanModal(false)}
+      scanId={selectedScanId}
+      repositoryName={selectedRepoName}
+    />
+  </div>
+);
 };
 
 export default Projects;
