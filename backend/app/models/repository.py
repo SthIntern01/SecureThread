@@ -61,5 +61,10 @@ class Repository(Base):
         else:
             return ""
 
+    @property
+    def source(self) -> str:
+        """Get the source type for the repository (alias for source_type)"""
+        return self.source_type
+
     def __repr__(self):
         return f"<Repository(name='{self.name}', full_name='{self.full_name}', source='{self.source_type}')>"

@@ -194,14 +194,25 @@ class BitbucketService:
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             
-            # If no path specified, get root directory
-            if not path:
-                path = ""
+            # Get the actual default branch first
+            repo_response = requests.get(
+                f"{self.api_base_url}/repositories/{workspace}/{repo_slug}",
+                headers=headers
+            )
             
-            # Get directory contents
+            branch = "main"  # fallback
+            if repo_response.status_code == 200:
+                repo_data = repo_response.json()
+                branch = repo_data.get("mainbranch", {}).get("name", "main")
+                logger.info(f"Found default branch '{branch}' for {workspace}/{repo_slug}")
+            else:
+                logger.warning(f"Could not get repo details, using default branch 'main'")
+            
+            # Get directory contents with correct branch
             encoded_path = quote(path, safe='/') if path else ""
-            url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/HEAD/{encoded_path}"
+            url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{branch}/{encoded_path}"
             
+            logger.info(f"Fetching content from: {url}")
             response = requests.get(url, headers=headers)
             
             if response.status_code == 200:
@@ -210,7 +221,7 @@ class BitbucketService:
                 
                 for item in data.get("values", []):
                     content.append({
-                        "name": item.get("path", "").split("/")[-1],
+                        "name": item.get("path", "").split("/")[-1] if item.get("path") else item.get("name", ""),
                         "path": item.get("path", ""),
                         "type": "dir" if item.get("type") == "commit_directory" else "file",
                         "size": item.get("size", 0),
@@ -218,10 +229,11 @@ class BitbucketService:
                         "url": item.get("links", {}).get("self", {}).get("href", "")
                     })
                 
+                logger.info(f"Successfully fetched {len(content)} items from {workspace}/{repo_slug}")
                 return content
-            
-            logger.error(f"Failed to fetch repository content: {response.text}")
-            return None
+            else:
+                logger.error(f"Failed to fetch repository content: {response.status_code} - {response.text}")
+                return None
             
         except Exception as e:
             logger.error(f"Error fetching repository content: {e}")
