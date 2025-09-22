@@ -55,6 +55,7 @@ import {
   IconFolder,
   IconUsers,
   IconBrandGithub,
+  IconRobot,
   IconCircleCheck,
   IconMessageCircle,
   IconSettings,
@@ -192,6 +193,12 @@ const ResponsiveSidebar = ({
       icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
       active: false,
       count: "99+",
+    },
+    {
+      label: "AI Chat",
+      href: "/ai-chat",
+      icon: <IconRobot className="h-5 w-5 shrink-0" />,
+      active: false,
     },
     {
       label: "Solved",
