@@ -294,26 +294,63 @@ class BitbucketService:
             logger.error(f"Error fetching all repository files: {e}")
             return []
     
-    def get_file_content(self, access_token: str, workspace: str, repo_slug: str, file_path: str, branch: str = "main") -> Optional[str]:
+    def get_file_content(self, access_token: str, workspace: str, repo_slug: str, file_path: str, branch: str = None) -> Optional[str]:
         """Get file content from Bitbucket repository"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
+            
+            # If no branch specified, get the default branch from repository info
+            if not branch:
+                logger.info(f"DEBUG: Getting default branch for {workspace}/{repo_slug}")
+                repo_response = requests.get(
+                    f"{self.api_base_url}/repositories/{workspace}/{repo_slug}",
+                    headers=headers
+                )
+                if repo_response.status_code == 200:
+                    repo_data = repo_response.json()
+                    branch = repo_data.get("mainbranch", {}).get("name", "master")  # Try master as fallback instead of main
+                    logger.info(f"DEBUG: Using default branch '{branch}' for {workspace}/{repo_slug}")
+                else:
+                    branch = "master"  # Default to master first
+                    logger.warning(f"Could not get repo info, using default branch 'master'")
             
             # Encode file path to handle spaces, special chars, etc.
             encoded_path = quote(file_path, safe='/')
             
             url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{branch}/{encoded_path}"
+            logger.info(f"DEBUG: Fetching file from: {url}")
             response = requests.get(url, headers=headers)
 
             if response.status_code == 200:
                 # Bitbucket returns file content directly, not base64 encoded
-                return response.text
+                content = response.text
+                logger.info(f"DEBUG: Successfully got file content, length: {len(content)} chars")
+                logger.info(f"DEBUG: First 200 chars: {content[:200]}")
+                return content
             
-            logger.error(f"Failed to fetch file: {response.text}")
+            # If the first attempt failed, try alternative branches
+            alternative_branches = ["main", "master", "develop", "dev"]
+            current_branch = branch
+            
+            for alt_branch in alternative_branches:
+                if alt_branch == current_branch:
+                    continue  # Skip the branch we already tried
+                    
+                alt_url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{alt_branch}/{encoded_path}"
+                logger.info(f"DEBUG: Trying alternative branch '{alt_branch}': {alt_url}")
+                alt_response = requests.get(alt_url, headers=headers)
+                
+                if alt_response.status_code == 200:
+                    content = alt_response.text
+                    logger.info(f"DEBUG: Alternative branch '{alt_branch}' worked! Content length: {len(content)}")
+                    logger.info(f"DEBUG: First 200 chars: {content[:200]}")
+                    return content
+            
+            logger.error(f"Failed to fetch file '{file_path}' from any branch. Main response: {response.status_code} - {response.text[:500]}")
             return None
 
         except Exception as e:
-            logger.error(f"Error fetching file content: {e}")
+            logger.error(f"Error fetching file content for {file_path}: {e}")
             return None
 
     def validate_token(self, access_token: str) -> bool:

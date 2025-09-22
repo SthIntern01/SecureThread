@@ -377,12 +377,12 @@ class ScannerService:
         }
     
     async def _scan_single_file_with_tracking(
-        self, 
-        file_info: Dict[str, Any], 
-        access_token: str, 
-        repo_full_name: str,
-        provider_type: str  # NEW: Provider type
-    ) -> Dict[str, Any]:
+    self, 
+    file_info: Dict[str, Any], 
+    access_token: str, 
+    repo_full_name: str,
+    provider_type: str  # NEW: Provider type
+) -> Dict[str, Any]:
         """
         Scan a single file and return detailed results with status tracking - MULTI-PROVIDER
         """
@@ -391,11 +391,28 @@ class ScannerService:
         try:
             logger.info(f"Starting scan of file: {file_path}")
             
+            # Add debug logging for Bitbucket
+            if provider_type == "bitbucket":
+                logger.info(f"DEBUG Scanner: Processing Bitbucket file {file_path}")
+            
             # Get file content - MULTI-PROVIDER
             file_content_data = await self._get_file_content(
                 access_token, repo_full_name, file_path, provider_type
             )
             
+            # Add debug logging right after getting content
+            if provider_type == "bitbucket":
+                logger.info(f"DEBUG Scanner: Bitbucket content data: {file_content_data is not None}")
+                if file_content_data:
+                    content = file_content_data.get('content', '')
+                    logger.info(f"DEBUG Scanner: Content length: {len(content)}")
+                    if len(content) > 0:
+                        logger.info(f"DEBUG Scanner: First 200 chars: {content[:200]}")
+                    else:
+                        logger.error(f"DEBUG Scanner: File content is EMPTY for {file_path}")
+                else:
+                    logger.error(f"DEBUG Scanner: file_content_data is None for {file_path}")
+
             if not file_content_data or file_content_data.get('is_binary'):
                 result = {
                     "file_path": file_path,
@@ -471,7 +488,9 @@ class ScannerService:
                 "file_size": file_info.get('size', 0)
             }
             return result
-    
+        
+        
+
     async def _get_repository_files(
         self, 
         access_token: str, 
