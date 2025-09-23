@@ -1,3 +1,5 @@
+# backend/app/api/v1/auth.py
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -7,14 +9,27 @@ from app.services.github_service import GitHubService
 from app.api.deps import get_current_active_user
 from app.models.user import User
 import logging
+import time
+from typing import Dict, Set
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# ===============================
-# GITHUB AUTHENTICATION ROUTES ONLY
-# ===============================
+# CRITICAL: In-memory tracking for OAuth codes (use Redis in production)
+processed_oauth_codes: Dict[str, float] = {}
+processing_codes: Set[str] = set()
+
+def cleanup_old_codes():
+    """Remove codes older than 5 minutes"""
+    current_time = time.time()
+    expired_codes = [
+        code for code, timestamp in processed_oauth_codes.items() 
+        if current_time - timestamp > 300  # 5 minutes
+    ]
+    for code in expired_codes:
+        processed_oauth_codes.pop(code, None)
+        processing_codes.discard(code)
 
 @router.get("/github/authorize")
 async def github_authorize():
@@ -27,21 +42,62 @@ async def github_callback(
     auth_request: GitHubAuthRequest,
     db: Session = Depends(get_db)
 ):
-    """Handle GitHub OAuth callback"""
-    auth_service = AuthService(db)
+    """Handle GitHub OAuth callback with deduplication"""
     
-    result = await auth_service.authenticate_github(auth_request.code)
-    if not result:
+    # Clean up old codes periodically
+    cleanup_old_codes()
+    
+    oauth_code = auth_request.code
+    
+    # Check if this code was already processed
+    if oauth_code in processed_oauth_codes:
+        logger.warning(f"OAuth code already processed: {oauth_code[:10]}...")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to authenticate with GitHub"
+            detail="OAuth authorization code has already been used"
         )
     
-    return result
-
-# ===============================
-# COMMON AUTHENTICATION ROUTES
-# ===============================
+    # Check if this code is currently being processed
+    if oauth_code in processing_codes:
+        logger.warning(f"OAuth code currently being processed: {oauth_code[:10]}...")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="OAuth authorization code is currently being processed"
+        )
+    
+    # Mark code as being processed
+    processing_codes.add(oauth_code)
+    
+    try:
+        logger.info(f"Processing GitHub OAuth callback for code: {oauth_code[:10]}...")
+        
+        auth_service = AuthService(db)
+        
+        result = await auth_service.authenticate_github(oauth_code)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to authenticate with GitHub"
+            )
+        
+        # Mark code as successfully processed
+        processed_oauth_codes[oauth_code] = time.time()
+        
+        logger.info(f"GitHub authentication successful for code: {oauth_code[:10]}...")
+        return result
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in GitHub callback: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during authentication"
+        )
+    finally:
+        # Always remove from processing set
+        processing_codes.discard(oauth_code)
 
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
@@ -51,7 +107,7 @@ async def refresh_token(
     try:
         from app.core.security import create_access_token
         from datetime import timedelta
-        from app.config.settings import settings
+        from app.core.settings import settings
         
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -80,7 +136,7 @@ async def get_current_user_info(
         "email": current_user.email,
         "github_username": current_user.github_username,
         "gitlab_username": current_user.gitlab_username,
-        "bitbucket_username": current_user.bitbucket_username,  # ← THIS WAS MISSING!
+        "bitbucket_username": current_user.bitbucket_username,
         "google_email": current_user.google_email,
         "full_name": current_user.full_name,
         "avatar_url": current_user.avatar_url,
