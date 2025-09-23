@@ -293,6 +293,63 @@ class GitHubService:
             logger.error(f"Error fetching repositories (async): {e}")
             return []
 
+    # backend/app/services/github_service.py - Add this method to your existing GitHubService class
+
+    async def exchange_code_for_token(self, code: str) -> Optional[str]:
+        """Exchange authorization code for access token with enhanced error handling"""
+        logger.info(f"Attempting to exchange OAuth code: {code[:10]}...")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://github.com/login/oauth/access_token",
+                    data={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "code": code,
+                        "redirect_uri": self.redirect_uri,
+                    },
+                    headers={"Accept": "application/json"}
+                )
+                
+                logger.info(f"GitHub OAuth response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # Check for error in response
+                    if "error" in data:
+                        error_description = data.get("error_description", "Unknown error")
+                        logger.error(f"GitHub OAuth error: {data['error']} - {error_description}")
+                        
+                        # Handle specific OAuth errors
+                        if data["error"] == "bad_verification_code":
+                            logger.warning("OAuth code already used or invalid")
+                            return None
+                        
+                        return None
+                    
+                    access_token = data.get("access_token")
+                    if access_token:
+                        logger.info("Successfully exchanged OAuth code for access token")
+                        return access_token
+                    else:
+                        logger.error("No access token in successful response")
+                        return None
+                else:
+                    logger.error(f"GitHub OAuth request failed: {response.status_code} - {response.text}")
+                    return None
+                    
+        except httpx.TimeoutException:
+            logger.error("Timeout while exchanging OAuth code")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Request error while exchanging OAuth code: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while exchanging OAuth code: {e}")
+            return None
+
     def get_repository_content(self, access_token: str, repo_full_name: str, path: str = "") -> Optional[List[Dict[str, Any]]]:
         """Get repository content for scanning"""
         try:
