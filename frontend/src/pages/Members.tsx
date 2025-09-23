@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import AppSidebar from "../components/AppSidebar";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +25,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { EtherealBackground } from "../components/ui/ethereal-background";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { useAuth } from "../contexts/AuthContext";
 import {
   Search,
   ChevronRight,
@@ -43,19 +42,8 @@ import {
   X,
 } from "lucide-react";
 import {
-  IconDashboard,
-  IconFolder,
-  IconUsers,
-  IconBrandGithub,
-  IconCircleCheck,
-  IconMessageCircle,
-  IconSettings,
-  IconBook,
-  IconHelp,
   IconUser,
-  IconLogout,
-  IconRobot,
-} from "@tabler/icons-react";
+ } from "@tabler/icons-react";
 
 interface Member {
   id: number;
@@ -68,153 +56,6 @@ interface Member {
   status: "Active" | "Pending" | "Inactive";
   lastActive?: string;
 }
-
-const Logo = () => {
-  return (
-    <Link
-      to="/"
-      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
-    >
-      <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </Link>
-  );
-};
-
-const ResponsiveSidebar = ({
-  sidebarOpen,
-  setSidebarOpen,
-}: {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-}) => {
-  const { user, logout } = useAuth();
-  const [showLogout, setShowLogout] = useState(false);
-
-  const feedLinks = [
-    {
-      label: "Dashboard",
-      href: "/",
-      icon: <IconDashboard className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Projects",
-      href: "/projects",
-      icon: <IconFolder className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Members",
-      href: "/members",
-      icon: <IconUsers className="h-5 w-5 shrink-0" />,
-      active: true, // Set to true since this is the Members page
-    },
-    {
-      label: "Integrations",
-      href: "/integrations",
-      icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
-      active: false,
-      count: "99+",
-    },
-    {
-      label: "AI Chat",
-      href: "/ai-chat",
-      icon: <IconRobot className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Solved",
-      href: "/solved",
-      icon: <IconCircleCheck className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-  ];
-
-  const bottomLinks = [
-    {
-      label: "Feedback",
-      href: "/feedback",
-      icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-      icon: <IconSettings className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Docs",
-      href: "/docs",
-      icon: <IconBook className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Help",
-      href: "/help",
-      icon: <IconHelp className="h-5 w-5 shrink-0" />,
-    },
-  ];
-
-  const profileLink = {
-    label: user?.full_name || user?.github_username || "User",
-    href: "#",
-    icon: user?.avatar_url ? (
-      <img
-        src={user.avatar_url}
-        alt={user.full_name || user.github_username}
-        className="h-5 w-5 rounded-full shrink-0"
-      />
-    ) : (
-      <IconUser className="h-5 w-5 shrink-0" />
-    ),
-  };
-
-  const handleProfileClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setShowLogout(!showLogout);
-  };
-
-  return (
-    <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
-      <SidebarBody className="justify-between gap-10">
-        <div className="flex flex-1 flex-col">
-          <Logo />
-
-          <div className="mt-8 flex flex-col gap-2">
-            {feedLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="mt-auto flex flex-col gap-2">
-            {bottomLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="pt-4 border-t border-brand-gray/30 relative">
-            <div onClick={handleProfileClick} className="cursor-pointer">
-              <SidebarLink link={profileLink} />
-            </div>
-
-            {showLogout && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowLogout(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <IconLogout className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </SidebarBody>
-    </Sidebar>
-  );
-};
 
 const InviteMembersModal = ({
   isOpen,
@@ -560,7 +401,7 @@ const Members = () => {
         sizing="fill"
       />
 
-      <ResponsiveSidebar
+      <AppSidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
