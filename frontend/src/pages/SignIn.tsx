@@ -13,13 +13,14 @@ import {
 } from "@tabler/icons-react";
 
 const SignInPage = () => {
-  // Use a string to track which provider is loading
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [error, setError] = useState("");
-
   const popup = useRef<Window | null>(null);
-  // Ref to hold the interval ID for the popup checker
   const popupInterval = useRef<number | null>(null);
+
+  // Session-based tracking to prevent all duplicate requests
+  const sessionKey = `oauth_session_${Date.now()}_${Math.random()}`;
+  const isProcessingRef = useRef(false);
 
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +34,12 @@ const SignInPage = () => {
   }, [isAuthenticated, navigate, location]);
 
   useEffect(() => {
+    // Create a unique session identifier for this page load
+    const currentSession = sessionStorage.getItem("oauth_session");
+    if (!currentSession) {
+      sessionStorage.setItem("oauth_session", sessionKey);
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     const state = urlParams.get("state");
@@ -41,61 +48,133 @@ const SignInPage = () => {
     // If this page is running inside a popup...
     if (window.opener) {
       if (code && state) {
-        // Send a success message to the parent window
         window.opener.postMessage(
           { type: "oauth-success", code, state },
           window.location.origin
         );
       } else if (errorParam) {
-        // Send an error message to the parent window
         window.opener.postMessage(
           { type: "oauth-error", error: errorParam },
           window.location.origin
         );
       }
-      // Close the popup
       window.close();
       return;
     }
 
-    // Handle callbacks in main window
+    // Handle callbacks in main window with session-based deduplication
     if (code && state) {
+      const storedSession = sessionStorage.getItem("oauth_session");
+      const processingKey = `processing_${code}`;
+      const processedKey = `processed_${code}`;
+
+      // Check if we're already processing this code across all browser sessions
+      if (
+        localStorage.getItem(processingKey) ||
+        localStorage.getItem(processedKey)
+      ) {
+        console.log(
+          "OAuth code already being processed or completed in another session"
+        );
+        return;
+      }
+
+      // Check if this specific session is already processing
+      if (isProcessingRef.current) {
+        console.log("OAuth already processing in this session");
+        return;
+      }
+
+      // Mark as processing immediately
+      isProcessingRef.current = true;
+      localStorage.setItem(processingKey, storedSession || sessionKey);
+
+      console.log("Processing OAuth callback:", {
+        code: code.substring(0, 10) + "...",
+        state,
+        session: storedSession?.substring(0, 10),
+      });
+
       if (state === "securethread_github_auth") {
         handleGitHubCallback(code);
       } else if (state === "securethread_google_auth") {
         handleGoogleCallbackInMainWindow(code);
       }
     }
+
+    // Cleanup old processing flags on page load
+    const cleanupOldFlags = () => {
+      const now = Date.now();
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("processing_") || key?.startsWith("processed_")) {
+          const timestamp = localStorage.getItem(key + "_timestamp");
+          if (timestamp && now - parseInt(timestamp) > 300000) {
+            // 5 minutes
+            localStorage.removeItem(key);
+            localStorage.removeItem(key + "_timestamp");
+          }
+        }
+      }
+    };
+    cleanupOldFlags();
+  }, []); // Empty dependency array
+
+  // Session cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear processing flag when component unmounts
+      const currentSession = sessionStorage.getItem("oauth_session");
+      if (currentSession) {
+        Object.keys(localStorage).forEach((key) => {
+          if (
+            key.startsWith("processing_") &&
+            localStorage.getItem(key) === currentSession
+          ) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    };
   }, []);
 
-  // Listens for messages from the popup window
+  // Popup message handler
   useEffect(() => {
     const handlePopupMessage = (event: MessageEvent) => {
-  console.log("SignIn: Received message from popup:", event.data);
-  console.log("SignIn: Event origin:", event.origin);
-  console.log("SignIn: Window origin:", window.location.origin);
+      console.log("SignIn: Received message from popup:", event.data);
+      console.log("SignIn: Event origin:", event.origin);
+      console.log("SignIn: Window origin:", window.location.origin);
+
       if (event.origin !== window.location.origin) return;
 
       const { type, code, state, error } = event.data;
 
-      // When a message is received, stop checking if the popup is closed
       if (popupInterval.current) {
         window.clearInterval(popupInterval.current);
         popupInterval.current = null;
       }
 
       if (type === "oauth-success") {
+        const processingKey = `processing_${code}`;
+        if (localStorage.getItem(processingKey)) {
+          console.log("Popup OAuth code already being processed");
+          return;
+        }
+
+        const currentSession = sessionStorage.getItem("oauth_session");
+        localStorage.setItem(processingKey, currentSession || sessionKey);
+        isProcessingRef.current = true;
+
         if (state === "securethread_gitlab_auth") {
           handleGitLabCallback(code);
         } else if (state === "securethread_bitbucket_auth") {
           handleBitbucketCallback(code);
         }
-        // Google is handled via direct redirect, not popup
+
         if (popup.current) {
           try {
             popup.current.close();
           } catch (e) {
-            // Ignore errors when closing popup
             console.log("Could not close popup window");
           }
           popup.current = null;
@@ -103,11 +182,12 @@ const SignInPage = () => {
       } else if (type === "oauth-error") {
         setError("Authentication was cancelled or failed.");
         setLoadingProvider(null);
+        isProcessingRef.current = false;
+
         if (popup.current) {
           try {
             popup.current.close();
           } catch (e) {
-            // Ignore errors when closing popup
             console.log("Could not close popup window");
           }
           popup.current = null;
@@ -116,17 +196,9 @@ const SignInPage = () => {
     };
 
     window.addEventListener("message", handlePopupMessage);
-
-    return () => {
-      window.removeEventListener("message", handlePopupMessage);
-      if (popupInterval.current) {
-        window.clearInterval(popupInterval.current);
-        popupInterval.current = null;
-      }
-    };
+    return () => window.removeEventListener("message", handlePopupMessage);
   }, []);
 
-  // Safe popup checking function
   const checkPopupClosed = () => {
     if (popup.current) {
       try {
@@ -136,29 +208,39 @@ const SignInPage = () => {
             popupInterval.current = null;
           }
           setLoadingProvider(null);
+          isProcessingRef.current = false;
           popup.current = null;
         }
       } catch (e) {
-        // If we can't access popup.closed due to CORS, clear the interval
         if (popupInterval.current) {
           window.clearInterval(popupInterval.current);
           popupInterval.current = null;
         }
         setLoadingProvider(null);
+        isProcessingRef.current = false;
         popup.current = null;
       }
     }
   };
 
   const handleGitHubLogin = async () => {
+    if (loadingProvider !== null) {
+      console.log("Login already in progress, ignoring click");
+      return;
+    }
+
     try {
       setLoadingProvider("github");
       setError("");
+
+      console.log("Initiating GitHub login...");
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/github/authorize`
       );
       const data = await response.json();
+
       if (data.authorization_url) {
+        console.log("Redirecting to GitHub OAuth...");
         window.location.href = data.authorization_url;
       } else {
         setError("Failed to get GitHub authorization URL");
@@ -172,7 +254,17 @@ const SignInPage = () => {
   };
 
   const handleGitHubCallback = async (code: string) => {
+    const processingKey = `processing_${code}`;
+    const processedKey = `processed_${code}`;
+
     try {
+      console.log(
+        "Processing GitHub callback with code:",
+        code.substring(0, 10) + "..."
+      );
+
+      setLoadingProvider("github");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/github/callback`,
         {
@@ -181,39 +273,98 @@ const SignInPage = () => {
           body: JSON.stringify({ code }),
         }
       );
-      if (!response.ok) throw new Error("Failed to authenticate with GitHub");
+
+      console.log("GitHub callback response status:", response.status);
+
+      // Handle expected duplicate request responses silently
+      if (response.status === 409) {
+        console.log(
+          "OAuth code currently being processed in another request, waiting..."
+        );
+        // Wait for the other request to complete
+        setTimeout(() => {
+          if (localStorage.getItem(processedKey)) {
+            console.log("OAuth completed by another request, refreshing page");
+            window.location.reload();
+          }
+        }, 2000);
+        return;
+      }
+
+      if (response.status === 400) {
+        console.log("OAuth code already processed, checking if we should redirect");
+        // Check if we're authenticated and should redirect
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("GitHub callback failed:", response.status, errorData);
+        throw new Error(`Authentication failed: ${response.status}`);
+      }
+
       const data = await response.json();
+      console.log("GitHub callback successful, got token");
+
       if (data.access_token) {
+        // Mark as successfully processed
+        localStorage.setItem(processedKey, "true");
+        localStorage.setItem(
+          processedKey + "_timestamp",
+          Date.now().toString()
+        );
+
         login(data.access_token, data.user || {});
+
+        // Clean up URL
         window.history.replaceState(
           {},
           document.title,
           window.location.pathname
         );
+
         const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
-        throw new Error("Invalid response from server");
+        throw new Error("Invalid response from server - no access token");
       }
     } catch (err) {
       console.error("GitHub callback error:", err);
-      setError("Failed to sign in with GitHub. Please try again.");
+
+      // Only show error if this is the main processing session
+      const currentSession = sessionStorage.getItem("oauth_session");
+      if (localStorage.getItem(processingKey) === currentSession) {
+        setError("Failed to sign in with GitHub. Please try again.");
+      }
+
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
+      // Clean up processing flag
+      localStorage.removeItem(processingKey);
       setLoadingProvider(null);
+      isProcessingRef.current = false;
     }
   };
 
   const handleGoogleLogin = async () => {
+    if (loadingProvider !== null) {
+      console.log("Login already in progress, ignoring click");
+      return;
+    }
+
     try {
       setLoadingProvider("google");
       setError("");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/google/authorize`
       );
       const data = await response.json();
+
       if (data.authorization_url) {
-        // Use direct redirect instead of popup for Google OAuth
         window.location.href = data.authorization_url;
       } else {
         setError("Failed to get Google authorization URL");
@@ -227,8 +378,13 @@ const SignInPage = () => {
   };
 
   const handleGoogleCallbackInMainWindow = async (code: string) => {
+    const processingKey = `processing_${code}`;
+    const processedKey = `processed_${code}`;
+
     try {
+      console.log("Processing Google callback...");
       setLoadingProvider("google");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/google/callback`,
         {
@@ -237,18 +393,38 @@ const SignInPage = () => {
           body: JSON.stringify({ code }),
         }
       );
-      if (!response.ok)
-        throw new Error(
-          `Failed to authenticate with Google: ${response.status}`
-        );
+
+      if (response.status === 409) {
+        console.log("Google OAuth code currently being processed, waiting...");
+        setTimeout(() => {
+          if (localStorage.getItem(processedKey)) {
+            window.location.reload();
+          }
+        }, 2000);
+        return;
+      }
+
+      if (response.status === 400) {
+        console.log("Google OAuth code already processed");
+        setTimeout(() => window.location.reload(), 1000);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to authenticate with Google: ${response.status}`);
+      }
+
       const data = await response.json();
+
       if (data.access_token) {
-        login(data.access_token, data.user || {});
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
+        localStorage.setItem(processedKey, "true");
+        localStorage.setItem(
+          processedKey + "_timestamp",
+          Date.now().toString()
         );
+
+        login(data.access_token, data.user || {});
+        window.history.replaceState({}, document.title, window.location.pathname);
         const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
@@ -256,21 +432,33 @@ const SignInPage = () => {
       }
     } catch (err) {
       console.error("Google callback error:", err);
-      setError("Failed to sign in with Google. Please try again.");
+      const currentSession = sessionStorage.getItem("oauth_session");
+      if (localStorage.getItem(processingKey) === currentSession) {
+        setError("Failed to sign in with Google. Please try again.");
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
+      localStorage.removeItem(processingKey);
       setLoadingProvider(null);
+      isProcessingRef.current = false;
     }
   };
 
   const handleGitLabLogin = async () => {
+    if (loadingProvider !== null) {
+      console.log("Login already in progress, ignoring click");
+      return;
+    }
+
     try {
       setLoadingProvider("gitlab");
       setError("");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/authorize`
       );
       const data = await response.json();
+
       if (data.authorization_url) {
         const width = 600,
           height = 700;
@@ -295,7 +483,12 @@ const SignInPage = () => {
   };
 
   const handleGitLabCallback = async (code: string) => {
+    const processingKey = `processing_${code}`;
+    const processedKey = `processed_${code}`;
+
     try {
+      console.log("Processing GitLab callback...");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/callback`,
         {
@@ -304,18 +497,38 @@ const SignInPage = () => {
           body: JSON.stringify({ code }),
         }
       );
-      if (!response.ok)
-        throw new Error(
-          `Failed to authenticate with GitLab: ${response.status}`
-        );
+
+      if (response.status === 409) {
+        console.log("GitLab OAuth code currently being processed, waiting...");
+        setTimeout(() => {
+          if (localStorage.getItem(processedKey)) {
+            window.location.reload();
+          }
+        }, 2000);
+        return;
+      }
+
+      if (response.status === 400) {
+        console.log("GitLab OAuth code already processed");
+        setTimeout(() => window.location.reload(), 1000);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to authenticate with GitLab: ${response.status}`);
+      }
+
       const data = await response.json();
+
       if (data.access_token) {
-        login(data.access_token, data.user || {});
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
+        localStorage.setItem(processedKey, "true");
+        localStorage.setItem(
+          processedKey + "_timestamp",
+          Date.now().toString()
         );
+
+        login(data.access_token, data.user || {});
+        window.history.replaceState({}, document.title, window.location.pathname);
         const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
@@ -323,21 +536,33 @@ const SignInPage = () => {
       }
     } catch (err) {
       console.error("GitLab callback error:", err);
-      setError("Failed to sign in with GitLab. Please try again.");
+      const currentSession = sessionStorage.getItem("oauth_session");
+      if (localStorage.getItem(processingKey) === currentSession) {
+        setError("Failed to sign in with GitLab. Please try again.");
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
+      localStorage.removeItem(processingKey);
       setLoadingProvider(null);
+      isProcessingRef.current = false;
     }
   };
 
   const handleBitbucketLogin = async () => {
+    if (loadingProvider !== null) {
+      console.log("Login already in progress, ignoring click");
+      return;
+    }
+
     try {
       setLoadingProvider("bitbucket");
       setError("");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
       );
       const data = await response.json();
+
       if (data.authorization_url) {
         const width = 600,
           height = 700;
@@ -362,7 +587,12 @@ const SignInPage = () => {
   };
 
   const handleBitbucketCallback = async (code: string) => {
+    const processingKey = `processing_${code}`;
+    const processedKey = `processed_${code}`;
+
     try {
+      console.log("Processing Bitbucket callback...");
+
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/callback`,
         {
@@ -371,18 +601,40 @@ const SignInPage = () => {
           body: JSON.stringify({ code }),
         }
       );
-      if (!response.ok)
+
+      if (response.status === 409) {
+        console.log("Bitbucket OAuth code currently being processed, waiting...");
+        setTimeout(() => {
+          if (localStorage.getItem(processedKey)) {
+            window.location.reload();
+          }
+        }, 2000);
+        return;
+      }
+
+      if (response.status === 400) {
+        console.log("Bitbucket OAuth code already processed");
+        setTimeout(() => window.location.reload(), 1000);
+        return;
+      }
+
+      if (!response.ok) {
         throw new Error(
           `Failed to authenticate with Bitbucket: ${response.status}`
         );
+      }
+
       const data = await response.json();
+
       if (data.access_token) {
-        login(data.access_token, data.user || {});
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
+        localStorage.setItem(processedKey, "true");
+        localStorage.setItem(
+          processedKey + "_timestamp",
+          Date.now().toString()
         );
+
+        login(data.access_token, data.user || {});
+        window.history.replaceState({}, document.title, window.location.pathname);
         const from = location.state?.from?.pathname || "/";
         navigate(from, { replace: true });
       } else {
@@ -390,10 +642,15 @@ const SignInPage = () => {
       }
     } catch (err) {
       console.error("Bitbucket callback error:", err);
-      setError("Failed to sign in with Bitbucket. Please try again.");
+      const currentSession = sessionStorage.getItem("oauth_session");
+      if (localStorage.getItem(processingKey) === currentSession) {
+        setError("Failed to sign in with Bitbucket. Please try again.");
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
     } finally {
+      localStorage.removeItem(processingKey);
       setLoadingProvider(null);
+      isProcessingRef.current = false;
     }
   };
 

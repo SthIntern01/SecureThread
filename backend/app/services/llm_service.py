@@ -15,15 +15,187 @@ class LLMService:
         self.base_url = "https://api.deepseek.com/v1"
         self.model = "deepseek-chat"
         
+    async def analyze_code_batch_for_vulnerabilities(
+        self, 
+        file_contents: Dict[str, str]
+    ) -> List[Dict[str, Any]]:
+        """
+        OPTIMIZED: Analyze multiple files in a single API call for efficiency
+        """
+        try:
+            if not file_contents:
+                return []
+            
+            # Create batch analysis prompt
+            batch_prompt = self._create_batch_analysis_prompt(file_contents)
+            
+            # Make single API request for multiple files
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a cybersecurity expert. Analyze code for vulnerabilities and respond ONLY with valid JSON arrays. No other text."
+                    },
+                    {
+                        "role": "user", 
+                        "content": batch_prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": 4000,
+                "stream": False
+            }
+            
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Batch LLM API error: {response.status_code} - {response.text}")
+                    return []
+                
+                data = response.json()
+                ai_response = data["choices"][0]["message"]["content"].strip()
+                
+                # Parse batch response
+                vulnerabilities = self._parse_batch_vulnerability_response(ai_response, file_contents)
+                
+                logger.info(f"Batch analysis found {len(vulnerabilities)} vulnerabilities across {len(file_contents)} files")
+                return vulnerabilities
+                
+        except Exception as e:
+            logger.error(f"Error in batch code analysis: {e}")
+            return []
+    
+    def _create_batch_analysis_prompt(self, file_contents: Dict[str, str]) -> str:
+        """Create an optimized prompt for analyzing multiple files together"""
+        # Determine common language from file extensions
+        extensions = [path.split('.')[-1] for path in file_contents.keys() if '.' in path]
+        common_ext = max(set(extensions), key=extensions.count) if extensions else 'unknown'
+        
+        language_map = {
+            'py': 'Python', 'js': 'JavaScript', 'jsx': 'JavaScript/React',
+            'ts': 'TypeScript', 'tsx': 'TypeScript/React', 'php': 'PHP',
+            'java': 'Java', 'cpp': 'C++', 'c': 'C', 'cs': 'C#',
+            'rb': 'Ruby', 'go': 'Go', 'rs': 'Rust', 'sql': 'SQL',
+            'sh': 'Shell', 'yaml': 'YAML', 'yml': 'YAML'
+        }
+        
+        language = language_map.get(common_ext, 'Mixed')
+        
+        # Build file sections
+        file_sections = []
+        for file_path, content in file_contents.items():
+            # Truncate very long files
+            display_content = content[:3000] + "..." if len(content) > 3000 else content
+            file_sections.append(f"""
+FILE: {file_path}
+```{common_ext}
+{display_content}
+```""")
+        
+        files_text = "\n".join(file_sections)
+        
+        prompt = f"""Analyze these {language} files for security vulnerabilities. Focus on real security issues only.
+
+{files_text}
+
+For EACH vulnerability found, return JSON in this EXACT format:
+{{"title": "Clear vulnerability title", "description": "Security issue explanation", "severity": "critical|high|medium|low", "category": "injection|xss|authentication|authorization|crypto|path_traversal|deserialization|other", "cwe_id": "CWE-XXX", "file_path": "exact_file_path_from_above", "line_number": line_number_or_null, "code_snippet": "vulnerable code", "recommendation": "How to fix", "fix_suggestion": "Secure code example", "risk_score": risk_0_to_10, "exploitability": "low|medium|high", "impact": "low|medium|high"}}
+
+Return ONLY a JSON array of vulnerabilities. If no vulnerabilities found, return []."""
+
+        return prompt
+    
+    def _parse_batch_vulnerability_response(self, response: str, file_contents: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Parse batch vulnerability response and validate file paths"""
+        try:
+            # Clean response
+            response = response.strip()
+            
+            # Extract JSON
+            json_start = response.find('[')
+            json_end = response.rfind(']') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_content = response[json_start:json_end]
+            else:
+                # Try to find individual JSON objects
+                json_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response)
+                if json_objects:
+                    json_content = '[' + ','.join(json_objects) + ']'
+                else:
+                    logger.warning("No valid JSON found in batch LLM response")
+                    return []
+            
+            vulnerabilities_raw = json.loads(json_content)
+            
+            if not isinstance(vulnerabilities_raw, list):
+                logger.warning(f"Expected JSON array, got {type(vulnerabilities_raw)}")
+                return []
+            
+            # Validate and clean vulnerabilities
+            valid_file_paths = set(file_contents.keys())
+            vulnerabilities = []
+            
+            for vuln in vulnerabilities_raw:
+                if isinstance(vuln, dict) and vuln.get('title'):
+                    # Ensure file_path is valid
+                    file_path = vuln.get('file_path', '')
+                    if file_path not in valid_file_paths:
+                        # Try to match partial paths
+                        for valid_path in valid_file_paths:
+                            if valid_path.endswith(file_path) or file_path in valid_path:
+                                file_path = valid_path
+                                break
+                        else:
+                            logger.warning(f"Invalid file path in vulnerability: {file_path}")
+                            continue
+                    
+                    cleaned_vuln = {
+                        'title': str(vuln.get('title', 'Security Issue'))[:200],
+                        'description': str(vuln.get('description', 'Security vulnerability detected'))[:1000],
+                        'severity': self._validate_severity(vuln.get('severity', 'medium')),
+                        'category': self._validate_category(vuln.get('category', 'other')),
+                        'cwe_id': str(vuln.get('cwe_id', ''))[:20] if vuln.get('cwe_id') else None,
+                        'owasp_category': str(vuln.get('owasp_category', ''))[:50] if vuln.get('owasp_category') else None,
+                        'file_path': file_path,
+                        'line_number': self._validate_line_number(vuln.get('line_number')),
+                        'line_end_number': self._validate_line_number(vuln.get('line_end_number')),
+                        'code_snippet': str(vuln.get('code_snippet', ''))[:500] if vuln.get('code_snippet') else None,
+                        'recommendation': str(vuln.get('recommendation', 'Review and fix this security issue'))[:1000],
+                        'fix_suggestion': str(vuln.get('fix_suggestion', ''))[:1000] if vuln.get('fix_suggestion') else None,
+                        'risk_score': self._validate_risk_score(vuln.get('risk_score', 5.0)),
+                        'exploitability': self._validate_level(vuln.get('exploitability', 'medium')),
+                        'impact': self._validate_level(vuln.get('impact', 'medium'))
+                    }
+                    vulnerabilities.append(cleaned_vuln)
+            
+            return vulnerabilities
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error in batch response: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error parsing batch vulnerability response: {e}")
+            return []
+    
     async def analyze_code_for_vulnerabilities(
         self, 
         code_content: str, 
         file_path: str, 
         file_extension: str
     ) -> List[Dict[str, Any]]:
-        """
-        Analyze code content for security vulnerabilities using DeepSeek
-        """
+        """Analyze code content for security vulnerabilities using DeepSeek"""
         try:
             # Determine programming language from file extension
             language_map = {
@@ -72,23 +244,7 @@ INSTRUCTIONS:
 4. Be thorough but only report actual vulnerabilities
 
 REQUIRED JSON FORMAT for each vulnerability:
-{{
-  "title": "Clear vulnerability title",
-  "description": "Detailed explanation of the security issue",
-  "severity": "critical|high|medium|low",
-  "category": "injection|xss|authentication|authorization|crypto|path_traversal|deserialization|other",
-  "cwe_id": "CWE-XXX (if applicable)",
-  "owasp_category": "OWASP category (if applicable)",
-  "file_path": "{file_path}",
-  "line_number": line_number_integer_or_null,
-  "line_end_number": end_line_number_integer_or_null,
-  "code_snippet": "vulnerable code excerpt",
-  "recommendation": "Specific fix instructions",
-  "fix_suggestion": "Example of secure code",
-  "risk_score": risk_score_0_to_10,
-  "exploitability": "low|medium|high",
-  "impact": "low|medium|high"
-}}
+{{"title": "Clear vulnerability title", "description": "Detailed explanation of the security issue", "severity": "critical|high|medium|low", "category": "injection|xss|authentication|authorization|crypto|path_traversal|deserialization|other", "cwe_id": "CWE-XXX (if applicable)", "owasp_category": "OWASP category (if applicable)", "file_path": "{file_path}", "line_number": line_number_integer_or_null, "line_end_number": end_line_number_integer_or_null, "code_snippet": "vulnerable code excerpt", "recommendation": "Specific fix instructions", "fix_suggestion": "Example of secure code", "risk_score": risk_score_0_to_10, "exploitability": "low|medium|high", "impact": "low|medium|high"}}
 
 Return ONLY a JSON array of vulnerabilities. If no vulnerabilities found, return [].
 Do not include any other text or explanations."""
@@ -111,7 +267,7 @@ Do not include any other text or explanations."""
                         "content": prompt
                     }
                 ],
-                "temperature": 0.1,  # Low temperature for consistent security analysis
+                "temperature": 0.1,
                 "max_tokens": 3000,
                 "stream": False
             }
@@ -250,15 +406,8 @@ Do not include any other text or explanations."""
         except (ValueError, TypeError):
             return 5.0
     
-    async def analyze_code_snippet(
-        self, 
-        code_snippet: str, 
-        language: str,
-        context: str = ""
-    ) -> Dict[str, Any]:
-        """
-        Quick analysis of a small code snippet
-        """
+    async def analyze_code_snippet(self, code_snippet: str, language: str, context: str = "") -> Dict[str, Any]:
+        """Quick analysis of a small code snippet"""
         try:
             prompt = f"""Analyze this {language} code snippet for security vulnerabilities:
 
@@ -324,14 +473,8 @@ Keep the response concise but informative."""
                 "error": str(e)
             }
     
-    async def get_security_recommendations(
-        self, 
-        language: str,
-        vulnerability_types: List[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Get general security recommendations for a programming language
-        """
+    async def get_security_recommendations(self, language: str, vulnerability_types: List[str] = None) -> Dict[str, Any]:
+        """Get general security recommendations for a programming language"""
         try:
             vuln_context = ""
             if vulnerability_types:
@@ -400,9 +543,7 @@ Make it practical and actionable for developers."""
             }
     
     def get_supported_languages(self) -> List[Dict[str, str]]:
-        """
-        Get list of supported programming languages for analysis
-        """
+        """Get list of supported programming languages for analysis"""
         return [
             {"extension": ".py", "language": "Python", "description": "Python scripts and applications"},
             {"extension": ".js", "language": "JavaScript", "description": "JavaScript files"},

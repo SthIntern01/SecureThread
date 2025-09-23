@@ -6,6 +6,7 @@ import os
 class Settings(BaseSettings):
     # Application
     APP_NAME: str = "SecureThread"
+    PROJECT_NAME: str = "SecureThread" 
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

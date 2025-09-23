@@ -6,7 +6,7 @@ python-multipart==0.0.9
 # Database
 sqlalchemy==2.0.34
 alembic==1.13.2
-psycopg[binary]==3.2.1
+psycopg[binary]>=3.2.2,<3.3
 
 # Authentication & Security
 python-jose[cryptography]==3.4.0
@@ -28,9 +28,11 @@ google-auth-oauthlib==1.1.0
 fastapi-cors==0.0.6
 
 # Pydantic for data validation
-pydantic==2.9.2
+pydantic==2.11.7
 pydantic-settings==2.6.0
 
 # Development
 pytest==8.3.3
 pytest-asyncio==0.24.0
+
+email-validator

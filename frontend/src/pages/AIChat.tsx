@@ -323,6 +323,7 @@ function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
 
 
 
+
 const AIChat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [value, setValue] = useState("");

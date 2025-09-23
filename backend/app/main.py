@@ -1,21 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.settings import settings  # Changed from app.config.settings
+from app.config.settings import settings # Changed from app.config.settings
 from app.api.v1.api import api_router
 from app.core.database import Base, engine
+from app.config.settings import settings
+
+
+# Debug print to verify settings
+print(f"DEBUG: CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
+print(f"DEBUG: Frontend URL: {settings.FRONTEND_URL}")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,  # Changed from APP_NAME to PROJECT_NAME
+    title=settings.APP_NAME, # Changed from APP_NAME to PROJECT_NAME
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-# Set up CORS
+# Set up CORS - Temporary fix for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
