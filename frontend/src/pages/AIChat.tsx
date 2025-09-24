@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import { EtherealBackground } from '../components/ui/ethereal-background';
+import AppSidebar from "../components/AppSidebar";
 import { ChevronRight } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -25,9 +26,20 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { aiChatService, ChatMessage, ChatResponse, FileAnalysis } from "@/services/aiChatService";
-import { useAuth } from "@/contexts/AuthContext";
-import AppSidebar from '../components/AppSidebar';
-
+import { useAuth } from "../contexts/AuthContext";
+import {
+  IconDashboard,
+  IconFolder,
+  IconUsers,
+  IconBrandGithub,
+  IconCircleCheck,
+  IconMessageCircle,
+  IconSettings,
+  IconBook,
+  IconHelp,
+  IconUser,
+  IconRobot,
+} from '@tabler/icons-react';
 
 interface UseAutoResizeTextareaProps {
   minHeight: number;
@@ -320,8 +332,6 @@ function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
     </div>
   );
 }
-
-
 
 
 const AIChat = () => {
