@@ -1353,64 +1353,106 @@ const handleGenAIScan = async () => {
   }
 };
 
-const handleCustomScan = () => {
-  // Placeholder for custom scan - will be implemented later
-  setShowScanMethodModal(false);
-  setSelectedProjectForScan(null);
-  // TODO: Implement custom scan functionality
-  console.log("Custom scan will be implemented later");
+
+const handleStopScan = async (projectId: number) => {
+  try {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project?.latest_scan?.id) return;
+
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${
+        import.meta.env.VITE_API_URL || "http://localhost:8000"
+      }/api/v1/scans/${project.latest_scan.id}/stop`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.ok) {
+      // Stop polling
+      clearScanPolling(project.latest_scan.id);
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+
+      // Update project status
+      setProjects((prevProjects) =>
+        prevProjects.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                status: "failed" as const,
+                latest_scan: {
+                  ...p.latest_scan!,
+                  status: "stopped",
+                },
+              }
+            : p
+        )
+      );
+    } else {
+      console.error("Failed to stop scan");
+    }
+  } catch (error) {
+    console.error("Error stopping scan:", error);
+  }
 };
 
-  const handleStopScan = async (projectId: number) => {
-    try {
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.latest_scan?.id) return;
+// Update your handleCustomScan function:
+const handleCustomScan = async (selectedRules: number[], customRules?: any[]) => {
+  if (!selectedProjectForScan) {
+    console.error("No project selected for scan");
+    return;
+  }
 
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${project.latest_scan.id}/stop`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+  const projectId = selectedProjectForScan.id;
+  setShowScanMethodModal(false);
+  
+  // Temporarily use the regular scan endpoint for testing
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repository_id: projectId,
+        scan_config: {
+          max_files: 10,
+          max_vulnerabilities: 5,
+          priority_scan: true,
+          scan_type: "custom_rules", // Add this to distinguish
+          selected_rules: selectedRules,
+          custom_rules: customRules
         }
-      );
-
-      if (response.ok) {
-        // Stop polling
-        clearScanPolling(project.latest_scan.id);
-        setScanningProjects((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(projectId);
-          return newSet;
-        });
-
-        // Update project status
-        setProjects((prevProjects) =>
-          prevProjects.map((p) =>
-            p.id === projectId
-              ? {
-                  ...p,
-                  status: "failed" as const,
-                  latest_scan: {
-                    ...p.latest_scan!,
-                    status: "stopped",
-                  },
-                }
-              : p
-          )
-        );
-      } else {
-        console.error("Failed to stop scan");
-      }
-    } catch (error) {
-      console.error("Error stopping scan:", error);
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Custom scan started:", data);
+      await fetchProjects();
+    } else {
+      const errorData = await response.json();
+      console.error("Custom scan failed:", errorData);
+      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
     }
-  };
+  } catch (error) {
+    console.error("Custom scan failed:", error);
+    setError("Network error occurred while starting custom scan");
+  } finally {
+    setSelectedProjectForScan(null);
+  }
+};
 
   const handleDeleteProject = async (projectId: number) => {
     try {
