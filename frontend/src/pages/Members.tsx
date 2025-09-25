@@ -3,6 +3,10 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { teamService, TeamMember, TeamStats } from '../services/teamService';
+import { Loader2 } from "lucide-react";
+
+
 import {
   Dialog,
   DialogContent,
@@ -57,17 +61,7 @@ import {
   IconRobot,
 } from "@tabler/icons-react";
 
-interface Member {
-  id: number;
-  name: string;
-  email: string;
-  avatar?: string;
-  role: "Owner" | "Admin" | "Member" | "Viewer";
-  authProvider: "GitHub" | "GitLab" | "Email";
-  dateJoined: string;
-  status: "Active" | "Pending" | "Inactive";
-  lastActive?: string;
-}
+
 
 const Logo = () => {
   return (
@@ -219,27 +213,73 @@ const ResponsiveSidebar = ({
 const InviteMembersModal = ({
   isOpen,
   onClose,
+  onInviteSent,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onInviteSent: () => void;
 }) => {
-  const [inviteMethod, setInviteMethod] = useState<"email" | "link">("link");
-  const [emails, setEmails] = useState("");
-  const [role, setRole] = useState("Member");
-  const [inviteLink] = useState("https://securethread.com/invite/abc123xyz");
-  const [copied, setCopied] = useState(false);
+const [inviteMethod, setInviteMethod] = useState<"email" | "link">("link");
+const [emails, setEmails] = useState("");
+const [role, setRole] = useState("Member");
+const [inviteLink, setInviteLink] = useState("");
+const [copied, setCopied] = useState(false);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState("");
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+useEffect(() => {
+  if (isOpen && inviteMethod === "link") {
+    generateInviteLink();
+  }
+}, [isOpen, inviteMethod, role]);
 
-  const handleSendInvites = () => {
-    // Handle sending email invites
-    console.log("Sending invites to:", emails, "with role:", role);
+const generateInviteLink = async () => {
+  try {
+    setLoading(true);
+    const response = await teamService.generateInviteLink(role);
+    setInviteLink(response.invite_link);
+  } catch (error) {
+    setError("Failed to generate invite link");
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleCopyLink = () => {
+  navigator.clipboard.writeText(inviteLink);
+  setCopied(true);
+  setTimeout(() => setCopied(false), 2000);
+};
+
+const handleSendInvites = async () => {
+  if (!emails.trim()) return;
+
+  try {
+    setLoading(true);
+    setError("");
+    
+    const emailList = teamService.parseEmails(emails);
+    const validation = teamService.validateEmails(emailList);
+    
+    if (!validation.valid) {
+      setError(validation.errors.join("\n"));
+      return;
+    }
+
+    const response = await teamService.sendEmailInvitations(emailList, role);
+    
+    alert(`Invitations sent successfully to ${response.total_sent} recipients`);
+    onInviteSent();
     onClose();
-  };
+    
+  } catch (error) {
+    setError("Failed to send invitations");
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -371,7 +411,7 @@ const MemberRow = ({
   onRemove,
   onChangeRole,
 }: {
-  member: Member;
+  member: TeamMember;
   onRemove: (id: number) => void;
   onChangeRole: (id: number, role: string) => void;
 }) => {
@@ -492,35 +532,82 @@ const MemberRow = ({
 };
 
 const Members = () => {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Mock data - replace with actual API calls
-  const [members, setMembers] = useState<Member[]>([
-    {
-      id: 1,
-      name: "Sanjana Dev",
-      email: "devsanjana7@gmail.com",
-      role: "Owner",
-      authProvider: "GitHub",
-      dateJoined: "2025-07-18",
-      status: "Active",
-      lastActive: "2 hours ago",
-    },
-    {
-      id: 2,
-      name: "HashEmHsm4",
-      email: "hasheemhsm4@gmail.com",
-      role: "Admin",
-      authProvider: "GitHub",
-      dateJoined: "2025-07-18",
-      status: "Active",
-      lastActive: "1 day ago",
-    },
-  ]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [stats, setStats] = useState<TeamStats>({
+  total: 0,
+  active: 0,
+  pending: 0,
+  admins: 0
+});
+
+useEffect(() => {
+  loadData();
+}, []);
+
+const loadData = async () => {
+  try {
+    setLoading(true);
+    setError("");
+    
+    // Try to get data from API
+    let membersData: TeamMember[] = [];
+    let statsData: TeamStats = { total: 0, active: 0, pending: 0, admins: 0 };
+    
+    try {
+      const [apiMembers, apiStats] = await Promise.all([
+        teamService.getTeamMembers(),
+        teamService.getTeamStats()
+      ]);
+      membersData = apiMembers;
+      statsData = apiStats;
+    } catch (apiError) {
+      console.warn('API call failed, using current user only:', apiError);
+    }
+    
+    // Add current user if not present or if no members at all
+    // ✅ Added safety checks for user object
+    if (user && user.email && (membersData.length === 0 || !membersData.some(m => m.email === user.email))) {
+      const currentUserMember: TeamMember = {
+        id: Date.now(),
+        user_id: Date.now(), 
+        name: user.full_name || user.github_username || 'Current User',
+        email: user.email || 'user@example.com',
+        avatar: user.avatar_url || undefined, // ✅ Added fallback
+        role: 'Owner',
+        status: 'Active',
+        authProvider: 'GitHub',
+        dateJoined: new Date().toISOString(),
+        lastActive: new Date().toISOString()
+      };
+      
+      membersData = [currentUserMember, ...membersData];
+      
+      statsData = {
+        total: membersData.length,
+        active: membersData.filter(m => m.status === 'Active').length,
+        pending: membersData.filter(m => m.status === 'Pending').length,
+        admins: membersData.filter(m => m.role === 'Admin' || m.role === 'Owner').length
+      };
+    }
+    
+    setMembers(membersData);
+    setStats(statsData);
+  } catch (error) {
+    setError("Failed to load team data");
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filteredMembers = members.filter((member) => {
     const matchesSearch =
@@ -532,24 +619,40 @@ const Members = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleRemoveMember = (id: number) => {
-    setMembers(members.filter((member) => member.id !== id));
+   const handleRemoveMember = async (id: number) => {
+    try {
+      await teamService.removeMember(id);
+      await loadData(); // Refresh data
+    } catch (error) {
+      alert("Failed to remove member");
+      console.error(error);
+    }
   };
 
-  const handleChangeRole = (id: number, newRole: string) => {
-    setMembers(
-      members.map((member) =>
-        member.id === id ? { ...member, role: newRole as Member["role"] } : member
-      )
+  const handleChangeRole = async (id: number, newRole: string) => {
+    try {
+      await teamService.updateMemberRole(id, newRole);
+      await loadData(); // Refresh data
+    } catch (error) {
+      alert("Failed to update member role");
+      console.error(error);
+    }
+  };
+
+  const handleInviteSent = () => {
+    loadData(); // Refresh data after sending invites
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
     );
-  };
+  }
 
-  const stats = {
-    total: members.length,
-    active: members.filter((m) => m.status === "Active").length,
-    pending: members.filter((m) => m.status === "Pending").length,
-    admins: members.filter((m) => m.role === "Admin" || m.role === "Owner").length,
-  };
+
+  
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
@@ -732,8 +835,9 @@ const Members = () => {
       <InviteMembersModal
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+        onInviteSent={handleInviteSent}
       />
-    </div>
+      </div>
   );
 };
 

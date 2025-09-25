@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { feedbackService, FeedbackData } from '../services/feedbackService';
 import {
   Dialog,
   DialogContent,
@@ -278,9 +279,30 @@ const Feedback = () => {
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setAttachments(prev => [...prev, ...files].slice(0, 5)); // Limit to 5 files
-  };
+  const files = Array.from(event.target.files || []);
+  
+  if (files.length === 0) return;
+  
+  // Validate files
+  const validation = feedbackService.validateFiles(files);
+  if (!validation.valid) {
+    alert(`File validation failed:\n${validation.errors.join('\n')}`);
+    event.target.value = ''; // Clear the input
+    return;
+  }
+  
+  // Add files (limit to 5 total)
+  const currentCount = attachments.length;
+  const availableSlots = 5 - currentCount;
+  const filesToAdd = files.slice(0, availableSlots);
+  
+  if (filesToAdd.length < files.length) {
+    alert(`Only ${availableSlots} more files can be added. Maximum 5 files total.`);
+  }
+  
+  setAttachments(prev => [...prev, ...filesToAdd]);
+  event.target.value = ''; // Clear input so same file can be selected again if needed
+};
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
@@ -291,16 +313,35 @@ const Feedback = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  e.preventDefault();
+  setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  try {
+    // Validate files before submission
+    if (attachments.length > 0) {
+      const fileValidation = feedbackService.validateFiles(attachments);
+      if (!fileValidation.valid) {
+        alert(`File validation failed:\n${fileValidation.errors.join('\n')}`);
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
-    const newTrackingId = generateTrackingId();
-    setTrackingId(newTrackingId);
+    // Prepare feedback data
+    const feedbackData: FeedbackData = {
+      type: formData.type,
+      severity: formData.severity,
+      description: formData.description,
+      stepsToReproduce: formData.stepsToReproduce || undefined,
+      userEmail: formData.userEmail || undefined,
+    };
+
+    // Submit feedback
+    const response = await feedbackService.submitFeedback(feedbackData, attachments);
+    
+    // Show success modal
+    setTrackingId(response.tracking_id);
     setShowSuccessModal(true);
-    setIsSubmitting(false);
 
     // Reset form
     setFormData({
@@ -311,8 +352,24 @@ const Feedback = () => {
       userEmail: "",
     });
     setAttachments([]);
-  };
-
+    
+    // Reset file input
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+    
+  } catch (error) {
+    console.error('Submission failed:', error);
+    
+    // Show error message to user
+    const errorMessage = error instanceof Error ? error.message : 'Failed to submit feedback. Please try again.';
+    alert(`Error: ${errorMessage}`);
+    
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   const isFormValid = formData.type && formData.description.trim().length >= 10;
 
   return (

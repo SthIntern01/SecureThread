@@ -23,6 +23,7 @@ import GitLabCallback from "./pages/GitLabCallback";
 import BitbucketCallback from "./pages/BitbucketCallback";
 import NotFound from "./pages/NotFound";
 import RepositoryDetailsPage from "./pages/RepositoryDetails";
+import InviteAccept from "./pages/InviteAccept";
 
 const queryClient = new QueryClient();
 
@@ -41,7 +42,7 @@ const App = () => (
             <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
             <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />
             <Route path="/docs" element={<Docs />} />
-
+            <Route path="/accept-invite" element={<InviteAccept />} />
             {/* Protected routes */}
             <Route
               path="/"

@@ -1,7 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
+import enum
+
+
+class AccessLevel(enum.Enum):
+    read = "read"
+    write = "write" 
+    admin = "admin"
 
 
 class Repository(Base):
@@ -68,3 +75,24 @@ class Repository(Base):
 
     def __repr__(self):
         return f"<Repository(name='{self.name}', full_name='{self.full_name}', source='{self.source_type}')>"
+
+
+class UserRepositoryAccess(Base):
+    __tablename__ = "user_repository_access"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    repository_id = Column(Integer, ForeignKey("repositories.id"), nullable=False)
+    access_level = Column(Enum(AccessLevel), default=AccessLevel.read)
+    granted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Timestamps
+    granted_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    repository = relationship("Repository", foreign_keys=[repository_id])
+    grantor = relationship("User", foreign_keys=[granted_by])
+    
+    def __repr__(self):
+        return f"<UserRepositoryAccess(user_id={self.user_id}, repository_id={self.repository_id}, access_level='{self.access_level.value}')>"
