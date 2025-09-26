@@ -2,9 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import AppSidebar from "../components/AppSidebar";
 import RepositoryDetails from "../components/RepositoryDetails";
 import ScanDetailsModal from "../components/SimpleScanDetailsModal";
-import FileScanStatus from "../components/FileScanStatus";
+import ScanMethodModal from "../components/ScanMethodModal"; 
+import { useAuth } from "../contexts/AuthContext"; // Keep this
+import FileScanStatus from "../components/FileScanStatus"; // New component
 import {
   Select,
   SelectContent,
@@ -21,8 +24,12 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EtherealBackground } from "../components/ui/ethereal-background";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { useAuth } from "../contexts/AuthContext";
+import {
+  IconBrandGithub,
+  IconBrandGitlab, 
+  IconBrandDocker,
+  IconFolder,
+} from "@tabler/icons-react";
 import {
   Search,
   ChevronRight,
@@ -40,32 +47,9 @@ import {
   Github,
   FileText,
   StopCircle,
-  ArrowLeft,
-  Zap,
-  Code,
-  Shield,
-  Brain,
-  Wrench,
-  Plus,
-  X,
-  ChevronDown,
 } from "lucide-react";
-import {
-  IconDashboard,
-  IconFolder,
-  IconUsers,
-  IconBrandGithub,
-  IconRobot,
-  IconCircleCheck,
-  IconMessageCircle,
-  IconSettings,
-  IconBook,
-  IconHelp,
-  IconUser,
-  IconBrandGitlab,
-  IconBrandDocker,
-  IconLogout,
-} from "@tabler/icons-react";
+
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,9 +57,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+
 import { Trash2, RefreshCw } from "lucide-react";
 
-// Types
 interface Repository {
   id: number;
   github_id: number;
@@ -134,424 +118,11 @@ interface Project {
   code_coverage?: number | null;
 }
 
-interface CustomRule {
-  id: string;
-  name: string;
-  description: string;
-  pattern: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  enabled: boolean;
-}
 
-type ViewType = 'landing' | 'genai' | 'custom';
 
-// Components
-const Logo = () => {
-  return (
-    <a
-      href="#"
-      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
-    >
-      <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </a>
-  );
-};
 
-const ResponsiveSidebar = ({
-  sidebarOpen,
-  setSidebarOpen,
-}: {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-}) => {
-  const { user, logout } = useAuth();
-  const [showLogout, setShowLogout] = useState(false);
-  const navigate = useNavigate();
 
-  const feedLinks = [
-    {
-      label: "Dashboard",
-      href: "/",
-      icon: <IconDashboard className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Projects",
-      href: "/projects",
-      icon: <IconFolder className="h-5 w-5 shrink-0" />,
-      active: true,
-    },
-    {
-      label: "Members",
-      href: "/members",
-      icon: <IconUsers className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Integrations",
-      href: "/integrations",
-      icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
-      active: false,
-      count: "99+",
-    },
-    {
-      label: "AI Chat",
-      href: "/ai-chat",
-      icon: <IconRobot className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Solved",
-      href: "/solved",
-      icon: <IconCircleCheck className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-  ];
 
-  const bottomLinks = [
-    {
-      label: "Feedback",
-      href: "/feedback",
-      icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-      icon: <IconSettings className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Docs",
-      href: "/docs",
-      icon: <IconBook className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Help",
-      href: "/help",
-      icon: <IconHelp className="h-5 w-5 shrink-0" />,
-    },
-  ];
-
-  const profileLink = {
-    label: user?.full_name || user?.github_username || user?.bitbucket_username || "User",
-    href: "#",
-    icon: user?.avatar_url ? (
-      <img
-        src={user.avatar_url}
-        alt={user.full_name || user.github_username || user.bitbucket_username}
-        className="h-5 w-5 rounded-full shrink-0"
-      />
-    ) : (
-      <IconUser className="h-5 w-5 shrink-0" />
-    ),
-  };
-
-  const handleProfileClick = () => {
-    setShowLogout(!showLogout);
-  };
-
-  return (
-    <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
-      <SidebarBody className="justify-between gap-10">
-        <div className="flex flex-1 flex-col">
-          <Logo />
-
-          <div className="mt-8 flex flex-col gap-2">
-            {feedLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="mt-auto flex flex-col gap-2">
-            {bottomLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="pt-4 border-t border-brand-gray/30 relative">
-            <div onClick={handleProfileClick} className="cursor-pointer">
-              <SidebarLink link={profileLink} />
-            </div>
-
-            {showLogout && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowLogout(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <IconLogout className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </SidebarBody>
-    </Sidebar>
-  );
-};
-
-// Scan Type Cards Component
-const ScanTypeCards = ({ onSelectScanType }: { onSelectScanType: (type: 'genai' | 'custom') => void }) => {
-  return (
-    <div className="max-w-5xl mx-auto px-8 py-12">
-      {/* Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-white mb-4">
-          Choose Your Scanning Method
-        </h1>
-        <p className="text-xl text-white/70 max-w-2xl mx-auto">
-          Select the scanning approach that best fits your security requirements
-        </p>
-      </div>
-
-      {/* Cards */}
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        {/* Gen AI Scan Card */}
-        <div 
-          onClick={() => onSelectScanType('genai')}
-          className="group bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 hover:shadow-xl hover:bg-white/15 transition-all duration-300 cursor-pointer"
-        >
-          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
-            <Brain className="w-8 h-8 text-white" />
-          </div>
-          
-          <div className="text-center">
-            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-300 transition-colors">
-              Gen AI Scan
-            </h3>
-            <p className="text-white/70 mb-6 leading-relaxed">
-              AI-powered vulnerability detection using our advanced LLM engine for intelligent, automated, and comprehensive security analysis
-            </p>
-            
-            <div className="flex items-center justify-center space-x-2 text-sm text-white/60 mb-6">
-              <Zap className="w-4 h-4" />
-              <span>Automated Detection</span>
-              <Shield className="w-4 h-4 ml-4" />
-              <span>Smart Analysis</span>
-            </div>
-
-            <Button 
-              className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white border-0 group-hover:scale-105 transition-transform duration-300"
-            >
-              Get Started
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Custom Scan Card */}
-        <div 
-          onClick={() => onSelectScanType('custom')}
-          className="group bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-white/20 hover:shadow-xl hover:bg-white/15 transition-all duration-300 cursor-pointer"
-        >
-          <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-xl mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
-            <Wrench className="w-8 h-8 text-white" />
-          </div>
-          
-          <div className="text-center">
-            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-300 transition-colors">
-              Custom Scan
-            </h3>
-            <p className="text-white/70 mb-6 leading-relaxed">
-              Combine our predefined security rules with your own custom rules for tailored vulnerability detection, compliance, and deeper control
-            </p>
-            
-            <div className="flex items-center justify-center space-x-2 text-sm text-white/60 mb-6">
-              <Code className="w-4 h-4" />
-              <span>Custom Rules</span>
-              <Settings className="w-4 h-4 ml-4" />
-              <span>Flexible Config</span>
-            </div>
-
-            <Button 
-              className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white border-0 group-hover:scale-105 transition-transform duration-300"
-            >
-              Get Started
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Custom Rules Manager Component
-const CustomRulesManager = ({ customRules, setCustomRules }: { 
-  customRules: CustomRule[], 
-  setCustomRules: (rules: CustomRule[]) => void 
-}) => {
-  const [showAddRule, setShowAddRule] = useState(false);
-  const [newRule, setNewRule] = useState<Omit<CustomRule, 'id'>>({
-    name: '',
-    description: '',
-    pattern: '',
-    severity: 'medium',
-    enabled: true
-  });
-
-  const handleAddRule = () => {
-    if (newRule.name.trim() && newRule.pattern.trim()) {
-      const rule: CustomRule = {
-        ...newRule,
-        id: Date.now().toString()
-      };
-      setCustomRules([...customRules, rule]);
-      setNewRule({
-        name: '',
-        description: '',
-        pattern: '',
-        severity: 'medium',
-        enabled: true
-      });
-      setShowAddRule(false);
-    }
-  };
-
-  const handleDeleteRule = (ruleId: string) => {
-    setCustomRules(customRules.filter(rule => rule.id !== ruleId));
-  };
-
-  const handleToggleRule = (ruleId: string) => {
-    setCustomRules(customRules.map(rule => 
-      rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule
-    ));
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-semibold text-white">Custom Security Rules</h3>
-        <Button
-          onClick={() => setShowAddRule(true)}
-          className="bg-accent hover:bg-accent/90 text-accent-foreground"
-          size="sm"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Rule
-        </Button>
-      </div>
-
-      {/* Add Rule Form */}
-      {showAddRule && (
-        <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">Rule Name</label>
-              <Input
-                value={newRule.name}
-                onChange={(e) => setNewRule({...newRule, name: e.target.value})}
-                placeholder="e.g., SQL Injection Check"
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">Severity</label>
-              <Select value={newRule.severity} onValueChange={(value: 'low' | 'medium' | 'high' | 'critical') => setNewRule({...newRule, severity: value})}>
-                <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-white mb-2">Description</label>
-              <Input
-                value={newRule.description}
-                onChange={(e) => setNewRule({...newRule, description: e.target.value})}
-                placeholder="Describe what this rule checks for"
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-white mb-2">Pattern/Regex</label>
-              <Input
-                value={newRule.pattern}
-                onChange={(e) => setNewRule({...newRule, pattern: e.target.value})}
-                placeholder="e.g., (SELECT|INSERT|UPDATE|DELETE).*FROM"
-                className="bg-white/10 border-white/20 text-white placeholder:text-white/50 font-mono"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2 mt-4">
-            <Button variant="outline" onClick={() => setShowAddRule(false)} size="sm">
-              Cancel
-            </Button>
-            <Button onClick={handleAddRule} className="bg-accent hover:bg-accent/90" size="sm">
-              Add Rule
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Rules List */}
-      <div className="space-y-3">
-        {customRules.length === 0 ? (
-          <div className="text-center py-8 text-white/70">
-            <Code className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No custom rules defined yet</p>
-            <p className="text-sm">Add your first security rule to get started</p>
-          </div>
-        ) : (
-          customRules.map((rule) => (
-            <div key={rule.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <Checkbox
-                      checked={rule.enabled}
-                      onCheckedChange={() => handleToggleRule(rule.id)}
-                    />
-                    <h4 className={`font-medium ${rule.enabled ? 'text-white' : 'text-white/50'}`}>
-                      {rule.name}
-                    </h4>
-                    <Badge className={`text-xs ${getSeverityColor(rule.severity)}`}>
-                      {rule.severity}
-                    </Badge>
-                  </div>
-                  <p className={`text-sm mb-2 ${rule.enabled ? 'text-white/70' : 'text-white/40'}`}>
-                    {rule.description}
-                  </p>
-                  <code className={`text-xs px-2 py-1 rounded bg-gray-800 ${rule.enabled ? 'text-green-400' : 'text-gray-500'}`}>
-                    {rule.pattern}
-                  </code>
-                </div>
-                <Button
-                  onClick={() => handleDeleteRule(rule.id)}
-                  variant="outline"
-                  size="sm"
-                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Import Repository Modal (keeping existing implementation)
 const ImportRepositoriesModal = ({
   isOpen,
   onClose,
@@ -567,6 +138,7 @@ const ImportRepositoriesModal = ({
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  
 
   useEffect(() => {
     if (isOpen) {
@@ -811,6 +383,8 @@ const ImportRepositoriesModal = ({
     </Dialog>
   );
 };
+
+
 
 const ImportBitbucketRepositoriesModal = ({
   isOpen,
@@ -1362,54 +936,58 @@ const ProjectCard = ({
   );
 };
 
-// Main Projects Component
 const Projects = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<ViewType>('landing');
   const [projects, setProjects] = useState<Project[]>([]);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [importProvider, setImportProvider] = useState<'github' | 'bitbucket' | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [selectedRepoName, setSelectedRepoName] = useState("");
   const [showFileScanModal, setShowFileScanModal] = useState(false);
   const [error, setError] = useState("");
   const [showImportDropdown, setShowImportDropdown] = useState(false); 
-  const [scanningProjects, setScanningProjects] = useState<Set<number>>(new Set());
-  const [customRules, setCustomRules] = useState<CustomRule[]>([]);
-  
+  const [showScanMethodModal, setShowScanMethodModal] = useState(false);
+  const [selectedProjectForScan, setSelectedProjectForScan] = useState<Project | null>(null);
+  const [scanningProjects, setScanningProjects] = useState<Set<number>>(
+    new Set()
+  );
   const { user } = useAuth();
   const navigate = useNavigate();
 
   // Polling management
-  const [pollIntervals, setPollIntervals] = useState<Map<number, NodeJS.Timeout>>(new Map());
+  const [pollIntervals, setPollIntervals] = useState<
+    Map<number, NodeJS.Timeout>
+  >(new Map());
 
   // Helper functions for dynamic provider detection
   const getAuthProvider = (): 'github' | 'bitbucket' | null => {
-    console.log('=== DEBUG AUTH PROVIDER ===');
-    console.log('User object:', user);
-    console.log('user.github_username:', user?.github_username);
-    console.log('user.bitbucket_username:', user?.bitbucket_username);
-    
-    if (!user) {
-      console.log('No user - returning null');
-      return null;
-    }
-    if (user.github_username) {
-      console.log('Found GitHub username - returning github');
-      return 'github';
-    }
-    if (user.bitbucket_username) {
-      console.log('Found Bitbucket username - returning bitbucket');
-      return 'bitbucket';
-    }
-    console.log('No provider found - returning null');
+  console.log('=== DEBUG AUTH PROVIDER ===');
+  console.log('User object:', user);
+  console.log('user.github_username:', user?.github_username);
+  console.log('user.bitbucket_username:', user?.bitbucket_username);
+  
+  if (!user) {
+    console.log('No user - returning null');
     return null;
-  };
+  }
+  if (user.github_username) {
+    console.log('Found GitHub username - returning github');
+    return 'github';
+  }
+  if (user.bitbucket_username) {
+    console.log('Found Bitbucket username - returning bitbucket');
+    return 'bitbucket';
+  }
+  console.log('No provider found - returning null');
+  return null;
+};
+
+  
 
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
     switch (provider) {
@@ -1435,37 +1013,37 @@ const Projects = () => {
   };
 
   const handleImportClick = () => {
-    console.log('=== IMPORT CLICK ===');
-    
-    // If user has a specific provider account, use it directly
-    const provider = getAuthProvider();
-    if (provider) {
-      console.log('Detected provider:', provider);
-      setImportProvider(provider);
-    } else {
-      // If Google login (no specific provider), show dropdown
-      setShowImportDropdown(true);
-    }
-  };
-
-  const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
-    console.log('Selected provider:', provider);
-    setShowImportDropdown(false);
+  console.log('=== IMPORT CLICK ===');
+  
+  // If user has a specific provider account, use it directly
+  const provider = getAuthProvider();
+  if (provider) {
+    console.log('Detected provider:', provider);
     setImportProvider(provider);
-  };
+  } else {
+    // If Google login (no specific provider), show dropdown
+    setShowImportDropdown(true);
+  }
+};
 
-  // Initialize data when entering specific views
+const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
+  console.log('Selected provider:', provider);
+  setShowImportDropdown(false);
+  setImportProvider(provider);
+};
+
+
+
   useEffect(() => {
-    if (currentView === 'genai' || currentView === 'custom') {
-      setLoading(true);
-      fetchProjects();
-    }
+    fetchProjects();
 
     // Cleanup function to clear all polling intervals
     return () => {
       pollIntervals.forEach((interval) => clearInterval(interval));
     };
-  }, [currentView]);
+  }, []);
+
+  
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -1685,140 +1263,196 @@ const Projects = () => {
   );
 
   const handleStartScan = async (projectId: number) => {
-    if (scanningProjects.has(projectId)) {
-      console.log("Scan already in progress for project", projectId);
-      return;
-    }
+  const project = projects.find(p => p.id === projectId);
+  if (!project) return;
+  
+  setSelectedProjectForScan(project);
+  setShowScanMethodModal(true);
+};
 
-    try {
-      setScanningProjects((prev) => new Set(prev).add(projectId));
+const handleGenAIScan = async () => {
+  if (!selectedProjectForScan) return;
+  
+  setShowScanMethodModal(false);
+  
+  const projectId = selectedProjectForScan.id;
+  
+  if (scanningProjects.has(projectId)) {
+    console.log("Scan already in progress for project", projectId);
+    return;
+  }
 
-      const token = localStorage.getItem("access_token");
-      
-      // For custom scan, include custom rules in the request
-      const scanConfig = currentView === 'custom' ? {
-        max_files: 10,
-        max_vulnerabilities: 5,
-        priority_scan: true,
-        custom_rules: customRules.filter(rule => rule.enabled)
-      } : {
-        max_files: 10,
-        max_vulnerabilities: 5,
-        priority_scan: true,
-      };
+  try {
+    setScanningProjects((prev) => new Set(prev).add(projectId));
 
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/start`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${
+        import.meta.env.VITE_API_URL || "http://localhost:8000"
+      }/api/v1/scans/start`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repository_id: projectId,
+          scan_config: {
+            max_files: 10,
+            max_vulnerabilities: 5,
+            priority_scan: true,
           },
-          body: JSON.stringify({
-            repository_id: projectId,
-            scan_config: scanConfig,
-            scan_type: currentView === 'custom' ? 'custom' : 'genai'
-          }),
-        }
+        }),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Scan started:", data);
+
+      // Update the project status immediately
+      setProjects((prevProjects) =>
+        prevProjects.map((project) =>
+          project.id === projectId
+            ? {
+                ...project,
+                latest_scan: {
+                  id: data.id,
+                  status: "pending",
+                  started_at: data.started_at,
+                },
+                status: "scanning" as const,
+              }
+            : project
+        )
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Scan started:", data);
-
-        // Update the project status immediately
-        setProjects((prevProjects) =>
-          prevProjects.map((project) =>
-            project.id === projectId
-              ? {
-                  ...project,
-                  latest_scan: {
-                    id: data.id,
-                    status: "pending",
-                    started_at: data.started_at,
-                  },
-                  status: "scanning" as const,
-                }
-              : project
-          )
-        );
-
-        // Start polling for scan status
-        startScanPolling(data.id, projectId);
-      } else {
-        const errorData = await response.json();
-        console.error("Failed to start scan:", errorData);
-        setError(errorData.detail || "Failed to start scan");
-        setScanningProjects((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(projectId);
-          return newSet;
-        });
-      }
-    } catch (error) {
-      console.error("Error starting scan:", error);
-      setError("Network error occurred while starting scan");
+      // Start polling for scan status
+      startScanPolling(data.id, projectId);
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to start scan:", errorData);
+      setError(errorData.detail || "Failed to start scan");
       setScanningProjects((prev) => {
         const newSet = new Set(prev);
         newSet.delete(projectId);
         return newSet;
       });
     }
-  };
+  } catch (error) {
+    console.error("Error starting scan:", error);
+    setError("Network error occurred while starting scan");
+    setScanningProjects((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(projectId);
+      return newSet;
+    });
+  } finally {
+    setSelectedProjectForScan(null);
+  }
+};
 
-  const handleStopScan = async (projectId: number) => {
-    try {
-      const project = projects.find((p) => p.id === projectId);
-      if (!project?.latest_scan?.id) return;
 
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${project.latest_scan.id}/stop`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+const handleStopScan = async (projectId: number) => {
+  try {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project?.latest_scan?.id) return;
 
-      if (response.ok) {
-        // Stop polling
-        clearScanPolling(project.latest_scan.id);
-        setScanningProjects((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(projectId);
-          return newSet;
-        });
-
-        // Update project status
-        setProjects((prevProjects) =>
-          prevProjects.map((p) =>
-            p.id === projectId
-              ? {
-                  ...p,
-                  status: "failed" as const,
-                  latest_scan: {
-                    ...p.latest_scan!,
-                    status: "stopped",
-                  },
-                }
-              : p
-          )
-        );
-      } else {
-        console.error("Failed to stop scan");
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${
+        import.meta.env.VITE_API_URL || "http://localhost:8000"
+      }/api/v1/scans/${project.latest_scan.id}/stop`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       }
-    } catch (error) {
-      console.error("Error stopping scan:", error);
+    );
+
+    if (response.ok) {
+      // Stop polling
+      clearScanPolling(project.latest_scan.id);
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+
+      // Update project status
+      setProjects((prevProjects) =>
+        prevProjects.map((p) =>
+          p.id === projectId
+            ? {
+                ...p,
+                status: "failed" as const,
+                latest_scan: {
+                  ...p.latest_scan!,
+                  status: "stopped",
+                },
+              }
+            : p
+        )
+      );
+    } else {
+      console.error("Failed to stop scan");
     }
-  };
+  } catch (error) {
+    console.error("Error stopping scan:", error);
+  }
+};
+
+// Update your handleCustomScan function:
+const handleCustomScan = async (selectedRules: number[], customRules?: any[]) => {
+  if (!selectedProjectForScan) {
+    console.error("No project selected for scan");
+    return;
+  }
+
+  const projectId = selectedProjectForScan.id;
+  setShowScanMethodModal(false);
+  
+  // Temporarily use the regular scan endpoint for testing
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        repository_id: projectId,
+        scan_config: {
+          max_files: 10,
+          max_vulnerabilities: 5,
+          priority_scan: true,
+          scan_type: "custom_rules", // Add this to distinguish
+          selected_rules: selectedRules,
+          custom_rules: customRules
+        }
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Custom scan started:", data);
+      await fetchProjects();
+    } else {
+      const errorData = await response.json();
+      console.error("Custom scan failed:", errorData);
+      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
+    }
+  } catch (error) {
+    console.error("Custom scan failed:", error);
+    setError("Network error occurred while starting custom scan");
+  } finally {
+    setSelectedProjectForScan(null);
+  }
+};
 
   const handleDeleteProject = async (projectId: number) => {
     try {
@@ -1948,21 +1582,20 @@ const Projects = () => {
   
   // Add this useEffect after your other useEffects
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showImportDropdown) {
-        const target = event.target as Element;
-        if (!target.closest('.relative')) {
-          setShowImportDropdown(false);
-        }
+  const handleClickOutside = (event: MouseEvent) => {
+    if (showImportDropdown) {
+      const target = event.target as Element;
+      if (!target.closest('.relative')) {
+        setShowImportDropdown(false);
       }
-    };
+    }
+  };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showImportDropdown]);
-
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+  };
+}, [showImportDropdown]);
   const handleImportRepositories = async (repoIds: number[]) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -2040,376 +1673,279 @@ const Projects = () => {
     failed: projects.filter((p) => p.status === "failed").length,
   };
 
-  // Landing Page View
-  if (currentView === 'landing') {
-    return (
-      <div className="w-full h-screen font-sans relative flex overflow-hidden">
-        <EtherealBackground
-          color="rgba(255, 255, 255, 0.6)"
-          animation={{ scale: 100, speed: 90 }}
-          noise={{ opacity: 0.8, scale: 1.2 }}
-          sizing="fill"
-        />
+  return (
+  <div className="w-full h-screen font-sans relative flex overflow-hidden">
+    <EtherealBackground
+      color="rgba(255, 255, 255, 0.6)"
+      animation={{ scale: 100, speed: 90 }}
+      noise={{ opacity: 0.8, scale: 1.2 }}
+      sizing="fill"
+    />
 
-        <ResponsiveSidebar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-        />
+    <AppSidebar
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+    />
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
-          <div className="p-4 lg:p-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-                
-                {/* Header Section */}
-                <div className="p-8 border-b border-white/10">
-                  <div className="flex items-center space-x-2 text-sm mb-4">
-                    <span className="font-medium text-white">SecureThread</span>
-                    <ChevronRight size={16} className="text-white/60" />
-                    <span className="font-medium text-white">Projects</span>
-                  </div>
+    <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
+      <div className="p-4 lg:p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Single unified container */}
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            
+            {/* Header Section */}
+            <div className="p-8 border-b border-white/10">
+              {/* Breadcrumb */}
+              <div className="flex items-center space-x-2 text-sm mb-4">
+                <span className="font-medium text-white">SecureThread</span>
+                <ChevronRight size={16} className="text-white/60" />
+                <span className="font-medium text-white">Projects</span>
+              </div>
 
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
-                        Projects
-                      </h1>
-                      <p className="text-white/80">
-                        Choose your security scanning approach
-                      </p>
-                    </div>
-                  </div>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    Projects
+                  </h1>
+                  <p className="text-white/80">
+                    Manage and monitor your security projects
+                  </p>
                 </div>
-
-                {/* Scan Type Cards */}
-                <ScanTypeCards onSelectScanType={setCurrentView} />
+                <div className="mt-6 lg:mt-0 relative">
+                  <Button
+                    onClick={handleImportClick}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    {getAuthProvider() ? (
+                      <>
+                        {getProviderIcon(getAuthProvider())}
+                        Import from {getProviderName(getAuthProvider())}
+                      </>
+                    ) : (
+                      <>
+                        <Github className="w-4 h-4 mr-2" />
+                        Import Repository
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Import Provider Dropdown */}
+                  {showImportDropdown && (
+                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                      <button
+                        onClick={() => handleProviderSelection('github')}
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Github className="w-4 h-4" />
+                        <span>Import from GitHub</span>
+                      </button>
+                      <button
+                        onClick={() => handleProviderSelection('bitbucket')}
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                        </svg>
+                        <span>Import from Bitbucket</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  // Gen AI or Custom Scan Views
-  return (
-    <div className="w-full h-screen font-sans relative flex overflow-hidden">
-      <EtherealBackground
-        color="rgba(255, 255, 255, 0.6)"
-        animation={{ scale: 100, speed: 90 }}
-        noise={{ opacity: 0.8, scale: 1.2 }}
-        sizing="fill"
-      />
-
-      <ResponsiveSidebar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-      />
-
-      <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
-        <div className="p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-              
-              {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
-                <div className="flex items-center space-x-2 text-sm mb-4">
-                  <button
-                    onClick={() => setCurrentView('landing')}
-                    className="flex items-center space-x-2 text-white/70 hover:text-white transition-colors"
-                  >
-                    <ArrowLeft size={16} />
-                    <span className="font-medium">Back</span>
-                  </button>
-                  <ChevronRight size={16} className="text-white/60" />
-                  
-                  {/* Dropdown for scan type */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="flex items-center space-x-1 font-medium text-white hover:text-white/80 transition-colors">
-                        <span>{currentView === 'genai' ? 'Gen AI Scan' : 'Custom Scan'}</span>
-                        <ChevronDown size={16} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem 
-                        onClick={() => setCurrentView(currentView === 'genai' ? 'custom' : 'genai')}
-                        className="cursor-pointer"
-                      >
-                        {currentView === 'genai' ? 'Custom Scan' : 'Gen AI Scan'}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-gradient-to-r from-orange-500 to-red-600 w-12 h-12 rounded-xl flex items-center justify-center">
-                      {currentView === 'genai' ? 
-                        <Brain className="w-6 h-6 text-white" /> : 
-                        <Wrench className="w-6 h-6 text-white" />
-                      }
-                    </div>
-                    <div>
-                      <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
-                        {currentView === 'genai' ? 'Gen AI Scan' : 'Custom Scan'}
-                      </h1>
-                      <p className="text-white/80">
-                        {currentView === 'genai' 
-                          ? 'AI-powered vulnerability detection using our advanced LLM engine for intelligent, automated, and comprehensive security analysis'
-                          : 'Combine our predefined security rules with your own custom rules for tailored vulnerability detection, compliance, and deeper control'
-                        }
-                      </p>
-                    </div>
+            {/* Stats Section */}
+            <div className="p-8 border-b border-white/10">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-1">
+                    {stats.total}
                   </div>
-                  <div className="mt-6 lg:mt-0 flex flex-col space-y-3 relative">
+                  <div className="text-white/70 font-medium">
+                    Total Projects
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-400 mb-1">
+                    {stats.active}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Active
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-400 mb-1">
+                    {stats.scanning}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Scanning
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-red-400 mb-1">
+                    {stats.failed}
+                  </div>
+                  <div className="text-white/70 font-medium">
+                    Failed
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters Section */}
+            <div className="p-8 border-b border-white/10">
+              <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                  <Input
+                    placeholder="Search projects..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="scanning">Scanning</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Filter by source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sources</SelectItem>
+                    <SelectItem value="github">GitHub</SelectItem>
+                    <SelectItem value="gitlab">GitLab</SelectItem>
+                    <SelectItem value="bitbucket">Bitbucket</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Projects Content Section */}
+            <div className="p-8">
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                  <p className="text-white">Loading projects...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Error Loading Projects
+                  </h3>
+                  <p className="text-red-400 mb-6">{error}</p>
+                  <Button
+                    onClick={fetchProjects}
+                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div className="text-center py-12">
+                  <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    {projects.length === 0
+                      ? "No Projects Yet"
+                      : "No Projects Found"}
+                  </h3>
+                  <p className="text-white/70 mb-6">
+                    {projects.length === 0
+                      ? "Get started by importing your first repository."
+                      : "Try adjusting your search or filter criteria."}
+                  </p>
+                  {projects.length === 0 && (
                     <Button
                       onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      {getAuthProvider() ? (
-                        <>
-                          {getProviderIcon(getAuthProvider())}
-                          Import from {getProviderName(getAuthProvider())}
-                        </>
-                      ) : (
-                        <>
-                          <Github className="w-4 h-4 mr-2" />
-                          Import Repository
-                        </>
-                      )}
+                      <Github className="w-4 h-4 mr-2" />
+                      Import Repository
                     </Button>
-                    
-                    {/* View Rules button for Custom Scan - now orange */}
-                    {currentView === 'custom' && (
-                      <div className="px-8 pb-4">
-                      <Button
-                        onClick={() => {
-                          // This would open a view rules modal or navigate to rules page
-                          console.log('View Rules clicked');
-                        }}
-                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                        size='sm'
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Rules
-                      </Button>
-                      </div>
-                    )}
-                    
-                    {/* Import Provider Dropdown */}
-                    {showImportDropdown && (
-                      <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                        <button
-                          onClick={() => handleProviderSelection('github')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Github className="w-4 h-4" />
-                          <span>Import from GitHub</span>
-                        </button>
-                        <button
-                          onClick={() => handleProviderSelection('bitbucket')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-                          </svg>
-                          <span>Import from Bitbucket</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
-              </div>
-
-              {/* Custom Rules Section (only for custom scan) */}
-              {currentView === 'custom' && (
-                <div className="p-8 border-b border-white/10">
-                  <CustomRulesManager 
-                    customRules={customRules} 
-                    setCustomRules={setCustomRules} 
-                  />
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredProjects.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onDelete={handleDeleteProject}
+                      onSync={handleSyncProject}
+                      onViewDetails={handleViewDetails}
+                      onStartScan={handleStartScan}
+                      onStopScan={handleStopScan}
+                      onViewFileScanStatus={handleViewFileScanStatus}
+                      onViewScanDetails={handleViewScanDetails}
+                    />
+                  ))}
                 </div>
               )}
-
-              {/* Stats Section */}
-              <div className="p-8 border-b border-white/10">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-white mb-1">
-                      {stats.total}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Total Projects
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-400 mb-1">
-                      {stats.active}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Active
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-400 mb-1">
-                      {stats.scanning}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Scanning
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-red-400 mb-1">
-                      {stats.failed}
-                    </div>
-                    <div className="text-white/70 font-medium">
-                      Failed
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters Section */}
-              <div className="p-8 border-b border-white/10">
-                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                    <Input
-                      placeholder="Search projects..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="scanning">Scanning</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
-                      <SelectValue placeholder="Filter by source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sources</SelectItem>
-                      <SelectItem value="github">GitHub</SelectItem>
-                      <SelectItem value="gitlab">GitLab</SelectItem>
-                      <SelectItem value="bitbucket">Bitbucket</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Projects Content Section */}
-              <div className="p-8">
-                {loading ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                    <p className="text-white">Loading projects...</p>
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-12">
-                    <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      Error Loading Projects
-                    </h3>
-                    <p className="text-red-400 mb-6">{error}</p>
-                    <Button
-                      onClick={fetchProjects}
-                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                ) : filteredProjects.length === 0 ? (
-                  <div className="text-center py-12">
-                    <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      {projects.length === 0
-                        ? "No Projects Yet"
-                        : "No Projects Found"}
-                    </h3>
-                    <p className="text-white/70 mb-6">
-                      {projects.length === 0
-                        ? "Get started by importing your first repository."
-                        : "Try adjusting your search or filter criteria."}
-                    </p>
-                    {projects.length === 0 && (
-                      <Button
-                        onClick={handleImportClick}
-                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                      >
-                        <Github className="w-4 h-4 mr-2" />
-                        Import Repository
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onDelete={handleDeleteProject}
-                        onSync={handleSyncProject}
-                        onViewDetails={handleViewDetails}
-                        onStartScan={handleStartScan}
-                        onStopScan={handleStopScan}
-                        onViewFileScanStatus={handleViewFileScanStatus}
-                        onViewScanDetails={handleViewScanDetails}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
+
           </div>
         </div>
       </div>
-
-      {/* Dynamic Import Modals */}
-      {importProvider === 'github' && (
-        <ImportRepositoriesModal
-          isOpen={true}
-          onClose={() => setImportProvider(null)}
-          onImport={handleImportRepositories}
-        />
-      )}
-
-      {importProvider === 'bitbucket' && (
-        <ImportBitbucketRepositoriesModal
-          isOpen={true}
-          onClose={() => setImportProvider(null)}
-          onImport={handleImportBitbucketRepositories}
-        />
-      )}
-
-      {/* Scan Details Modal */}
-      <ScanDetailsModal
-        isOpen={showScanModal}
-        onClose={() => setShowScanModal(false)}
-        scanId={selectedScanId}
-        repositoryName={selectedRepoName}
-      />
-
-      {/* File Scan Status Modal */}
-      <FileScanStatus
-        isOpen={showFileScanModal}
-        onClose={() => setShowFileScanModal(false)}
-        scanId={selectedScanId}
-        repositoryName={selectedRepoName}
-      />
     </div>
-  );
+
+    {/* Dynamic Import Modals */}
+    {importProvider === 'github' && (
+      <ImportRepositoriesModal
+        isOpen={true}
+        onClose={() => setImportProvider(null)}
+        onImport={handleImportRepositories}
+      />
+    )}
+
+    {importProvider === 'bitbucket' && (
+      <ImportBitbucketRepositoriesModal
+        isOpen={true}
+        onClose={() => setImportProvider(null)}
+        onImport={handleImportBitbucketRepositories}
+      />
+    )}
+
+    {/* Scan Details Modal */}
+    <ScanDetailsModal
+      isOpen={showScanModal}
+      onClose={() => setShowScanModal(false)}
+      scanId={selectedScanId}
+      repositoryName={selectedRepoName}
+    />
+
+    {/* File Scan Status Modal */}
+    <FileScanStatus
+      isOpen={showFileScanModal}
+      onClose={() => setShowFileScanModal(false)}
+      scanId={selectedScanId}
+      repositoryName={selectedRepoName}
+    />
+
+    {/* Scan Method Modal */}
+<ScanMethodModal
+  isOpen={showScanMethodModal}
+  onClose={() => {
+    setShowScanMethodModal(false);
+    setSelectedProjectForScan(null);
+  }}
+  onSelectGenAI={handleGenAIScan}
+  onSelectCustom={handleCustomScan}
+  projectName={selectedProjectForScan?.name}
+/>
+
+  </div>
+);
 };
 
 export default Projects;
