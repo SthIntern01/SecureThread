@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { EtherealBackground } from '../components/ui/ethereal-background';
+import AppSidebar from '../components/AppSidebar';
+
 import { 
   Search, 
   ChevronRight,

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { teamService, TeamMember, TeamStats } from '../services/teamService';
 import { Loader2 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext"; // Keep this
 
 
 import AppSidebar from "../components/AppSidebar";
