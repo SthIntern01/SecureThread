@@ -44,15 +44,12 @@ class User(Base):
     ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete-orphan")
     ai_usage_metrics = relationship("AIUsageMetrics", back_populates="user", cascade="all, delete-orphan")
     ai_feedback = relationship("AIFeedback", back_populates="user", cascade="all, delete-orphan")
-<<<<<<< HEAD
     feedback_submissions = relationship("Feedback", back_populates="user", cascade="all, delete-orphan")
     team_memberships = relationship("TeamMember", foreign_keys="TeamMember.user_id", back_populates="user", cascade="all, delete-orphan")
     created_teams = relationship("Team", foreign_keys="Team.created_by", cascade="all, delete-orphan")
 
-=======
     custom_rules = relationship("UserCustomRule", back_populates="uploader", cascade="all, delete-orphan")
     
->>>>>>> e379a406d07fb774fe7dfc8ee9101d4110ecbe2a
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
