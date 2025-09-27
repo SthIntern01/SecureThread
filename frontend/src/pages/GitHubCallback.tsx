@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { EtherealBackground } from "../components/ui/ethereal-background";
@@ -12,9 +12,18 @@ const GitHubCallback = () => {
   const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
+  
+  // Add ref to prevent multiple requests
+  const isProcessing = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevent multiple calls
+      if (isProcessing.current) {
+        console.log("Already processing callback, skipping...");
+        return;
+      }
+      
       const code = searchParams.get("code");
       const error = searchParams.get("error");
 
@@ -30,7 +39,12 @@ const GitHubCallback = () => {
         return;
       }
 
+      // Mark as processing
+      isProcessing.current = true;
+
       try {
+        console.log("Sending OAuth code to backend:", code.substring(0, 10) + "...");
+        
         // Send code to backend for token exchange
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/api/v1/auth/github/callback`,
@@ -44,6 +58,7 @@ const GitHubCallback = () => {
         );
 
         const data = await response.json();
+        console.log("Backend response:", response.status, data);
 
         if (response.ok) {
           // Login successful
@@ -54,6 +69,14 @@ const GitHubCallback = () => {
           setTimeout(() => {
             navigate("/", { replace: true });
           }, 2000);
+        } else if (response.status === 409) {
+          // Conflict - already processing
+          setStatus("error");
+          setError("Authentication is being processed. Please wait a moment and refresh the page.");
+        } else if (response.status === 400 && data.detail?.includes("already been used")) {
+          // Code already used - this might be a duplicate request
+          setStatus("error");
+          setError("This authentication session has expired. Please try signing in again.");
         } else {
           setStatus("error");
           setError(data.detail || "Authentication failed");
@@ -62,6 +85,11 @@ const GitHubCallback = () => {
         console.error("Callback error:", error);
         setStatus("error");
         setError("Network error occurred during authentication");
+      } finally {
+        // Reset processing flag after a delay
+        setTimeout(() => {
+          isProcessing.current = false;
+        }, 2000);
       }
     };
 
@@ -69,6 +97,8 @@ const GitHubCallback = () => {
   }, [searchParams, login, navigate]);
 
   const handleRetry = () => {
+    // Reset processing flag
+    isProcessing.current = false;
     navigate("/signin", { replace: true });
   };
 
