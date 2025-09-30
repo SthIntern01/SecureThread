@@ -9,6 +9,7 @@ from app.services.github_service import GitHubService
 from app.api.deps import get_current_active_user
 from app.models.user import User
 import logging
+import asyncio
 import time
 from typing import Dict, Set
 
@@ -42,28 +43,34 @@ async def github_callback(
     auth_request: GitHubAuthRequest,
     db: Session = Depends(get_db)
 ):
-    """Handle GitHub OAuth callback with deduplication"""
+    """Handle GitHub OAuth callback with simple deduplication"""
     
     # Clean up old codes periodically
     cleanup_old_codes()
     
     oauth_code = auth_request.code
     
-    # Check if this code was already processed
+    # If code was already processed successfully, return success immediately
+    # This handles the case where frontend makes multiple requests
     if oauth_code in processed_oauth_codes:
-        logger.warning(f"OAuth code already processed: {oauth_code[:10]}...")
+        logger.info(f"OAuth code already processed, considering it successful: {oauth_code[:10]}...")
+        # Instead of throwing error, just redirect them to sign in again
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OAuth authorization code has already been used"
+            status_code=status.HTTP_200_OK,  # Changed from 400 to 200
+            detail="Authentication already completed. Please refresh the page."
         )
     
-    # Check if this code is currently being processed
+    # If currently being processed, wait a moment then check again
     if oauth_code in processing_codes:
-        logger.warning(f"OAuth code currently being processed: {oauth_code[:10]}...")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="OAuth authorization code is currently being processed"
-        )
+        logger.info(f"OAuth code currently being processed, waiting: {oauth_code[:10]}...")
+        await asyncio.sleep(1.0)  # Wait 1 second
+        
+        # Check if it completed while we waited
+        if oauth_code in processed_oauth_codes:
+            raise HTTPException(
+                status_code=status.HTTP_200_OK,
+                detail="Authentication completed. Please refresh the page."
+            )
     
     # Mark code as being processed
     processing_codes.add(oauth_code)
