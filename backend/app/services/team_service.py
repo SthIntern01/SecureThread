@@ -65,15 +65,19 @@ class TeamService:
     def get_team_members(self, team_id: int) -> List[Dict]:
         """Get all members of a team with their details"""
         try:
-            members = self.db.query(TeamMember).join(User).filter(
+        # Get members without join to avoid ambiguity
+            members = self.db.query(TeamMember).filter(
                 TeamMember.team_id == team_id
             ).all()
-            
+        
             result = []
             for member in members:
-                user = member.user
-                
-                # Determine auth provider
+            # Load user separately to avoid join ambiguity
+                user = self.db.query(User).filter(User.id == member.user_id).first()
+                if not user:
+                    continue
+            
+            # Determine auth provider
                 auth_provider = "Email"
                 if user.github_username:
                     auth_provider = "GitHub"
@@ -83,7 +87,7 @@ class TeamService:
                     auth_provider = "Google"
                 elif user.bitbucket_username:
                     auth_provider = "Bitbucket"
-                
+            
                 result.append({
                     "id": member.id,
                     "user_id": user.id,
@@ -96,9 +100,9 @@ class TeamService:
                     "dateJoined": member.joined_at.isoformat(),
                     "lastActive": member.last_active.isoformat() if member.last_active else None
                 })
-            
+        
             return result
-            
+        
         except Exception as e:
             logger.error(f"Error fetching team members: {str(e)}")
             raise e
@@ -189,7 +193,9 @@ class TeamService:
     def _send_invitation_email(self, invitation: TeamInvitation, team: Team, inviter: User):
         """Send invitation email"""
         try:
-            invite_url = f"http://localhost:8080/invite/{invitation.token}"
+            import os
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:8080")
+            invite_url = f"{frontend_url}/accept-invite?token={invitation.token}"
             
             subject = f"You're invited to join {team.name} on SecureThread"
             
