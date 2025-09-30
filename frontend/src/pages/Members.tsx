@@ -400,7 +400,6 @@ const loadData = async () => {
     setLoading(true);
     setError("");
     
-    // Try to get data from API
     let membersData: TeamMember[] = [];
     let statsData: TeamStats = { total: 0, active: 0, pending: 0, admins: 0 };
     
@@ -411,19 +410,23 @@ const loadData = async () => {
       ]);
       membersData = apiMembers;
       statsData = apiStats;
+      
+      // DEBUG: Check what API returned
+      console.log('API returned members:', membersData);
+      console.log('Current user:', user);
+      
     } catch (apiError) {
-      console.warn('API call failed, using current user only:', apiError);
+      console.warn('API call failed:', apiError);
     }
     
-    // Add current user if not present or if no members at all
-    // ✅ Added safety checks for user object
-    if (user && user.email && (membersData.length === 0 || !membersData.some(m => m.email === user.email))) {
+    // Only add current user if API returned nothing
+    if (user && user.email && membersData.length === 0) {
       const currentUserMember: TeamMember = {
         id: Date.now(),
         user_id: Date.now(), 
         name: user.full_name || user.github_username || 'Current User',
         email: user.email || 'user@example.com',
-        avatar: user.avatar_url || undefined, // ✅ Added fallback
+        avatar: user.avatar_url || undefined,
         role: 'Owner',
         status: 'Active',
         authProvider: 'GitHub',
@@ -431,15 +434,17 @@ const loadData = async () => {
         lastActive: new Date().toISOString()
       };
       
-      membersData = [currentUserMember, ...membersData];
+      membersData = [currentUserMember];
       
       statsData = {
-        total: membersData.length,
-        active: membersData.filter(m => m.status === 'Active').length,
-        pending: membersData.filter(m => m.status === 'Pending').length,
-        admins: membersData.filter(m => m.role === 'Admin' || m.role === 'Owner').length
+        total: 1,
+        active: 1,
+        pending: 0,
+        admins: 1
       };
     }
+    
+    console.log('Final members to display:', membersData); // DEBUG
     
     setMembers(membersData);
     setStats(statsData);

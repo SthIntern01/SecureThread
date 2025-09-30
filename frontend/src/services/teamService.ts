@@ -116,7 +116,7 @@ class TeamService {
   /**
    * Generate invite link
    */
-  async generateInviteLink(role: string = "Member"): Promise<InviteLinkResponse> {
+ async generateInviteLink(role: string = "Member"): Promise<InviteLinkResponse> {
   try {
     const response = await fetch(`${this.baseURL}/api/v1/teams/invite/link?role=${role}`, {
       method: "GET",
@@ -127,31 +127,7 @@ class TeamService {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    console.log('Backend response:', data);
-    
-    // Extract the token from the backend response
-    let token;
-    if (data.invite_link) {
-      // If backend returns full URL like "http://localhost:8080/invite/TOKEN"
-      const urlParts = data.invite_link.split('/');
-      token = urlParts[urlParts.length - 1]; // Get the last part (token)
-    } else if (data.token) {
-      token = data.token;
-    } else {
-      throw new Error('No token received from backend');
-    }
-    
-    // Create the correct frontend URL
-    const frontendUrl = window.location.origin; // Gets http://localhost:3000
-    const inviteLink = `${frontendUrl}/accept-invite?token=${token}`;
-    
-    console.log('Final invite link:', inviteLink);
-    
-    return {
-      invite_link: inviteLink,
-      role: data.role || role
-    };
+    return await response.json();
   } catch (error) {
     console.error('Error generating invite link:', error);
     throw error;
@@ -209,26 +185,27 @@ class TeamService {
    * Get invitation details
    */
   async getInvitationDetails(token: string): Promise<{
-    team_name: string;
-    role: string;
-    invited_by: string;
-    expires_at: string;
-  }> {
-    try {
-      const response = await fetch(`${this.baseURL}/api/v1/teams/invite/${token}`, {
-        method: "GET",
-      });
+  team_name: string;
+  role: string;
+  invited_by: string;
+  expires_at: string;
+}> {
+  try {
+    // FIX: Token should be in the path, not query params
+    const response = await fetch(`${this.baseURL}/api/v1/teams/invite/${token}`, {
+      method: "GET",
+    });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      console.error('Error fetching invitation details:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching invitation details:', error);
+    throw error;
   }
+}
 
   /**
    * Accept team invitation
