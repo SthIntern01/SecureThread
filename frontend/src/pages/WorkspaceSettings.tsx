@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { EtherealBackground } from "../components/ui/ethereal-background";
 import AppSidebar from "@/components/AppSidebar";
 import { useAuth } from "../contexts/AuthContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
+import { workspaceService } from "../services/workspaceService";
 import {
   Dialog,
   DialogContent,
@@ -68,20 +69,73 @@ interface TeamMember {
 const InviteMembersModal = ({
   isOpen,
   onClose,
+  onInviteSent,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onInviteSent: () => void;
 }) => {
+  const { currentWorkspace } = useWorkspace();
   const [inviteMethod, setInviteMethod] = useState<"email" | "link">("link");
   const [emails, setEmails] = useState("");
   const [role, setRole] = useState("Member");
-  const [inviteLink] = useState("https://securethread.app/invite/abc123xyz");
+  const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && inviteMethod === "link" && currentWorkspace?.id) {
+      generateInviteLink();
+    }
+  }, [isOpen, inviteMethod, role, currentWorkspace?.id]);
+
+  const generateInviteLink = async () => {
+    if (!currentWorkspace?.id) return;
+    try {
+      setLoading(true);
+      const response = await workspaceService.generateInviteLink(currentWorkspace.id, role);
+      setInviteLink(response.invite_link);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSendInvites = async () => {
+    if (!emails.trim() || !currentWorkspace?.id) return;
+
+    try {
+      setLoading(true);
+      const emailList = workspaceService.parseEmails(emails);
+      const validation = workspaceService.validateEmails(emailList);
+      
+      if (!validation.valid) {
+        alert(validation.errors.join("\n"));
+        return;
+      }
+
+      const response = await workspaceService.sendEmailInvitations(
+        currentWorkspace.id,
+        emailList,
+        role
+      );
+      
+      alert(`Invitations sent successfully to ${response.total_sent} recipients`);
+      onInviteSent();
+      onClose();
+    } catch (error) {
+      alert("Failed to send invitations");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -177,19 +231,24 @@ const InviteMembersModal = ({
             <Button variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button className="flex-1 bg-accent hover:bg-accent/90">
-              {inviteMethod === "email" ? (
-                <>
-                  <Mail className="w-4 h-4 mr-2" />
-                  Send Invites
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 mr-2" />
-                  {copied ? "Copied!" : "Copy Invite Link"}
-                </>
-              )}
-            </Button>
+            {inviteMethod === "email" ? (
+              <Button
+                onClick={handleSendInvites}
+                className="flex-1 bg-accent hover:bg-accent/90"
+                disabled={!emails.trim() || loading}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Send Invites
+              </Button>
+            ) : (
+              <Button
+                onClick={handleCopyLink}
+                className="flex-1 bg-accent hover:bg-accent/90"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {copied ? "Copied!" : "Copy Invite Link"}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -198,7 +257,15 @@ const InviteMembersModal = ({
 };
 
 // Member Row Component
-const MemberRow = ({ member }: { member: TeamMember }) => {
+const MemberRow = ({ 
+  member,
+  onRemove,
+  onChangeRole,
+}: { 
+  member: TeamMember;
+  onRemove: (id: number) => void;
+  onChangeRole: (id: number, role: string) => void;
+}) => {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "Owner":
@@ -265,16 +332,19 @@ const MemberRow = ({ member }: { member: TeamMember }) => {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onChangeRole(member.id, "Admin")}>
                 <Shield className="w-4 h-4 mr-2" />
                 Make Admin
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onChangeRole(member.id, "Member")}>
                 <Users className="w-4 h-4 mr-2" />
                 Make Member
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">
+              <DropdownMenuItem
+                onClick={() => onRemove(member.id)}
+                className="text-red-600"
+              >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Remove Member
               </DropdownMenuItem>
@@ -293,33 +363,74 @@ const WorkspaceSettings = () => {
   const [activeTab, setActiveTab] = useState("general");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
-  const [members] = useState<TeamMember[]>([
-    {
-      id: 1,
-      user_id: 1,
-      name: "Sanjana Dev",
-      email: "sanjana@example.com",
-      avatar: user?.avatar_url,
-      role: "Owner",
-      status: "Active",
-      authProvider: "GitHub",
-      dateJoined: "2024-01-15",
-      lastActive: "2024-09-30",
-    },
-    {
-      id: 2,
-      user_id: 2,
-      name: "John Smith",
-      email: "john@example.com",
-      role: "Admin",
-      status: "Active",
-      authProvider: "GitHub",
-      dateJoined: "2024-02-20",
-      lastActive: "2024-09-29",
-    },
-  ]);
+  
+  // Real data loading
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentWorkspace) {
+      setWorkspaceName(currentWorkspace.name);
+    }
+  }, [currentWorkspace]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [currentWorkspace]);
+
+  const loadMembers = async () => {
+    if (!currentWorkspace?.id) return;
+    
+    try {
+      setLoading(true);
+      const membersData = await workspaceService.getWorkspaceMembers(currentWorkspace.id);
+      
+      // Explicitly map to TeamMember format
+      const teamMembers: TeamMember[] = membersData.map(m => ({
+        id: m.id,
+        user_id: m.user_id,
+        name: m.name,
+        email: m.email,
+        avatar: m.avatar,
+        role: m.role,
+        status: m.status,
+        authProvider: m.authProvider,
+        dateJoined: m.joined_at,
+        lastActive: (m.last_active || null) as string | null,
+      }));
+      
+      setMembers(teamMembers);
+    } catch (error) {
+      console.error('Error loading members:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async (id: number) => {
+    if (!currentWorkspace?.id) return;
+    try {
+      await workspaceService.removeMember(currentWorkspace.id, id);
+      await loadMembers();
+    } catch (error) {
+      alert("Failed to remove member");
+    }
+  };
+
+  const handleChangeRole = async (id: number, newRole: string) => {
+    if (!currentWorkspace?.id) return;
+    try {
+      await workspaceService.updateMemberRole(currentWorkspace.id, id, newRole);
+      await loadMembers();
+    } catch (error) {
+      alert("Failed to update member role");
+    }
+  };
+
+  const handleInviteSent = () => {
+    loadMembers();
+  };
 
   const tabs = [
     { id: "general", label: "General", icon: Settings },
@@ -374,7 +485,7 @@ const WorkspaceSettings = () => {
                 </div>
               </div>
 
-              {/* Tabs - Now wrapped to prevent horizontal scrolling */}
+              {/* Tabs */}
               <div className="border-b border-white/10">
                 <div className="flex flex-wrap px-8 gap-1">
                   {tabs.map((tab) => {
@@ -451,7 +562,7 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
-                {/* Teams Tab (renamed from Users) */}
+                {/* Teams Tab */}
                 {activeTab === "teams" && (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
@@ -474,7 +585,12 @@ const WorkspaceSettings = () => {
                     </div>
 
                     <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                      {filteredMembers.length === 0 ? (
+                      {loading ? (
+                        <div className="text-center py-12">
+                          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
+                          <p className="text-white/70 mt-4">Loading members...</p>
+                        </div>
+                      ) : filteredMembers.length === 0 ? (
                         <div className="text-center py-12">
                           <Users className="w-16 h-16 text-white/30 mx-auto mb-4" />
                           <h3 className="text-xl font-semibold text-white mb-2">
@@ -484,7 +600,12 @@ const WorkspaceSettings = () => {
                       ) : (
                         <div className="space-y-0">
                           {filteredMembers.map((member) => (
-                            <MemberRow key={member.id} member={member} />
+                            <MemberRow 
+                              key={member.id} 
+                              member={member}
+                              onRemove={handleRemoveMember}
+                              onChangeRole={handleChangeRole}
+                            />
                           ))}
                         </div>
                       )}
@@ -538,65 +659,55 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
-                {/* Clouds Tab */}
+                {/* Other Tabs - Empty States */}
                 {activeTab === "clouds" && (
-                  <div className="space-y-6">
-                    <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
-                      <Cloud className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-white mb-2">
-                        Want to see the full picture?
-                      </h3>
-                      <p className="text-white/70 mb-6">
-                        Harden your cloud infrastructure by finding misconfigurations in
-                        production
-                      </p>
-                      <Button className="bg-accent hover:bg-accent/90">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Connect Cloud
-                      </Button>
-                    </div>
+                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                    <Cloud className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      Want to see the full picture?
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      Harden your cloud infrastructure by finding misconfigurations in production
+                    </p>
+                    <Button className="bg-accent hover:bg-accent/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Connect Cloud
+                    </Button>
                   </div>
                 )}
 
-                {/* Containers Tab */}
                 {activeTab === "containers" && (
-                  <div className="space-y-6">
-                    <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
-                      <Package className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-white mb-2">
-                        No Containers Connected
-                      </h3>
-                      <p className="text-white/70 mb-6">
-                        Connect your container registries to scan for vulnerabilities
-                      </p>
-                      <Button className="bg-accent hover:bg-accent/90">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Connect Container Registry
-                      </Button>
-                    </div>
+                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                    <Package className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No Containers Connected
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      Connect your container registries to scan for vulnerabilities
+                    </p>
+                    <Button className="bg-accent hover:bg-accent/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Connect Container Registry
+                    </Button>
                   </div>
                 )}
 
-                {/* Domains & APIs Tab */}
                 {activeTab === "domains" && (
-                  <div className="space-y-6">
-                    <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
-                      <Globe className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-white mb-2">
-                        No Domains or APIs Added
-                      </h3>
-                      <p className="text-white/70 mb-6">
-                        Monitor your domains and APIs for security vulnerabilities
-                      </p>
-                      <Button className="bg-accent hover:bg-accent/90">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Domain or API
-                      </Button>
-                    </div>
+                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                    <Globe className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      No Domains or APIs Added
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      Monitor your domains and APIs for security vulnerabilities
+                    </p>
+                    <Button className="bg-accent hover:bg-accent/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Domain or API
+                    </Button>
                   </div>
                 )}
 
-                {/* Integrations Tab */}
                 {activeTab === "integrations" && (
                   <div className="space-y-6">
                     <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
@@ -621,7 +732,6 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
-                {/* SLA Tab */}
                 {activeTab === "sla" && (
                   <div className="space-y-6">
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
@@ -632,8 +742,7 @@ const WorkspaceSettings = () => {
                             SLA Configuration
                           </h3>
                           <p className="text-white/70 text-sm">
-                            Configure Service Level Agreements for vulnerability response
-                            times
+                            Configure Service Level Agreements for vulnerability response times
                           </p>
                         </div>
                       </div>
@@ -641,7 +750,6 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
-                {/* Advanced Tab */}
                 {activeTab === "advanced" && (
                   <div className="space-y-6">
                     <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
@@ -678,6 +786,7 @@ const WorkspaceSettings = () => {
       <InviteMembersModal
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+        onInviteSent={handleInviteSent}
       />
     </div>
   );

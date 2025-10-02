@@ -4,12 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import { WorkspaceProvider } from "./contexts/WorkspaceContext"; // ADD THIS
+import { WorkspaceProvider } from "./contexts/WorkspaceContext"; 
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
-import Members from "./pages/Members";
 import Integrations from "./pages/Integrations";
 import Docs from "./pages/Docs"; 
 import Solved from "./pages/Solved";
@@ -27,7 +26,7 @@ import RepositoryDetailsPage from "./pages/RepositoryDetails";
 import InviteAccept from "./pages/InviteAccept";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
 import CreateWorkspace from "./pages/CreateWorkspace"; 
-import Profile from "./pages/profile";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -83,14 +82,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/members"
-                element={
-                  <ProtectedRoute>
-                    <Members />
-                  </ProtectedRoute>
-                }
-              />
+              
               <Route
                 path="/integrations"
                 element={
