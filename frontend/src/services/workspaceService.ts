@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { teamService } from './teamService';
 
 export interface Workspace {
   id: string;
@@ -14,6 +12,7 @@ export interface Workspace {
 }
 
 export interface WorkspaceMember {
+  authProvider: any;
   id: number;
   workspace_id: string;
   user_id: number;
@@ -27,257 +26,129 @@ export interface WorkspaceMember {
   last_active?: string;
 }
 
-export interface CreateWorkspaceRequest {
-  name: string;
-  repository_ids: string[];
-}
-
-export interface InviteLinkResponse {
-  invite_link: string;
-  expires_at: string;
-  role: string;
-}
-
-export interface SendInvitesRequest {
-  emails: string[];
-  role: string;
-  workspace_id: string;
-}
-
-export interface SendInvitesResponse {
-  total_sent: number;
-  successful: string[];
-  failed: string[];
-}
-
 class WorkspaceService {
-  private getAuthHeaders() {
-    const token = localStorage.getItem('token');
+  // Map team data to workspace format
+  private mapTeamToWorkspace(team: any): Workspace {
     return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      id: team.id.toString(),
+      name: team.name,
+      owner_id: team.created_by,
+      created_at: team.created_at,
+      updated_at: team.updated_at || team.created_at,
+      plan: 'Pro Trial',
+      member_count: 0,
+      repository_count: 0,
     };
   }
 
-  // Get all workspaces for current user
+  // Get all workspaces (uses existing team endpoints)
   async getUserWorkspaces(): Promise<Workspace[]> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/workspaces`,
-        this.getAuthHeaders()
-      );
-      return response.data;
+      // Use existing team endpoint to get current team
+      const members = await teamService.getTeamMembers();
+      
+      // For now, return a single workspace based on the team
+      // In the future, you can modify backend to return multiple teams
+      return [{
+        id: '1',
+        name: members[0]?.name?.split("'s")[0] + "'s Workspace" || 'My Workspace',
+        owner_id: members.find(m => m.role === 'Owner')?.user_id || 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        plan: 'Pro Trial',
+        member_count: members.length,
+        repository_count: 0,
+      }];
     } catch (error) {
       console.error('Error fetching workspaces:', error);
-      throw error;
+      return [];
     }
   }
 
   // Get workspace by ID
   async getWorkspace(workspaceId: string): Promise<Workspace> {
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}`,
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching workspace:', error);
-      throw error;
+    const workspaces = await this.getUserWorkspaces();
+    const workspace = workspaces.find(w => w.id === workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
     }
+    return workspace;
   }
 
-  // Create new workspace
-  async createWorkspace(data: CreateWorkspaceRequest): Promise<Workspace> {
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/workspaces`,
-        data,
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error creating workspace:', error);
-      throw error;
-    }
-  }
-
-  // Update workspace
-  async updateWorkspace(
-    workspaceId: string,
-    data: Partial<Workspace>
-  ): Promise<Workspace> {
-    try {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}`,
-        data,
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error updating workspace:', error);
-      throw error;
-    }
-  }
-
-  // Delete workspace
-  async deleteWorkspace(workspaceId: string): Promise<void> {
-    try {
-      await axios.delete(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}`,
-        this.getAuthHeaders()
-      );
-    } catch (error) {
-      console.error('Error deleting workspace:', error);
-      throw error;
-    }
-  }
-
-  // Get workspace members
+  // Get workspace members (uses existing team members endpoint)
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}/members`,
-        this.getAuthHeaders()
-      );
-      return response.data;
+      const members = await teamService.getTeamMembers();
+      return members.map(m => ({
+        ...m,
+        workspace_id: workspaceId,
+        joined_at: m.dateJoined,
+        last_active: m.lastActive || undefined,
+      }));
     } catch (error) {
       console.error('Error fetching workspace members:', error);
       throw error;
     }
   }
 
-  // Generate invite link
-  async generateInviteLink(
-    workspaceId: string,
-    role: string
-  ): Promise<InviteLinkResponse> {
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}/invite-link`,
-        { role },
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error generating invite link:', error);
-      throw error;
-    }
+  // Generate invite link (uses existing team endpoint)
+  async generateInviteLink(workspaceId: string, role: string) {
+    return await teamService.generateInviteLink(role);
   }
 
-  // Send email invitations
-  async sendEmailInvitations(
-    data: SendInvitesRequest
-  ): Promise<SendInvitesResponse> {
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/api/workspaces/${data.workspace_id}/invite`,
-        { emails: data.emails, role: data.role },
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error sending invitations:', error);
-      throw error;
-    }
+  // Send email invitations (uses existing team endpoint)
+  async sendEmailInvitations(workspaceId: string, emails: string[], role: string) {
+    return await teamService.sendEmailInvitations(emails, role);
   }
 
-  // Update member role
-  async updateMemberRole(
-    workspaceId: string,
-    memberId: number,
-    role: string
-  ): Promise<WorkspaceMember> {
-    try {
-      const response = await axios.put(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}/members/${memberId}`,
-        { role },
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error updating member role:', error);
-      throw error;
-    }
+  // Update member role (uses existing team endpoint)
+  async updateMemberRole(workspaceId: string, memberId: number, role: string) {
+    return await teamService.updateMemberRole(memberId, role);
   }
 
-  // Remove member from workspace
-  async removeMember(workspaceId: string, memberId: number): Promise<void> {
-    try {
-      await axios.delete(
-        `${API_BASE_URL}/api/workspaces/${workspaceId}/members/${memberId}`,
-        this.getAuthHeaders()
-      );
-    } catch (error) {
-      console.error('Error removing member:', error);
-      throw error;
-    }
+  // Remove member (uses existing team endpoint)
+  async removeMember(workspaceId: string, memberId: number) {
+    return await teamService.removeMember(memberId);
   }
 
-  // Switch active workspace (update user's current workspace context)
+  // Switch workspace
   async switchWorkspace(workspaceId: string): Promise<void> {
-    try {
-      await axios.post(
-        `${API_BASE_URL}/api/user/switch-workspace`,
-        { workspace_id: workspaceId },
-        this.getAuthHeaders()
-      );
-      // Store current workspace in local storage
-      localStorage.setItem('current_workspace_id', workspaceId);
-    } catch (error) {
-      console.error('Error switching workspace:', error);
-      throw error;
-    }
+    localStorage.setItem('current_workspace_id', workspaceId);
   }
 
-  // Get current workspace ID from local storage
+  // Get current workspace ID
   getCurrentWorkspaceId(): string | null {
-    return localStorage.getItem('current_workspace_id');
+    return localStorage.getItem('current_workspace_id') || '1';
   }
 
-  // Get available repositories from GitHub for workspace creation
-  async getAvailableRepositories(): Promise<any[]> {
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/github/repositories`,
-        this.getAuthHeaders()
-      );
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching repositories:', error);
-      throw error;
-    }
-  }
-
-  // Validate email format
-  validateEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  // Parse and validate multiple emails
-  parseEmails(emailString: string): string[] {
-    return emailString
-      .split(',')
-      .map(email => email.trim())
-      .filter(email => email.length > 0);
-  }
-
-  validateEmails(emails: string[]): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
+  // Create workspace (for now, use GitHub OAuth flow)
+  async createWorkspace(name: string): Promise<void> {
+    const redirectUri = `${window.location.origin}/workspace/callback`;
+    const state = encodeURIComponent(JSON.stringify({ name, action: 'create_workspace' }));
     
-    emails.forEach(email => {
-      if (!this.validateEmail(email)) {
-        errors.push(`Invalid email format: ${email}`);
-      }
-    });
+    sessionStorage.setItem('pending_workspace_name', name);
+    
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${import.meta.env.VITE_GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=repo&state=${state}`;
+  }
 
-    return {
-      valid: errors.length === 0,
-      errors
-    };
+  // Update workspace name
+  async updateWorkspace(workspaceId: string, data: { name: string }): Promise<Workspace> {
+    // This would need a backend endpoint to update team name
+    // For now, return the workspace as-is
+    return await this.getWorkspace(workspaceId);
+  }
+
+  // Utility functions from teamService
+  validateEmail(email: string): boolean {
+    return teamService.validateEmail(email);
+  }
+
+  parseEmails(emailString: string): string[] {
+    return teamService.parseEmails(emailString);
+  }
+
+  validateEmails(emails: string[]) {
+    return teamService.validateEmails(emails);
   }
 }
 
