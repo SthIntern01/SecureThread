@@ -1,3 +1,5 @@
+// DEPRECATED: Bitbucket now uses full redirect flow like GitHub
+// This file is kept for reference only
 import React, { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EtherealBackground } from "../components/ui/ethereal-background";

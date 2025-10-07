@@ -1,5 +1,5 @@
-// Create this as a new file: frontend/src/hooks/use-bitbucket-auth.ts
-
+// DEPRECATED: Bitbucket now uses full redirect flow like GitHub
+// This file is kept for reference only
 import { useState } from 'react';
 
 interface BitbucketAuthResult {

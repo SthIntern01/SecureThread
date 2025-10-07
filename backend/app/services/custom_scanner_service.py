@@ -18,7 +18,12 @@ class CustomScannerService:
     def __init__(self, db: Session):
         self.db = db
         self.github_service = GitHubService()
-        
+
+         # ✅ ADD THIS: Import other services
+        from app.services.bitbucket_services import BitbucketService
+        self.bitbucket_service = BitbucketService()
+        # Note: Add GitLab service when implemented
+
         # Configuration
         self.MAX_FILES_TO_SCAN = 50
         self.MAX_FILE_SIZE = 100 * 1024  # 100KB
@@ -170,12 +175,15 @@ class CustomScannerService:
             file_path = file_info['path']
             
             try:
+                logger.info(f"Fetching content for file: {file_path}")
+                
                 # Get file content
                 file_content = await self._get_file_content(
                     access_token, repo_full_name, file_path, provider_type
                 )
                 
                 if not file_content:
+                    logger.warning(f"Could not read content for {file_path}")
                     file_scan_results.append({
                         "file_path": file_path,
                         "status": "skipped",
@@ -185,16 +193,24 @@ class CustomScannerService:
                     })
                     continue
                 
+                logger.info(f"Successfully fetched {len(file_content)} bytes for {file_path}")
+                
                 # Apply rules to file content
+                logger.info(f"Applying {len(rules)} rules to {file_path}")
                 file_vulnerabilities = []
                 for rule in rules:
+                    logger.debug(f"Applying rule '{rule.get('name')}' to {file_path}")
                     matches = self._apply_rule_to_content(file_content, file_path, rule)
+                    if matches:
+                        logger.info(f"Rule '{rule.get('name')}' found {len(matches)} matches in {file_path}")
                     file_vulnerabilities.extend(matches)
                 
                 # Update results
                 files_scanned += 1
                 status = "vulnerable" if file_vulnerabilities else "scanned"
                 reason = f"Found {len(file_vulnerabilities)} vulnerabilities" if file_vulnerabilities else "No vulnerabilities found"
+                
+                logger.info(f"Completed scanning {file_path}: {status}")
                 
                 file_scan_results.append({
                     "file_path": file_path,
@@ -423,17 +439,126 @@ class CustomScannerService:
         seconds = total_seconds % 60
         return f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
     
-    async def _get_repository_files(self, access_token: str, repo_full_name: str, provider_type: str):
-        """Get repository files (reuse from scanner_service.py)"""
-        # Implementation similar to scanner_service.py
-        pass
+    async def _get_repository_files(
+        self,
+        access_token: str,
+        repo_full_name: str,
+        provider_type: str
+    ) -> List[Dict[str, Any]]:
+        """Get repository files - multi-provider support"""
+        try:
+            if provider_type == "github":
+                # Get repository tree recursively
+                tree_data = self.github_service.get_repository_tree(
+                    access_token, repo_full_name
+                )
+                
+                if not tree_data or 'tree' not in tree_data:
+                    return []
+                
+                files = []
+                for item in tree_data['tree']:
+                    if item.get('type') == 'blob':  # It's a file
+                        files.append({
+                            'path': item['path'],
+                            'sha': item['sha'],
+                            'size': item.get('size', 0)
+                        })
+                
+                return files
+                
+            elif provider_type == "bitbucket":
+                # Extract workspace and repo_slug from full_name
+                workspace, repo_slug = repo_full_name.split("/", 1)
+                
+                # Get repository tree
+                tree_data = self.bitbucket_service.get_repository_tree_all_files(
+                    access_token, workspace, repo_slug
+                )
+                
+                if not tree_data:
+                    return []
+                
+                return tree_data
+                
+            else:
+                logger.error(f"Unsupported provider type: {provider_type}")
+                return []
+            
+        except Exception as e:
+            logger.error(f"Error getting repository files: {e}", exc_info=True)
+            return []
     
-    async def _get_file_content(self, access_token: str, repo_full_name: str, file_path: str, provider_type: str):
-        """Get file content (reuse from scanner_service.py)"""  
-        # Implementation similar to scanner_service.py
-        pass
+    async def _get_file_content(
+        self,
+        access_token: str,
+        repo_full_name: str,
+        file_path: str,
+        provider_type: str
+    ) -> Optional[str]:
+        """Get file content - multi-provider support"""
+        try:
+            if provider_type == "github":
+                file_data = self.github_service.get_file_content(
+                    access_token, repo_full_name, file_path
+                )
+                
+                if file_data and not file_data.get('is_binary'):
+                    return file_data.get('content', '')
+                return None
+                
+            elif provider_type == "bitbucket":
+                # Extract workspace and repo_slug from full_name
+                workspace, repo_slug = repo_full_name.split("/", 1)
+                
+                # Get file content
+                content = self.bitbucket_service.get_file_content(
+                    access_token, workspace, repo_slug, file_path
+                )
+                
+                return content if content else None
+            
+            else:
+                logger.error(f"Unsupported provider type: {provider_type}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting file content for {file_path}: {e}", exc_info=True)
+            return None
     
     async def _save_vulnerabilities(self, scan_id: int, vulnerabilities: List[Dict[str, Any]]):
-        """Save vulnerabilities to database (reuse from scanner_service.py)"""
-        # Implementation similar to scanner_service.py
-        pass
+        """Save vulnerabilities to database"""
+        try:
+            logger.info(f"Saving {len(vulnerabilities)} vulnerabilities to database for scan {scan_id}")
+            
+            saved_count = 0
+            for vuln_data in vulnerabilities:
+                try:
+                    vulnerability = Vulnerability(
+                        scan_id=scan_id,
+                        title=vuln_data.get('title', 'Unknown Vulnerability'),
+                        description=vuln_data.get('description', ''),
+                        severity=vuln_data.get('severity', 'medium'),
+                        category=vuln_data.get('category', 'custom'),
+                        file_path=vuln_data.get('file_path', ''),
+                        line_number=vuln_data.get('line_number'),
+                        code_snippet=vuln_data.get('code_snippet'),
+                        recommendation=vuln_data.get('recommendation', 'Review and fix this issue'),
+                        risk_score=vuln_data.get('risk_score', 5.0),
+                        status='open'
+                    )
+                    
+                    self.db.add(vulnerability)
+                    saved_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error saving individual vulnerability: {e}")
+                    continue
+            
+            self.db.commit()
+            logger.info(f"Successfully saved {saved_count} vulnerabilities")
+            
+        except Exception as e:
+            logger.error(f"Error saving vulnerabilities: {e}", exc_info=True)
+            self.db.rollback()
+            raise
