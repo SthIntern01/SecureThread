@@ -1331,9 +1331,10 @@ const handleGenAIScan = async () => {
       // Start polling for scan status
       startScanPolling(data.id, projectId);
     } else {
-      const errorData = await response.json();
-      console.error("Failed to start scan:", errorData);
-      setError(errorData.detail || "Failed to start scan");
+  const errorData = await response.json();
+  console.error("Custom scan failed:", errorData);
+  console.error("Validation errors:", JSON.stringify(errorData.detail, null, 2)); // ✅ ADD THIS LINE
+  setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
       setScanningProjects((prev) => {
         const newSet = new Set(prev);
         newSet.delete(projectId);
@@ -1405,7 +1406,7 @@ const handleStopScan = async (projectId: number) => {
   }
 };
 
-// Update your handleCustomScan function:
+
 const handleCustomScan = async (selectedRules: number[], customRules?: any[]) => {
   if (!selectedProjectForScan) {
     console.error("No project selected for scan");
@@ -1415,40 +1416,90 @@ const handleCustomScan = async (selectedRules: number[], customRules?: any[]) =>
   const projectId = selectedProjectForScan.id;
   setShowScanMethodModal(false);
   
-  // Temporarily use the regular scan endpoint for testing
+  console.log("=== CUSTOM SCAN DEBUG ===");
+  console.log("Project ID:", projectId);
+  console.log("Selected Rules:", selectedRules);
+  console.log("Custom Rules:", customRules);
+  
   try {
+    setScanningProjects((prev) => new Set(prev).add(projectId));
+    
     const token = localStorage.getItem("access_token");
-    const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/start`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        repository_id: projectId,
-        scan_config: {
-          max_files: 10,
-          max_vulnerabilities: 5,
-          priority_scan: true,
-          scan_type: "custom_rules", // Add this to distinguish
-          selected_rules: selectedRules,
-          custom_rules: customRules
-        }
-      })
-    });
+    
+    const requestBody = {
+  repository_id: projectId,
+  selected_rule_ids: Array.isArray(selectedRules) && selectedRules.length > 0 
+    ? selectedRules 
+    : [1, 2, 3, 4], // ✅ Use default rules if none selected
+  custom_rules: null,
+  scan_config: null
+};
+
+console.log("=== REQUEST DEBUG ===");
+console.log("Project ID:", projectId);
+console.log("Selected Rules:", selectedRules);
+console.log("Is Array?", Array.isArray(selectedRules));
+console.log("Length:", selectedRules?.length);
+console.log("Final Body:", JSON.stringify(requestBody, null, 2));
+    console.log("Request Body:", JSON.stringify(requestBody, null, 2));
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scan-rules/custom/scan`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody)
+      }
+    );
+    
+    console.log("Response Status:", response.status);
     
     if (response.ok) {
       const data = await response.json();
-      console.log("Custom scan started:", data);
-      await fetchProjects();
+      console.log("Custom scan started successfully:", data);
+      
+      // Update the project status immediately
+      setProjects((prevProjects) =>
+        prevProjects.map((project) =>
+          project.id === projectId
+            ? {
+                ...project,
+                latest_scan: {
+                  id: data.scan_id,
+                  status: "pending",
+                  started_at: new Date().toISOString(),
+                },
+                status: "scanning" as const,
+              }
+            : project
+        )
+      );
+
+      // Start polling for scan status
+      if (data.scan_id) {
+        startScanPolling(data.scan_id, projectId);
+      }
     } else {
       const errorData = await response.json();
       console.error("Custom scan failed:", errorData);
       setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
     }
   } catch (error) {
     console.error("Custom scan failed:", error);
     setError("Network error occurred while starting custom scan");
+    setScanningProjects((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(projectId);
+      return newSet;
+    });
   } finally {
     setSelectedProjectForScan(null);
   }
