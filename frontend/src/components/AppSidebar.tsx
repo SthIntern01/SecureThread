@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
+import { useWorkspace } from "../contexts/WorkspaceContext";
 import logo from "../images/logo.png";
 import {
   IconDashboard,
@@ -21,12 +22,6 @@ import { ChevronDown, Plus, Settings } from "lucide-react";
 interface AppSidebarProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-  role: string;
 }
 
 const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
@@ -55,24 +50,16 @@ const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const navigate = useNavigate();
-  
-  // TODO: Replace with actual workspace data from your API/context
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>({
-    id: "1",
-    name: "Demo w8NGeD0tIl2",
-    role: "Owner"
-  });
-  
-  const [workspaces] = useState<Workspace[]>([
-    { id: "1", name: "Demo w8NGeD0tIl2", role: "Owner" },
-    { id: "2", name: "Production Workspace", role: "Admin" },
-    { id: "3", name: "Development Team", role: "Member" },
-  ]);
+  const { currentWorkspace, workspaces, switchWorkspace } = useWorkspace();
 
-  const handleWorkspaceSwitch = (workspace: Workspace) => {
-    setCurrentWorkspace(workspace);
-    setShowDropdown(false);
-    // TODO: Add API call to switch workspace context
+  const handleWorkspaceSwitch = async (workspaceId: string) => {
+    try {
+      await switchWorkspace(workspaceId);
+      setShowDropdown(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error switching workspace:', error);
+    }
   };
 
   const handleCreateWorkspace = () => {
@@ -85,100 +72,82 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     navigate("/workspace/settings");
   };
 
+  if (!currentWorkspace) {
+    return null;
+  }
+
   return (
-    <div className="relative px-3 mb-4">
+    <div className={`relative mb-4 ${sidebarOpen ? 'px-3' : 'flex justify-center'}`}>
       <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className={`w-full flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all duration-200 border border-white/10 ${
-          !sidebarOpen ? "justify-center" : ""
+        onClick={() => sidebarOpen && setShowDropdown(!showDropdown)}
+        className={`flex items-center transition-all duration-200 ${
+          sidebarOpen 
+            ? 'w-full space-x-3 p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-[#252525] border border-neutral-800' 
+            : 'w-12 h-12 justify-center rounded-xl bg-gradient-to-br from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg'
         }`}
       >
-        {sidebarOpen ? (
+        <div className="w-10 h-10 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+          <span className="text-white font-bold text-base">
+            {currentWorkspace.name.charAt(0).toUpperCase()}
+          </span>
+        </div>
+        
+        {sidebarOpen && (
           <>
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="w-8 h-8 bg-gradient-to-br from-accent/40 to-accent/60 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-semibold text-sm">
-                  {currentWorkspace.name.charAt(0)}
-                </span>
-              </div>
-              <div className="text-left min-w-0 flex-1">
-                <div className="text-white font-medium text-sm truncate">
-                  {currentWorkspace.name}
-                </div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-white font-semibold text-sm truncate">
+                {currentWorkspace.name.replace("'s Workspace", "").replace("'s Team", "").trim()}
               </div>
             </div>
-            <ChevronDown className={`w-4 h-4 text-white/70 flex-shrink-0 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
+            <ChevronDown className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
           </>
-        ) : (
-          <div className="w-8 h-8 bg-gradient-to-br from-accent/40 to-accent/60 rounded-lg flex items-center justify-center">
-            <span className="text-white font-semibold text-sm">
-              {currentWorkspace.name.charAt(0)}
-            </span>
-          </div>
         )}
       </button>
 
       {showDropdown && sidebarOpen && (
-        <div className="absolute top-full left-3 right-3 mt-2 bg-[#1a1a2e] rounded-lg shadow-2xl border border-white/20 py-2 z-50 max-h-[400px] overflow-y-auto">
-          {/* Current Workspace Info */}
-          <div className="px-3 py-2 border-b border-white/10">
-            <div className="flex items-center space-x-2 mb-1">
-              <div className="w-8 h-8 bg-gradient-to-br from-accent/40 to-accent/60 rounded-lg flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {currentWorkspace.name.charAt(0)}
-                </span>
-              </div>
-              <div>
-                <div className="text-white font-medium text-sm">
-                  {currentWorkspace.name}
-                </div>
-                <div className="text-white/50 text-xs">Current Workspace</div>
-              </div>
-            </div>
-          </div>
-
+        <div className="absolute top-full left-3 right-3 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[400px] overflow-y-auto">
           {/* Other Workspaces */}
-          <div className="py-1">
-            {workspaces
-              .filter(w => w.id !== currentWorkspace.id)
-              .map((workspace) => (
-                <button
-                  key={workspace.id}
-                  onClick={() => handleWorkspaceSwitch(workspace)}
-                  className="w-full flex items-center space-x-2 px-3 py-2 hover:bg-white/10 transition-colors text-left"
-                >
-                  <div className="w-6 h-6 bg-gradient-to-br from-white/20 to-white/10 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
-                      {workspace.name.charAt(0)}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white/90 text-sm truncate">
-                      {workspace.name}
+          {workspaces.filter(w => w.id !== currentWorkspace.id).length > 0 && (
+            <>
+              {workspaces
+                .filter(w => w.id !== currentWorkspace.id)
+                .map((workspace) => (
+                  <button
+                    key={workspace.id}
+                    onClick={() => handleWorkspaceSwitch(workspace.id)}
+                    className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-gray-700 text-sm font-semibold">
+                        {workspace.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
-                    <div className="text-white/50 text-xs">{workspace.role}</div>
-                  </div>
-                </button>
-              ))}
-          </div>
+                    <span className="text-gray-900 text-sm font-medium truncate">
+                      {workspace.name}
+                    </span>
+                  </button>
+                ))}
+              <div className="border-t border-gray-200 my-1"></div>
+            </>
+          )}
 
-          {/* Actions */}
-          <div className="border-t border-white/10 py-1 mt-1">
-            <button
-              onClick={handleCreateWorkspace}
-              className="w-full flex items-center space-x-2 px-3 py-2 hover:bg-white/10 transition-colors text-white/90"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="text-sm">Create New Workspace</span>
-            </button>
-            <button
-              onClick={handleWorkspaceSettings}
-              className="w-full flex items-center space-x-2 px-3 py-2 hover:bg-white/10 transition-colors text-white/90"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="text-sm">Workspace Settings</span>
-            </button>
-          </div>
+          {/* Create New Workspace */}
+          <button
+            onClick={handleCreateWorkspace}
+            className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+          >
+            <Plus className="w-5 h-5 text-gray-700 flex-shrink-0" />
+            <span className="text-gray-900 text-sm font-medium whitespace-nowrap">Create New Workspace</span>
+          </button>
+
+          {/* Workspace Settings */}
+          <button
+            onClick={handleWorkspaceSettings}
+            className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+          >
+            <Settings className="w-5 h-5 text-gray-700 flex-shrink-0" />
+            <span className="text-gray-900 text-sm font-medium">Workspace Settings</span>
+          </button>
         </div>
       )}
     </div>
@@ -191,7 +160,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Navigation links (Members removed)
   const feedLinks = [
     {
       label: "Dashboard",
@@ -270,31 +238,26 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
     <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
       <SidebarBody className="justify-between gap-10">
         <div className="flex flex-1 flex-col">
-          {/* Logo */}
           <div className="flex items-center justify-center mb-4 min-h-[80px] relative">
             <div className="flex-1 flex justify-center">
               <Logo sidebarOpen={sidebarOpen} />
             </div>
           </div>
 
-          {/* Workspace Switcher */}
           <WorkspaceSwitcher sidebarOpen={sidebarOpen} />
 
-          {/* Main Navigation */}
           <div className="mt-2 flex flex-col gap-2">
             {feedLinks.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
           </div>
 
-          {/* Bottom Navigation */}
           <div className="mt-auto flex flex-col gap-2">
             {bottomLinks.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
           </div>
 
-          {/* Profile Section with Enhanced Dropdown */}
           <div className="pt-4 border-t border-brand-gray/30 relative">
             <div onClick={handleProfileClick} className="cursor-pointer">
               <SidebarLink link={profileLink} />

@@ -63,44 +63,35 @@ const SignInPage = () => {
     }
 
     // Handle callbacks in main window with session-based deduplication
-    if (code && state) {
-      const storedSession = sessionStorage.getItem("oauth_session");
-      const processingKey = `processing_${code}`;
-      const processedKey = `processed_${code}`;
+   if (code && state) {
+  const storedSession = sessionStorage.getItem("oauth_session");
+  const processingKey = `processing_${code}`;
+  const processedKey = `processed_${code}`;
 
-      // Check if we're already processing this code across all browser sessions
-      if (
-        localStorage.getItem(processingKey) ||
-        localStorage.getItem(processedKey)
-      ) {
-        console.log(
-          "OAuth code already being processed or completed in another session"
-        );
-        return;
-      }
+  if (
+    localStorage.getItem(processingKey) ||
+    localStorage.getItem(processedKey)
+  ) {
+    console.log("OAuth code already being processed or completed");
+    return;
+  }
 
-      // Check if this specific session is already processing
-      if (isProcessingRef.current) {
-        console.log("OAuth already processing in this session");
-        return;
-      }
+  if (isProcessingRef.current) {
+    console.log("OAuth already processing in this session");
+    return;
+  }
 
-      // Mark as processing immediately
-      isProcessingRef.current = true;
-      localStorage.setItem(processingKey, storedSession || sessionKey);
+  isProcessingRef.current = true;
+  localStorage.setItem(processingKey, storedSession || sessionKey);
 
-      console.log("Processing OAuth callback:", {
-        code: code.substring(0, 10) + "...",
-        state,
-        session: storedSession?.substring(0, 10),
-      });
-
-      if (state === "securethread_github_auth") {
-        handleGitHubCallback(code);
-      } else if (state === "securethread_google_auth") {
-        handleGoogleCallbackInMainWindow(code);
-      }
-    }
+  if (state === "securethread_github_auth") {
+    handleGitHubCallback(code);
+  } else if (state === "securethread_google_auth") {
+    handleGoogleCallbackInMainWindow(code);
+  } else if (state === "securethread_bitbucket_auth") {  // ADD THIS
+    handleBitbucketCallback(code);
+  }
+}
 
     // Cleanup old processing flags on page load
     const cleanupOldFlags = () => {
@@ -549,42 +540,33 @@ const SignInPage = () => {
   };
 
   const handleBitbucketLogin = async () => {
-    if (loadingProvider !== null) {
-      console.log("Login already in progress, ignoring click");
-      return;
-    }
+  if (loadingProvider !== null) {
+    console.log("Login already in progress, ignoring click");
+    return;
+  }
 
-    try {
-      setLoadingProvider("bitbucket");
-      setError("");
+  try {
+    setLoadingProvider("bitbucket");
+    setError("");
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
-      );
-      const data = await response.json();
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
+    );
+    const data = await response.json();
 
-      if (data.authorization_url) {
-        const width = 600,
-          height = 700;
-        const left = window.screen.width / 2 - width / 2;
-        const top = window.screen.height / 2 - height / 2;
-        popup.current = window.open(
-          data.authorization_url,
-          "bitbucket-auth-popup",
-          `width=${width},height=${height},top=${top},left=${left}`
-        );
-
-        popupInterval.current = window.setInterval(checkPopupClosed, 1000);
-      } else {
-        setError("Failed to get Bitbucket authorization URL");
-        setLoadingProvider(null);
-      }
-    } catch (error) {
-      console.error("Bitbucket login error:", error);
-      setError("Failed to initiate Bitbucket login");
+    if (data.authorization_url) {
+      // Use full redirect flow like GitHub
+      window.location.href = data.authorization_url;
+    } else {
+      setError("Failed to get Bitbucket authorization URL");
       setLoadingProvider(null);
     }
-  };
+  } catch (error) {
+    console.error("Bitbucket login error:", error);
+    setError("Failed to initiate Bitbucket login");
+    setLoadingProvider(null);
+  }
+};
 
   const handleBitbucketCallback = async (code: string) => {
     const processingKey = `processing_${code}`;

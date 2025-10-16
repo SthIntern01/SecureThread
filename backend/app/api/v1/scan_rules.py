@@ -1,6 +1,6 @@
 # Create: backend/app/api/v1/scan_rules.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from app.core.database import get_db
@@ -14,6 +14,52 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
+# NEW FUNCTION - ADD THIS ENTIRE BLOCK
+async def run_custom_scan_background(
+    repository_id: int,
+    access_token: str,
+    provider_type: str,
+    rules: List[Dict[str, Any]],
+    scan_config: Optional[Dict[str, Any]]
+):
+    """Background task to run custom rule scan"""
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    
+    try:
+        from app.services.custom_scanner_service import CustomScannerService
+        from datetime import datetime
+        
+        logger.info(f"Starting custom scan background task for repository {repository_id}")
+        scanner_service = CustomScannerService(db)
+        
+        await scanner_service.scan_with_custom_rules(
+            repository_id,
+            access_token,
+            provider_type,
+            rules,
+            scan_config
+        )
+        logger.info(f"Custom scan background task completed for repository {repository_id}")
+        
+    except Exception as e:
+        logger.error(f"Custom scan background task failed: {e}", exc_info=True)
+        # Update scan status to failed
+        from app.models.vulnerability import Scan
+        scan = db.query(Scan).filter(
+            Scan.repository_id == repository_id,
+            Scan.status == "running"
+        ).first()
+        if scan:
+            from datetime import datetime, timezone
+            scan.status = "failed"
+            scan.error_message = str(e)
+            scan.completed_at = datetime.now(timezone.utc)
+            db.commit()
+    
+    finally:
+        db.close()
 
 class ScanRuleResponse(BaseModel):
     id: int
@@ -143,6 +189,7 @@ async def upload_custom_rules(
 @router.post("/custom/scan", response_model=Dict[str, Any])
 async def start_custom_scan(
     scan_request: CustomScanRequest,
+    background_tasks: BackgroundTasks,  # ← ADD THIS LINE
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -230,10 +277,7 @@ async def start_custom_scan(
         db.commit()
         db.refresh(scan)
         
-        # Start custom scanner service
-        scanner_service = CustomScannerService(db)
-        
-        # Get access token based on repository source
+           # Get access token based on repository source
         access_token = None
         if repository.source_type == "github":
             access_token = current_user.github_access_token
@@ -248,10 +292,18 @@ async def start_custom_scan(
                 detail=f"No access token found for {repository.source_type}"
             )
         
-        # Start the custom scan (this would be implemented in CustomScannerService)
-        # For now, return success
-        scan.status = "running"
-        db.commit()
+                # ✅ CRITICAL FIX: Start the custom scan in background
+        logger.info(f"Adding custom scan to background tasks for repository {scan_request.repository_id}")
+        background_tasks.add_task(
+            run_custom_scan_background,
+            scan_request.repository_id,
+            access_token,
+            repository.source_type,
+            all_rules,
+            scan_request.scan_config
+        )
+        
+        logger.info(f"Custom scan queued successfully - scan_id: {scan.id}")
         
         return {
             "scan_id": scan.id,
