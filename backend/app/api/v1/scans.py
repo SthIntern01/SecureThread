@@ -658,3 +658,129 @@ async def debug_scan_metadata(
         "has_file_scan_results": "file_scan_results" in (scan.scan_metadata or {}),
         "file_scan_results_count": len(scan.scan_metadata.get("file_scan_results", [])) if scan.scan_metadata else 0
     }
+
+# Add this to your scans.py file after the existing endpoints
+
+@router.get("/custom/", response_model=dict)
+async def get_custom_scans(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all custom scan results"""
+    try:
+        # Query scans with custom rules
+        custom_scans = db.query(Scan).filter(
+            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
+        ).order_by(Scan.started_at.desc()).all()
+        
+        scans_data = []
+        for scan in custom_scans:
+            # Get repository name
+            repo = db.query(Repository).filter(Repository.id == scan.repository_id).first()
+            repo_name = repo.full_name if repo else "Unknown Repository"
+            
+            scan_data = {
+                'id': scan.id,
+                'repository_id': scan.repository_id,
+                'repository_name': repo_name,
+                'status': scan.status,
+                'started_at': scan.started_at.isoformat() if scan.started_at else None,
+                'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
+                'total_vulnerabilities': scan.total_vulnerabilities,
+                'critical_count': scan.critical_count,
+                'high_count': scan.high_count,
+                'medium_count': scan.medium_count,
+                'low_count': scan.low_count,
+                'security_score': scan.security_score,
+                'scan_metadata': scan.scan_metadata or {}
+            }
+            scans_data.append(scan_data)
+        
+        return {
+            "scans": scans_data,
+            "total_count": len(scans_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching custom scans: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch custom scans"
+        )
+
+
+# Also add this endpoint for custom scan details
+@router.get("/custom/{scan_id}", response_model=dict)
+async def get_custom_scan_details(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information for a specific custom scan"""
+    try:
+        # Verify scan ownership and that it's a custom scan
+        scan = db.query(Scan).join(Repository).filter(
+            Scan.id == scan_id,
+            Repository.owner_id == current_user.id,
+            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
+        ).first()
+        
+        if not scan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Custom scan not found"
+            )
+        
+        # Get repository info
+        repo = db.query(Repository).filter(Repository.id == scan.repository_id).first()
+        
+        # Get vulnerabilities for this scan
+        vulnerabilities = db.query(Vulnerability).filter(
+            Vulnerability.scan_id == scan_id
+        ).all()
+        
+        vuln_data = []
+        for vuln in vulnerabilities:
+            vuln_data.append({
+                'id': vuln.id,
+                'title': vuln.title,
+                'description': vuln.description,
+                'severity': vuln.severity,
+                'category': vuln.category,
+                'file_path': vuln.file_path,
+                'line_number': vuln.line_number,
+                'risk_score': vuln.risk_score,
+                'status': vuln.status
+            })
+        
+        return {
+            'scan': {
+                'id': scan.id,
+                'repository_id': scan.repository_id,
+                'repository_name': repo.full_name if repo else 'Unknown',
+                'status': scan.status,
+                'started_at': scan.started_at.isoformat() if scan.started_at else None,
+                'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
+                'total_files_scanned': scan.total_files_scanned,
+                'total_vulnerabilities': scan.total_vulnerabilities,
+                'critical_count': scan.critical_count,
+                'high_count': scan.high_count,
+                'medium_count': scan.medium_count,
+                'low_count': scan.low_count,
+                'security_score': scan.security_score,
+                'code_coverage': scan.code_coverage,
+                'scan_duration': scan.scan_duration,
+                'scan_metadata': scan.scan_metadata or {}
+            },
+            'vulnerabilities': vuln_data,
+            'vulnerability_count': len(vuln_data)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching custom scan details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch custom scan details"
+        )

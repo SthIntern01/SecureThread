@@ -24,12 +24,12 @@ import {
 } from "@/components/ui/select"
 import { Zap } from "lucide-react"
 
-const alertsData = [
-  { severity: "critical", count: 5, fill: "var(--color-critical)" },
-  { severity: "high", count: 4, fill: "var(--color-high)" },
-  { severity: "medium", count: 3, fill: "var(--color-medium)" },
-  { severity: "low", count: 0, fill: "var(--color-low)" },
-]
+interface SecurityAlertsPieChartProps {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
 
 const chartConfig = {
   count: {
@@ -53,15 +53,55 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function SecurityAlertsPieChart() {
+export function SecurityAlertsPieChart({ critical, high, medium, low }: SecurityAlertsPieChartProps) {
   const id = "security-alerts-pie"
+  
+  // Use dynamic data from props
+  const alertsData = React.useMemo(() => [
+    { severity: "critical", count: critical, fill: "var(--color-critical)" },
+    { severity: "high", count: high, fill: "var(--color-high)" },
+    { severity: "medium", count: medium, fill: "var(--color-medium)" },
+    { severity: "low", count: low, fill: "var(--color-low)" },
+  ], [critical, high, medium, low])
+
   const [activeSeverity, setActiveSeverity] = React.useState(alertsData[0].severity)
   const activeIndex = React.useMemo(
     () => alertsData.findIndex((item) => item.severity === activeSeverity),
-    [activeSeverity]
+    [activeSeverity, alertsData]
   )
-  const severities = React.useMemo(() => alertsData.map((item) => item.severity), [])
-  const totalAlerts = React.useMemo(() => alertsData.reduce((sum, item) => sum + item.count, 0), [])
+  const severities = React.useMemo(() => alertsData.map((item) => item.severity), [alertsData])
+  const totalAlerts = React.useMemo(() => alertsData.reduce((sum, item) => sum + item.count, 0), [alertsData])
+
+  // Update active severity when data changes
+  React.useEffect(() => {
+    // Find the first severity that has alerts, or default to critical
+    const firstSeverityWithAlerts = alertsData.find(item => item.count > 0)?.severity || "critical"
+    setActiveSeverity(firstSeverityWithAlerts)
+  }, [alertsData])
+
+  // If no alerts, show empty state
+  if (totalAlerts === 0) {
+    return (
+      <div className="flex flex-col bg-white/5 backdrop-blur-sm rounded-2xl border border-white/20">
+        <ChartStyle id={id} config={chartConfig} />
+        <div className="flex-row items-start space-y-0 pb-0 p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Zap className="w-5 h-5 mr-2 text-green-400" />
+              <h3 className="text-lg font-semibold text-white">Security Alerts</h3>
+            </div>
+            <span className="text-sm text-green-400 font-medium">0</span>
+          </div>
+        </div>
+        <div className="flex flex-1 justify-center items-center pb-4 min-h-[200px]">
+          <div className="text-center text-white/60">
+            <div className="text-lg mb-2">No Vulnerabilities</div>
+            <div className="text-sm">All scans clean!</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col bg-white/5 backdrop-blur-sm rounded-2xl border border-white/20">
@@ -72,7 +112,11 @@ export function SecurityAlertsPieChart() {
             <Zap className="w-5 h-5 mr-2 text-yellow-400" />
             <h3 className="text-lg font-semibold text-white">Security Alerts</h3>
           </div>
-          <span className="text-sm text-red-400 font-medium">{totalAlerts}</span>
+          <span className={`text-sm font-medium ${
+            totalAlerts > 0 ? "text-red-400" : "text-green-400"
+          }`}>
+            {totalAlerts}
+          </span>
         </div>
         <Select value={activeSeverity} onValueChange={setActiveSeverity}>
           <SelectTrigger
@@ -155,14 +199,14 @@ export function SecurityAlertsPieChart() {
                           y={viewBox.cy}
                           className="fill-white text-2xl font-bold"
                         >
-                          {alertsData[activeIndex].count.toLocaleString()}
+                          {alertsData[activeIndex]?.count.toLocaleString() || 0}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
                           y={(viewBox.cy || 0) + 18}
                           className="fill-white/70 text-xs"
                         >
-                          {chartConfig[alertsData[activeIndex].severity as keyof typeof chartConfig]?.label}
+                          {chartConfig[alertsData[activeIndex]?.severity as keyof typeof chartConfig]?.label || "Critical"}
                         </tspan>
                       </text>
                     )
