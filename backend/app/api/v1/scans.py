@@ -664,14 +664,28 @@ async def debug_scan_metadata(
 @router.get("/custom/", response_model=dict)
 async def get_custom_scans(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # ✅ CORRECT
 ):
     """Get all custom scan results"""
     try:
-        # Query scans with custom rules
-        custom_scans = db.query(Scan).filter(
-            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
-        ).order_by(Scan.started_at.desc()).all()
+        # ✅ FIX: Use proper JSONB query for PostgreSQL/MySQL
+        from sqlalchemy import cast, String
+        
+        # Query scans with custom rules - FIXED
+        all_scans = db.query(Scan).all()
+        
+        # Filter in Python instead of SQL (more reliable for JSONB)
+        custom_scans = [
+            scan for scan in all_scans 
+            if scan.scan_metadata 
+            and isinstance(scan.scan_metadata, dict)
+            and scan.scan_metadata.get('scan_type') == 'custom_rules'
+        ]
+        
+        # Sort by started_at
+        custom_scans.sort(key=lambda x: x.started_at, reverse=True)
+        
+        logger.info(f"Found {len(custom_scans)} custom scans")
         
         scans_data = []
         for scan in custom_scans:
@@ -718,14 +732,20 @@ async def get_custom_scan_details(
 ):
     """Get detailed information for a specific custom scan"""
     try:
-        # Verify scan ownership and that it's a custom scan
+        # ✅ FIX: Verify scan ownership without JSONB filter first
         scan = db.query(Scan).join(Repository).filter(
             Scan.id == scan_id,
-            Repository.owner_id == current_user.id,
-            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
+            Repository.owner_id == current_user.id
         ).first()
         
         if not scan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scan not found"
+            )
+        
+        # ✅ Then verify it's a custom scan in Python
+        if not scan.scan_metadata or scan.scan_metadata.get('scan_type') != 'custom_rules':
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Custom scan not found"
