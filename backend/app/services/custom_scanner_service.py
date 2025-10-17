@@ -37,13 +37,13 @@ class CustomScannerService:
         }
     
     async def scan_with_custom_rules(
-        self,
-        repository_id: int,
-        access_token: str,
-        provider_type: str,
-        rules: List[Dict[str, Any]],
-        scan_config: Optional[Dict[str, Any]] = None
-    ) -> Scan:
+    self,
+    repository_id: int,
+    access_token: str,
+    provider_type: str,
+    rules: List[Dict[str, Any]],
+    scan_config: Optional[Dict[str, Any]] = None
+) -> Scan:
         """Scan repository using custom rules"""
         logger.info(f"Starting custom rule scan for repository {repository_id}")
         
@@ -81,6 +81,8 @@ class CustomScannerService:
             scannable_files = self._filter_files(file_tree)
             files_to_scan = scannable_files[:self.MAX_FILES_TO_SCAN]
             
+            logger.info(f"Found {len(scannable_files)} scannable files, will scan {len(files_to_scan)}")
+            
             # Scan files with rules
             scan_results = await self._scan_files_with_rules(
                 files_to_scan, access_token, repository.full_name, 
@@ -100,15 +102,26 @@ class CustomScannerService:
             scan.medium_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'medium'])
             scan.low_count = len([v for v in scan_results["vulnerabilities"] if v.get('severity') == 'low'])
             
-            # Calculate security score
-            scan.security_score = self._calculate_security_score(scan_results["vulnerabilities"])
-            scan.code_coverage = min(80.0, (len(files_to_scan) / max(1, len(scannable_files))) * 100)
+            # ✅ FIXED: Calculate security score (match scanner_service.py)
+            scan.security_score = round(self._calculate_security_score(scan_results["vulnerabilities"]), 1)
+
+            # ✅ FIXED: Calculate code coverage (match scanner_service.py calculation)
+            if len(scannable_files) > 0:
+                coverage_ratio = len(files_to_scan) / len(scannable_files)
+                code_coverage = min(80.0, coverage_ratio * 100)
+                scan.code_coverage = round(code_coverage, 0)  # Round to whole number (no decimals)
+            else:
+                scan.code_coverage = 0
+            
+            logger.info(f"Calculated metrics - Security Score: {scan.security_score}%, Coverage: {scan.code_coverage}%")
             
             # Update metadata
             scan.scan_metadata.update({
                 'file_scan_results': scan_results["file_results"],
                 'scan_completed': True,
-                'scan_end_time': current_time.isoformat()
+                'scan_end_time': current_time.isoformat(),
+                'total_scannable_files': len(scannable_files),
+                'files_scanned': len(files_to_scan)
             })
             
             # Calculate duration
@@ -123,13 +136,24 @@ class CustomScannerService:
             self.db.commit()
             
             logger.info(f"Custom scan completed: {len(scan_results['vulnerabilities'])} vulnerabilities found")
+            logger.info(f"Scan duration: {scan.scan_duration}")
             return scan
             
         except Exception as e:
-            logger.error(f"Custom scan failed: {e}")
+            logger.error(f"Custom scan failed: {e}", exc_info=True)
             scan.status = "failed"
             scan.error_message = str(e)
             scan.completed_at = datetime.now(timezone.utc)
+            
+            # Calculate duration even for failed scans
+            if scan.started_at.tzinfo is None:
+                start_time = scan.started_at.replace(tzinfo=timezone.utc)
+            else:
+                start_time = scan.started_at
+                
+            duration = datetime.now(timezone.utc) - start_time
+            scan.scan_duration = self._format_duration(duration)
+            
             self.db.commit()
             raise
     
