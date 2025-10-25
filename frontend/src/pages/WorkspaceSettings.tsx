@@ -91,9 +91,12 @@ const InviteMembersModal = ({
 
   const generateInviteLink = async () => {
     if (!currentWorkspace?.id) return;
+    
+    const workspaceId = String(currentWorkspace.id); // Convert to string
+    
     try {
       setLoading(true);
-      const response = await workspaceService.generateInviteLink(currentWorkspace.id, role);
+      const response = await workspaceService.generateInviteLink(workspaceId, role);
       setInviteLink(response.invite_link);
     } catch (error) {
       console.error(error);
@@ -111,6 +114,8 @@ const InviteMembersModal = ({
   const handleSendInvites = async () => {
     if (!emails.trim() || !currentWorkspace?.id) return;
 
+    const workspaceId = String(currentWorkspace.id); // Convert to string
+
     try {
       setLoading(true);
       const emailList = workspaceService.parseEmails(emails);
@@ -122,7 +127,7 @@ const InviteMembersModal = ({
       }
 
       const response = await workspaceService.sendEmailInvitations(
-        currentWorkspace.id,
+        workspaceId,
         emailList,
         role
       );
@@ -380,53 +385,63 @@ const WorkspaceSettings = () => {
   }, [currentWorkspace]);
 
   const loadMembers = async () => {
-    if (!currentWorkspace?.id) return;
+  if (!currentWorkspace) return;
+  
+  const workspaceId = String(currentWorkspace.id); // Convert to string
+  
+  try {
+    setLoading(true);
+    const membersData = await workspaceService.getWorkspaceMembers(workspaceId);
     
-    try {
-      setLoading(true);
-      const membersData = await workspaceService.getWorkspaceMembers(currentWorkspace.id);
-      
-      // Explicitly map to TeamMember format
-      const teamMembers: TeamMember[] = membersData.map(m => ({
-        id: m.id,
-        user_id: m.user_id,
-        name: m.name,
-        email: m.email,
-        avatar: m.avatar,
-        role: m.role,
-        status: m.status,
-        authProvider: m.authProvider,
-        dateJoined: m.joined_at,
-        lastActive: (m.last_active || null) as string | null,
-      }));
-      
-      setMembers(teamMembers);
-    } catch (error) {
-      console.error('Error loading members:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Explicitly map to TeamMember format
+    const teamMembers: TeamMember[] = membersData.map(m => ({
+      id: m.id,
+      user_id: m.user_id,
+      name: m.name,
+      email: m.email,
+      avatar: m.avatar,
+      role: m.role,
+      status: m.status,
+      authProvider: m.authProvider,
+      dateJoined: m.joined_at,
+      lastActive: (m.last_active || null) as string | null,
+    }));
+    
+    setMembers(teamMembers);
+  } catch (error) {
+    console.error('Error loading members:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleRemoveMember = async (id: number) => {
-    if (!currentWorkspace?.id) return;
-    try {
-      await workspaceService.removeMember(currentWorkspace.id, id);
-      await loadMembers();
-    } catch (error) {
-      alert("Failed to remove member");
-    }
-  };
+// Fix handleRemoveMember - line 413-421
+const handleRemoveMember = async (id: number) => {
+  if (!currentWorkspace) return;
+  
+  const workspaceId = String(currentWorkspace.id); // Convert to string
+  
+  try {
+    await workspaceService.removeMember(workspaceId, id);
+    await loadMembers();
+  } catch (error) {
+    alert("Failed to remove member");
+  }
+};
 
-  const handleChangeRole = async (id: number, newRole: string) => {
-    if (!currentWorkspace?.id) return;
-    try {
-      await workspaceService.updateMemberRole(currentWorkspace.id, id, newRole);
-      await loadMembers();
-    } catch (error) {
-      alert("Failed to update member role");
-    }
-  };
+// Fix handleChangeRole - line 424-432
+const handleChangeRole = async (id: number, newRole: string) => {
+  if (!currentWorkspace) return;
+  
+  const workspaceId = String(currentWorkspace.id); // Convert to string
+  
+  try {
+    await workspaceService.updateMemberRole(workspaceId, id, newRole);
+    await loadMembers();
+  } catch (error) {
+    alert("Failed to update member role");
+  }
+};
 
   const handleInviteSent = () => {
     loadMembers();

@@ -132,7 +132,7 @@ async def invite_by_email(
         logger.error(f"Error sending email invitations: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Replace your generate_invite_link function in teams.py with this:
+
 
 @router.get("/invite/link", response_model=InviteLinkResponse)
 async def generate_invite_link(
@@ -143,19 +143,14 @@ async def generate_invite_link(
     """Generate invite link"""
     try:
         team_service = TeamService(db)
-        
-        # Get or create default team for user
         team = team_service.get_or_create_default_team(current_user.id)
         
-        # Validate role
         try:
             member_role = MemberRole(role)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid role")
         
-        # ✅ FIX: Create invitation for link-based invites properly
-        # Use a placeholder email that indicates this is a link-based invite
-        placeholder_email = f"link-invite-{team_service.generate_invite_token()[:8]}@placeholder.com"
+        placeholder_email = f"pending-{team_service.generate_invite_token()[:8]}@invite.placeholder"
         
         invitation = team_service.create_invitation(
             team.id,
@@ -164,8 +159,8 @@ async def generate_invite_link(
             current_user.id
         )
         
-        # ✅ FIX: Generate correct frontend URL format
-        invite_link = f"http://localhost:8080/accept-invite?token={invitation.token}"
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        invite_link = f"{frontend_url}/accept-invite?token={invitation.token}"
         
         return {
             "invite_link": invite_link,
@@ -174,7 +169,7 @@ async def generate_invite_link(
         
     except Exception as e:
         logger.error(f"Error generating invite link: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/members/{member_id}/role")
 async def update_member_role(

@@ -10,6 +10,7 @@ export interface Workspace {
   member_count: number;
   repository_count: number;
 }
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export interface WorkspaceMember {
   authProvider: any;
@@ -90,6 +91,23 @@ class WorkspaceService {
       throw error;
     }
   }
+
+  async getWorkspaceRepositories(workspaceId: string): Promise<any[]> {
+  const token = localStorage.getItem('access_token');
+  
+  const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}/repositories`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to fetch workspace repositories');
+  }
+
+  return response.json();
+}
 
   // Generate invite link (uses existing team endpoint)
   async generateInviteLink(workspaceId: string, role: string) {

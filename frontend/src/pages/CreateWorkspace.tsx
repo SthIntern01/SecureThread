@@ -1,39 +1,37 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { EtherealBackground } from "../components/ui/ethereal-background";
-import AppSidebar from "@/components/AppSidebar";
-import { useWorkspace } from "../contexts/WorkspaceContext";
-import {
-  ChevronRight,
-  Building2,
-  Github,
-  AlertCircle,
+// src/pages/CreateWorkspace.tsx
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useWorkspace } from '../contexts/WorkspaceContext';
+import { EtherealBackground } from '../components/ui/ethereal-background';
+import AppSidebar from '@/components/AppSidebar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Building2, 
+  Github, 
+  AlertCircle, 
   ArrowRight,
-} from "lucide-react";
+  Loader2
+} from 'lucide-react';
 
 const CreateWorkspace = () => {
   const navigate = useNavigate();
-  const { createWorkspace } = useWorkspace();
+  const { currentWorkspace } = useWorkspace();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [workspaceName, setWorkspaceName] = useState("");
-  const [error, setError] = useState("");
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [error, setError] = useState('');
 
-  const handleCreateWorkspace = async () => {
+  const handleCreateWorkspace = () => {
     if (!workspaceName.trim()) {
-      setError("Please enter a workspace name");
+      setError('Please enter a workspace name');
       return;
     }
 
-    try {
-      setError("");
-      // This will redirect to GitHub OAuth
-      await createWorkspace(workspaceName);
-    } catch (error: any) {
-      console.error("Error creating workspace:", error);
-      setError(error.message || "Failed to create workspace");
-    }
+    // Store workspace name temporarily
+    sessionStorage.setItem('pending_workspace_name', workspaceName);
+    
+    // Navigate to repository selection
+    navigate('/workspace/select-repositories');
   };
 
   return (
@@ -49,114 +47,102 @@ const CreateWorkspace = () => {
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-              {/* Header */}
-              <div className="p-8 border-b border-white/10">
-                <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Create Workspace</span>
-                </div>
+          <div className="max-w-2xl mx-auto">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                Create New Workspace
+              </h1>
+              <p className="text-white/80">
+                Set up a new workspace to organize and scan your repositories
+              </p>
+            </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
-                      Create New Workspace
-                    </h1>
-                    <p className="text-white/80">
-                      Choose a name and authorize GitHub access
-                    </p>
-                  </div>
-                  <div className="w-16 h-16 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full flex items-center justify-center">
-                    <Building2 className="w-8 h-8 text-accent" />
-                  </div>
+            {error && (
+              <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-red-400 mb-1">Error</h4>
+                  <p className="text-white/80 text-sm">{error}</p>
                 </div>
               </div>
+            )}
 
-              {/* Content */}
+            {/* Main Card */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               <div className="p-8">
-                {error && (
-                  <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-start space-x-3">
-                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-red-400 mb-1">Error</h4>
-                      <p className="text-white/80 text-sm">{error}</p>
-                    </div>
+                {/* Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-accent to-accent/80 rounded-2xl flex items-center justify-center shadow-xl">
+                    <Building2 className="w-10 h-10 text-white" />
                   </div>
-                )}
+                </div>
 
+                {/* Form */}
                 <div className="space-y-6">
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                    <label className="block text-sm font-medium text-white/80 mb-3">
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
                       Workspace Name
                     </label>
                     <Input
-                      placeholder="e.g., Production Team, Development Workspace"
+                      placeholder="e.g., Production Projects, Personal Repos"
                       value={workspaceName}
-                      onChange={(e) => setWorkspaceName(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/50 text-lg h-12"
+                      onChange={(e) => {
+                        setWorkspaceName(e.target.value);
+                        setError('');
+                      }}
+                      className="bg-white/10 border-white/20 text-white placeholder:text-white/50 text-lg py-6"
                       autoFocus
                     />
                     <p className="text-white/60 text-sm mt-2">
-                      Choose a descriptive name that helps you identify this workspace
+                      Choose a descriptive name for your workspace
                     </p>
                   </div>
 
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
+                  {/* Info Box */}
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                     <div className="flex items-start space-x-3">
-                      <Github className="w-8 h-8 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <Github className="w-5 h-5 text-white/70 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="font-semibold text-white mb-2">
-                          Next: GitHub Authorization
-                        </h4>
-                        <p className="text-white/70 text-sm mb-3">
-                          After clicking "Continue to GitHub", you'll be redirected to GitHub
-                          to authorize SecureThread and select which repositories to include
-                          in this workspace.
+                        <h4 className="text-white font-semibold mb-1">Next Step</h4>
+                        <p className="text-white/70 text-sm">
+                          After creating your workspace, you'll select which GitHub repositories to scan for security vulnerabilities.
                         </p>
-                        <ul className="text-white/60 text-sm space-y-1 list-disc list-inside">
-                          <li>Select specific repositories or all repositories</li>
-                          <li>Grant read access for security scanning</li>
-                          <li>You can modify repository access anytime</li>
-                        </ul>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                    <h4 className="font-semibold text-white mb-2">
-                      What is a workspace?
-                    </h4>
-                    <p className="text-white/70 text-sm">
-                      Workspaces help you organize your security scanning across different
-                      projects, teams, or environments. Each workspace has its own
-                      repositories, members, and settings.
-                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Footer Actions */}
-              <div className="p-8 border-t border-white/10 flex justify-between">
+              {/* Footer */}
+              <div className="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center">
                 <Button
                   variant="outline"
-                  onClick={() => navigate(-1)}
+                  onClick={() => navigate('/')}
                   className="border-white/20 text-white hover:bg-white/10"
                 >
                   Cancel
                 </Button>
+                
                 <Button
                   onClick={handleCreateWorkspace}
-                  className="bg-accent hover:bg-accent/90"
                   disabled={!workspaceName.trim()}
+                  className="bg-accent hover:bg-accent/90"
                 >
-                  <Github className="w-4 h-4 mr-2" />
-                  Continue to GitHub
+                  Continue
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
             </div>
+
+            {/* Current Workspace Info (if exists) */}
+            {currentWorkspace && (
+              <div className="mt-6 text-center">
+                <p className="text-white/60 text-sm">
+                  Currently in: <span className="font-semibold text-white">{currentWorkspace.name}</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
