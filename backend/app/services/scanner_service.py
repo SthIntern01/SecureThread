@@ -104,6 +104,7 @@ class ScannerService:
             scan.status = "running"
             scan.scan_metadata = {
                 "scan_started": True,
+                 "scan_type": "ai_analysis",
                 "provider_type": provider_type,
                 "max_files": self.MAX_FILES_TO_SCAN,
                 "max_vulnerabilities": self.MAX_VULNERABLE_FILES,

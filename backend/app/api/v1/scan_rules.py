@@ -118,7 +118,13 @@ async def get_scan_rules(
             is_active=rule.is_active
         ))
     
-    return {"rules": sum(rules_by_category.values(), [])}  # Flatten for frontend
+    # ✅ FIXED: Properly flatten the rules list
+    all_rules = []
+    for category_rules in rules_by_category.values():
+        all_rules.extend(category_rules)
+
+    logger.info(f"✅ Returning {len(all_rules)} rules to frontend")
+    return {"rules": all_rules}
 
 
 @router.get("/categories")

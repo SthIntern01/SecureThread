@@ -25,6 +25,7 @@ class ScanResponse(BaseModel):
     id: int
     repository_id: int
     status: str
+    scan_type: Optional[str] = None
     started_at: str
     completed_at: Optional[str] = None
     total_files_scanned: int
@@ -46,63 +47,58 @@ async def run_custom_scan_background(
     repository_id: int,
     access_token: str,
     provider_type: str,
-    selected_rules: List[int],
-    custom_rules: Optional[List[Dict[str, Any]]],
-    scan_config: Optional[Dict[str, Any]],
-    db: Session
+    rules: List[Dict[str, Any]],
+    scan_config: Optional[Dict[str, Any]]
 ):
-    """Background task to run custom repository scan"""
+    """Background task to run custom rule scan"""
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    scan = None
+    
     try:
-        custom_scanner = CustomScannerService(db)
+        from app.services.custom_scanner_service import CustomScannerService
+        from datetime import datetime
         
-        # Get the rules to use
-        rules_to_use = []
+        logger.info(f"🚀 Starting custom scan background task for repository {repository_id}")
+        scanner_service = CustomScannerService(db)
         
-        # Add built-in rules if selected
-        if selected_rules:
-            builtin_rules = db.query(ScanRule).filter(
-                ScanRule.id.in_(selected_rules),
-                ScanRule.is_active == True
-            ).all()
-            
-            for rule in builtin_rules:
-                rules_to_use.append({
-                    'id': rule.id,
-                    'name': rule.name,
-                    'description': rule.description,
-                    'category': rule.category,
-                    'severity': rule.severity,
-                    'content': rule.rule_content
-                })
-        
-        # Add custom rules if provided
-        if custom_rules:
-            rules_to_use.extend(custom_rules)
-        
-        if not rules_to_use:
-            raise ValueError("No rules selected for custom scan")
-        
-        # Run the custom scan
-        await custom_scanner.scan_with_custom_rules(
-            repository_id=repository_id,
-            access_token=access_token,
-            provider_type=provider_type,
-            rules=rules_to_use,
-            scan_config=scan_config
+        scan = await scanner_service.scan_with_custom_rules(
+            repository_id,
+            access_token,
+            provider_type,
+            rules,
+            scan_config
         )
         
+        # ✅ CRITICAL: Refresh and verify
+        db.refresh(scan)
+        logger.info(f"✅ Custom scan background task completed - scan_id: {scan.id}, status: {scan.status}")
+        
     except Exception as e:
-        logger.error(f"Background custom scan failed: {e}")
-        # Update scan status to failed
-        scan = db.query(Scan).filter(
-            Scan.repository_id == repository_id,
-            Scan.status == "running"
-        ).first()
-        if scan:
-            scan.status = "failed"
-            scan.error_message = str(e)
-            scan.completed_at = datetime.utcnow()
-            db.commit()
+        logger.error(f"❌ Custom scan background task failed: {e}", exc_info=True)
+        
+        # ✅ Update scan status to failed with proper error handling
+        try:
+            from app.models.vulnerability import Scan
+            from datetime import datetime, timezone
+            
+            if not scan:
+                scan = db.query(Scan).filter(
+                    Scan.repository_id == repository_id
+                ).order_by(Scan.id.desc()).first()
+            
+            if scan and scan.status in ["running", "pending"]:
+                scan.status = "failed"
+                scan.error_message = str(e)
+                scan.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                logger.info(f"✅ Marked scan {scan.id} as failed")
+            
+        except Exception as update_error:
+            logger.error(f"❌ Failed to update scan failure status: {update_error}", exc_info=True)
+    
+    finally:
+        db.close()
 
 @router.post("/start", response_model=ScanResponse)
 async def start_custom_scan(
@@ -157,6 +153,7 @@ async def start_custom_scan(
         scan = Scan(
             repository_id=scan_request.repository_id,
             status="pending",
+            scan_type="custom",
             scan_config=scan_request.scan_config or {},
             scan_metadata={
                 'scan_type': 'custom_rules',
@@ -184,6 +181,7 @@ async def start_custom_scan(
             id=scan.id,
             repository_id=scan.repository_id,
             status=scan.status,
+            scan_type=scan.scan_type,
             started_at=scan.started_at.isoformat(),
             completed_at=scan.completed_at.isoformat() if scan.completed_at else None,
             total_files_scanned=scan.total_files_scanned,

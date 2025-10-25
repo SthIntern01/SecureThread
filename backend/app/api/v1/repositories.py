@@ -282,13 +282,14 @@ async def get_user_repositories(
 
         if latest_scan:
             repo_data.update({
-                "latest_scan": {
-                    "id": latest_scan.id,
-                    "status": latest_scan.status,
-                    "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
-                    "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
-                    "scan_duration": latest_scan.scan_duration
-                },
+               "latest_scan": {
+            "id": latest_scan.id,
+            "status": latest_scan.status,
+            "scan_type": latest_scan.scan_type,  # ✅ ADD THIS LINE
+            "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
+            "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
+            "scan_duration": latest_scan.scan_duration
+        },
                 "vulnerabilities": {
                     "total": latest_scan.total_vulnerabilities,
                     "critical": latest_scan.critical_count,
