@@ -194,104 +194,203 @@ class BitbucketService:
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             
-            # Get the actual default branch first
+            logger.info(f"=== BITBUCKET GET CONTENT ===")
+            logger.info(f"Workspace: {workspace}")
+            logger.info(f"Repo slug: {repo_slug}")
+            logger.info(f"Path: '{path}'")
+            
+            # Get the actual default branch from Bitbucket API
             repo_response = requests.get(
                 f"{self.api_base_url}/repositories/{workspace}/{repo_slug}",
                 headers=headers
             )
             
-            branch = "main"  # fallback
             if repo_response.status_code == 200:
                 repo_data = repo_response.json()
-                branch = repo_data.get("mainbranch", {}).get("name", "main")
-                logger.info(f"Found default branch '{branch}' for {workspace}/{repo_slug}")
-            else:
-                logger.warning(f"Could not get repo details, using default branch 'main'")
-            
-            # Get directory contents with correct branch
-            encoded_path = quote(path, safe='/') if path else ""
-            url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{branch}/{encoded_path}"
-            
-            logger.info(f"Fetching content from: {url}")
-            response = requests.get(url, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                content = []
+                # Get the mainbranch name, or try 'main' then 'master' as fallbacks
+                mainbranch_data = repo_data.get("mainbranch")
                 
-                for item in data.get("values", []):
-                    content.append({
-                        "name": item.get("path", "").split("/")[-1] if item.get("path") else item.get("name", ""),
-                        "path": item.get("path", ""),
-                        "type": "dir" if item.get("type") == "commit_directory" else "file",
-                        "size": item.get("size", 0),
-                        "sha": item.get("commit", {}).get("hash", ""),
-                        "url": item.get("links", {}).get("self", {}).get("href", "")
-                    })
+                if mainbranch_data and isinstance(mainbranch_data, dict):
+                    branch = mainbranch_data.get("name", "main")
+                else:
+                    branch = "main"
                 
-                logger.info(f"Successfully fetched {len(content)} items from {workspace}/{repo_slug}")
-                return content
+                logger.info(f"Using branch '{branch}' for {workspace}/{repo_slug}")
             else:
-                logger.error(f"Failed to fetch repository content: {response.status_code} - {response.text}")
-                return None
+                logger.warning(f"Could not get repo details: {repo_response.status_code}")
+                branch = "main"  # Default fallback
+            
+            # Try multiple common branch names if the first one fails
+            branch_attempts = [branch, "main", "master", "develop"]
+            
+            for attempt_branch in branch_attempts:
+                # Get directory contents
+                if path:
+                    encoded_path = quote(path, safe='/')
+                    url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{attempt_branch}/{encoded_path}"
+                else:
+                    # Root directory - no path needed
+                    url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{attempt_branch}/"
+                
+                logger.info(f"Trying branch '{attempt_branch}': {url}")
+                response = requests.get(url, headers=headers)
+                
+                logger.info(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    content = []
+                    
+                    logger.info(f"✅ Success! Got {len(data.get('values', []))} items from API")
+                    
+                    for item in data.get("values", []):
+                        item_name = item.get("path", "").split("/")[-1] if item.get("path") else item.get("name", "")
+                        item_type = "dir" if item.get("type") == "commit_directory" else "file"
+                        
+                        content.append({
+                            "name": item_name,
+                            "path": item.get("path", ""),
+                            "type": item_type,
+                            "size": item.get("size", 0),
+                            "sha": item.get("commit", {}).get("hash", ""),
+                            "url": item.get("links", {}).get("self", {}).get("href", "")
+                        })
+                    
+                    logger.info(f"Successfully fetched {len(content)} items from {workspace}/{repo_slug}")
+                    return content
+                
+                elif response.status_code == 404:
+                    logger.warning(f"Branch '{attempt_branch}' not found, trying next...")
+                    continue
+                else:
+                    logger.error(f"Error {response.status_code}: {response.text[:500]}")
+                    continue
+            
+            # If we got here, none of the branches worked
+            logger.error(f"Failed to fetch content from any branch")
+            return None
             
         except Exception as e:
-            logger.error(f"Error fetching repository content: {e}")
+            logger.error(f"Exception in get_repository_content: {e}")
+            logger.exception("Full traceback:")
             return None
-
+    
     def get_repository_tree_all_files(self, access_token: str, workspace: str, repo_slug: str, branch: str = None) -> List[Dict[str, Any]]:
         """Get ALL files in repository recursively for scanning purposes"""
         try:
             headers = {"Authorization": f"Bearer {access_token}"}
             
-            # If no branch specified, get the default branch
+            logger.info(f"=== GETTING ALL FILES FROM BITBUCKET ===")
+            logger.info(f"Workspace: {workspace}, Repo: {repo_slug}")
+            
+            # Get repository info to determine actual default branch
             if not branch:
                 repo_response = requests.get(
                     f"{self.api_base_url}/repositories/{workspace}/{repo_slug}",
-                    headers=headers
+                    headers=headers,
+                    timeout=10  # Add timeout
                 )
                 if repo_response.status_code == 200:
                     repo_data = repo_response.json()
-                    branch = repo_data.get("mainbranch", {}).get("name", "main")
+                    mainbranch_data = repo_data.get("mainbranch")
+                    
+                    if mainbranch_data and isinstance(mainbranch_data, dict):
+                        branch = mainbranch_data.get("name", "main")
+                    else:
+                        branch = "main"
+                    
+                    logger.info(f"Using branch '{branch}' from repository info")
                 else:
-                    branch = "main"  # fallback
+                    branch = "main"
+                    logger.warning(f"Could not get repo details, defaulting to 'main'")
             
-            all_files = []
+            # Try multiple common branch names
+            branch_attempts = [branch, "main", "master", "develop"]
             
-            def fetch_files_recursive(current_path: str = ""):
-                """Recursively fetch all files"""
-                try:
-                    encoded_path = quote(current_path, safe='/') if current_path else ""
-                    url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{branch}/{encoded_path}"
+            for attempt_branch in branch_attempts:
+                logger.info(f"Trying to fetch files from branch '{attempt_branch}'...")
+                
+                all_files = []
+                max_depth = 10  # Prevent infinite recursion
+                request_count = 0
+                max_requests = 100  # Limit API calls
+                
+                def fetch_files_recursive(current_path: str = "", depth: int = 0):
+                    """Recursively fetch all files with limits"""
+                    nonlocal request_count
                     
-                    response = requests.get(url, headers=headers)
+                    # Safety limits
+                    if depth > max_depth:
+                        logger.warning(f"Max depth reached at path: {current_path}")
+                        return
                     
-                    if response.status_code == 200:
-                        data = response.json()
+                    if request_count >= max_requests:
+                        logger.warning(f"Max requests reached, stopping recursion")
+                        return
+                    
+                    try:
+                        if current_path:
+                            encoded_path = quote(current_path, safe='/')
+                            url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{attempt_branch}/{encoded_path}"
+                        else:
+                            url = f"{self.api_base_url}/repositories/{workspace}/{repo_slug}/src/{attempt_branch}/"
                         
-                        for item in data.get("values", []):
-                            if item["type"] == "commit_file":
-                                # It's a file
-                                all_files.append({
-                                    "path": item["path"],
-                                    "size": item.get("size", 0),
-                                    "type": "file"
-                                })
-                            elif item["type"] == "commit_directory":
-                                # It's a directory, recurse into it
-                                fetch_files_recursive(item["path"])
+                        logger.info(f"Fetching: {url} (depth: {depth}, requests: {request_count})")
+                        request_count += 1
+                        
+                        response = requests.get(url, headers=headers, timeout=10)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            items = data.get("values", [])
+                            logger.info(f"Got {len(items)} items from {current_path or 'root'}")
+                            
+                            for item in items:
+                                if item["type"] == "commit_file":
+                                    # It's a file
+                                    all_files.append({
+                                        "path": item["path"],
+                                        "size": item.get("size", 0),
+                                        "type": "file"
+                                    })
+                                elif item["type"] == "commit_directory":
+                                    # It's a directory, recurse into it
+                                    logger.info(f"Entering directory: {item['path']}")
+                                    fetch_files_recursive(item["path"], depth + 1)
+                        elif response.status_code == 404:
+                            logger.warning(f"Path not found: {current_path or 'root'}")
+                            return
+                        else:
+                            logger.error(f"Error {response.status_code} fetching path '{current_path}'")
+                            return
                     
+                    except requests.exceptions.Timeout:
+                        logger.error(f"Timeout fetching path '{current_path}'")
+                        return
+                    except Exception as e:
+                        logger.error(f"Error fetching files from path '{current_path}': {e}")
+                        return
+                
+                # Start recursive fetch from root
+                try:
+                    fetch_files_recursive()
                 except Exception as e:
-                    logger.error(f"Error fetching files from path '{current_path}': {e}")
+                    logger.error(f"Error in recursive fetch: {e}")
+                
+                # If we got files, this branch worked
+                if len(all_files) > 0:
+                    logger.info(f"✅ Successfully found {len(all_files)} files using branch '{attempt_branch}'")
+                    return all_files
+                else:
+                    logger.warning(f"Branch '{attempt_branch}' returned 0 files, trying next...")
             
-            # Start recursive fetch from root
-            fetch_files_recursive()
-            
-            logger.info(f"Found {len(all_files)} total files in Bitbucket repository")
-            return all_files
+            # If we got here, no branch worked
+            logger.error(f"Failed to fetch files from any branch")
+            return []
             
         except Exception as e:
-            logger.error(f"Error fetching all repository files: {e}")
+            logger.error(f"Exception in get_repository_tree_all_files: {e}")
+            logger.exception("Full traceback:")
             return []
     
     def get_file_content(self, access_token: str, workspace: str, repo_slug: str, file_path: str, branch: str = None) -> Optional[str]:
