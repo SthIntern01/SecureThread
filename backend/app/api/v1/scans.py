@@ -26,6 +26,7 @@ class ScanResponse(BaseModel):
     id: int
     repository_id: int
     status: str
+    scan_type: Optional[str] = None
     started_at: str
     completed_at: Optional[str] = None
     total_files_scanned: int
@@ -178,6 +179,7 @@ async def start_repository_scan(
         scan = Scan(
             repository_id=scan_request.repository_id,
             status="pending",
+             scan_type="ai",
             scan_config=scan_request.scan_config or {},
             scan_metadata={}  # Initialize with empty dict
         )
@@ -200,6 +202,7 @@ async def start_repository_scan(
             id=scan.id,
             repository_id=scan.repository_id,
             status=scan.status,
+            scan_type=scan.scan_type,
             started_at=scan.started_at.isoformat(),
             completed_at=scan.completed_at.isoformat() if scan.completed_at else None,
             total_files_scanned=scan.total_files_scanned,
@@ -747,6 +750,63 @@ async def force_fail_scan(
         "message": f"Scan {scan_id} marked as failed",
         "old_status": "running",
         "new_status": scan.status
+    }
+
+@router.post("/admin/cleanup-stuck-scans")
+async def cleanup_stuck_scans(
+    max_runtime_minutes: int = 60,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Administrative endpoint to cleanup scans stuck in running/pending status
+    Marks scans as failed if they've been running longer than max_runtime_minutes
+    """
+    from datetime import datetime, timedelta, timezone
+    
+    cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=max_runtime_minutes)
+    
+    # Find stuck scans
+    stuck_scans = db.query(Scan).filter(
+        Scan.status.in_(["running", "pending"]),
+        Scan.started_at < cutoff_time
+    ).all()
+    
+    fixed_count = 0
+    fixed_scan_ids = []
+    
+    for scan in stuck_scans:
+        try:
+            scan.status = "failed"
+            scan.error_message = f"Scan timed out after {max_runtime_minutes} minutes - automatically marked as failed"
+            scan.completed_at = datetime.now(timezone.utc)
+            
+            # Calculate duration
+            if scan.started_at.tzinfo is None:
+                start_time = scan.started_at.replace(tzinfo=timezone.utc)
+            else:
+                start_time = scan.started_at
+            
+            duration = datetime.now(timezone.utc) - start_time
+            minutes = int(duration.total_seconds() // 60)
+            seconds = int(duration.total_seconds() % 60)
+            scan.scan_duration = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+            
+            fixed_count += 1
+            fixed_scan_ids.append(scan.id)
+            
+        except Exception as e:
+            logger.error(f"Error fixing scan {scan.id}: {e}")
+            continue
+    
+    db.commit()
+    
+    logger.info(f"Cleaned up {fixed_count} stuck scans: {fixed_scan_ids}")
+    
+    return {
+        "message": f"Successfully cleaned up {fixed_count} stuck scans",
+        "fixed_scan_ids": fixed_scan_ids,
+        "cutoff_time": cutoff_time.isoformat()
     }
 
 # Also add this endpoint for custom scan details
