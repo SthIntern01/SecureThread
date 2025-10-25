@@ -28,12 +28,23 @@ class Team(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    creator = relationship("User", foreign_keys=[created_by])
+    creator = relationship("User", foreign_keys=[created_by], back_populates="created_teams", overlaps="active_team")
     members = relationship("TeamMember", back_populates="team", cascade="all, delete-orphan")
     invitations = relationship("TeamInvitation", back_populates="team", cascade="all, delete-orphan")
+    team_repositories = relationship(
+        "TeamRepository", 
+        back_populates="team", 
+        cascade="all, delete-orphan"
+    )
+    
+    @property
+    def repositories(self):
+        """Get all repositories in this team"""
+        return [tr.repository for tr in self.team_repositories]
     
     def __repr__(self):
         return f"<Team(name='{self.name}', created_by={self.created_by})>"
+
 
 class TeamMember(Base):
     __tablename__ = "team_members"
@@ -56,6 +67,7 @@ class TeamMember(Base):
     
     def __repr__(self):
         return f"<TeamMember(team_id={self.team_id}, user_id={self.user_id}, role='{self.role}')>"
+
 
 class TeamInvitation(Base):
     __tablename__ = "team_invitations"

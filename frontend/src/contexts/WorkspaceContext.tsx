@@ -1,53 +1,90 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { workspaceService, Workspace } from '../services/workspaceService';
+// src/contexts/WorkspaceContext.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+interface Workspace {
+  id: number;
+  name: string;
+  created_at: string | null;
+  repository_count: number;
+}
 
 interface WorkspaceContextType {
-  currentWorkspace: Workspace | null;
   workspaces: Workspace[];
+  currentWorkspace: Workspace | null; // Changed from activeWorkspace to currentWorkspace
   loading: boolean;
-  switchWorkspace: (workspaceId: string) => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
-  createWorkspace: (name: string) => Promise<void>;
+  switchWorkspace: (workspaceId: number) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
-export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+export const useWorkspace = () => {
+  const context = useContext(WorkspaceContext);
+  if (!context) {
+    throw new Error('useWorkspace must be used within WorkspaceProvider');
+  }
+  return context;
+};
+
+interface WorkspaceProviderProps {
+  children: ReactNode;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }) => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadWorkspaces();
-  }, []);
-
-  const loadWorkspaces = async () => {
+  const fetchWorkspaces = async () => {
     try {
-      setLoading(true);
-      const allWorkspaces = await workspaceService.getUserWorkspaces();
-      setWorkspaces(allWorkspaces);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-      const currentId = workspaceService.getCurrentWorkspaceId();
-      if (currentId) {
-        const current = allWorkspaces.find(w => w.id === currentId);
-        setCurrentWorkspace(current || allWorkspaces[0] || null);
-      } else if (allWorkspaces.length > 0) {
-        setCurrentWorkspace(allWorkspaces[0]);
-        localStorage.setItem('current_workspace_id', allWorkspaces[0].id);
+      const response = await fetch(`${API_URL}/api/v1/workspace/list`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWorkspaces(data.workspaces);
+        
+        // Set active workspace
+        const active = data.workspaces.find(
+          (w: Workspace) => w.id === data.active_workspace_id
+        );
+        setCurrentWorkspace(active || data.workspaces[0] || null);
       }
     } catch (error) {
-      console.error('Error loading workspaces:', error);
+      console.error('Error fetching workspaces:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const switchWorkspace = async (workspaceId: string) => {
+  const switchWorkspace = async (workspaceId: number) => {
     try {
-      await workspaceService.switchWorkspace(workspaceId);
-      const workspace = workspaces.find(w => w.id === workspaceId);
-      if (workspace) {
-        setCurrentWorkspace(workspace);
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(`${API_URL}/api/v1/workspace/switch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      });
+
+      if (response.ok) {
+        await fetchWorkspaces();
+      } else {
+        throw new Error('Failed to switch workspace');
       }
     } catch (error) {
       console.error('Error switching workspace:', error);
@@ -56,38 +93,24 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const refreshWorkspaces = async () => {
-    await loadWorkspaces();
+    await fetchWorkspaces();
   };
 
-  const createWorkspace = async (name: string) => {
-    const redirectUri = `${window.location.origin}/workspace/callback`;
-    const state = encodeURIComponent(JSON.stringify({ name, action: 'create_workspace' }));
-    
-    sessionStorage.setItem('pending_workspace_name', name);
-    
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${process.env.REACT_APP_GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=repo&state=${state}`;
-  };
+  useEffect(() => {
+    fetchWorkspaces();
+  }, []);
 
   return (
     <WorkspaceContext.Provider
       value={{
-        currentWorkspace,
         workspaces,
+        currentWorkspace,
         loading,
-        switchWorkspace,
         refreshWorkspaces,
-        createWorkspace,
+        switchWorkspace,
       }}
     >
       {children}
     </WorkspaceContext.Provider>
   );
-};
-
-export const useWorkspace = () => {
-  const context = useContext(WorkspaceContext);
-  if (context === undefined) {
-    throw new Error('useWorkspace must be used within a WorkspaceProvider');
-  }
-  return context;
 };

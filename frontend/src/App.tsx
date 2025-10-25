@@ -27,6 +27,8 @@ import InviteAccept from "./pages/InviteAccept";
 import WorkspaceSettings from "./pages/WorkspaceSettings";
 import CreateWorkspace from "./pages/CreateWorkspace"; 
 import Profile from "./pages/Profile";
+import WorkspaceCallback from './pages/WorkspaceCallback';
+import SelectRepositories from './pages/SelectRepositories';
 
 const queryClient = new QueryClient();
 
@@ -48,7 +50,10 @@ const App = () => (
               <Route path="/docs" element={<Docs />} />
               <Route path="/accept-invite" element={<InviteAccept />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              
+              <Route path="/workspace/create" element={<CreateWorkspace />} />
+              <Route path="/workspace/callback" element={<WorkspaceCallback />} />
+              <Route path="/workspace/select-repositories" element={<SelectRepositories />} />
+
               {/* Protected routes */}
               <Route
                 path="/"

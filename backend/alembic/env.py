@@ -14,6 +14,8 @@ from app.core.settings import settings
 # Import ALL your models here so Alembic can detect them
 from app.models.user import User
 from app.models.repository import Repository
+from app.models.team import Team, TeamMember, TeamInvitation  # Added TeamMember and TeamInvitation
+from app.models.team_repository import TeamRepository
 from app.models.vulnerability import Vulnerability, Scan
 from app.models.ai_chat import (
     ChatSession, 
@@ -23,6 +25,16 @@ from app.models.ai_chat import (
     AIUsageMetrics, 
     AIFeedback
 )
+# Add these if they exist in your project
+try:
+    from app.models.feedback import Feedback
+except ImportError:
+    pass
+
+try:
+    from app.models.custom_rules import UserCustomRule
+except ImportError:
+    pass
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
