@@ -25,10 +25,9 @@ api_router = APIRouter()
 
 # Authentication routers
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-api_router.include_router(gitlab_auth.router, prefix="/auth/gitlab", tags=["GitLab Authentication"])
-api_router.include_router(google_auth.router, prefix="/auth/google", tags=["Google Authentication"])
-api_router.include_router(bitbucket_auth.router, prefix="/auth/bitbucket", tags=["Bitbucket Authentication"])
-
+api_router.include_router(gitlab_auth.router, prefix="/auth", tags=["GitLab Authentication"])
+api_router.include_router(google_auth.router, prefix="/auth", tags=["Google Authentication"]) 
+api_router.include_router(bitbucket_auth.router, prefix="/auth", tags=["Bitbucket Authentication"])
 # Workspace router
 api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"]) 

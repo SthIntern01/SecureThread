@@ -384,6 +384,7 @@ async def get_repository_content(
                 repository.full_name,
                 path
             )
+            
         elif repository.source_type == "bitbucket":
             logger.info("Processing Bitbucket repository")
             if not current_user.bitbucket_access_token:
@@ -396,24 +397,34 @@ async def get_repository_content(
             from app.services.bitbucket_services import BitbucketService
             bitbucket_service = BitbucketService()
 
-        # Extract workspace and repo_slug from full_name
+            # Extract workspace and repo_slug from full_name
             try:
                 workspace, repo_slug = repository.full_name.split("/", 1)
                 logger.info(f"Parsed workspace: {workspace}, repo_slug: {repo_slug}")
-            except ValueError:
+            except ValueError as e:
+                logger.error(f"Failed to parse full_name '{repository.full_name}': {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid repository full_name format for Bitbucket"
+                    detail=f"Invalid repository full_name format for Bitbucket: {repository.full_name}"
                 )
             
-            # You'll need to implement this method in BitbucketService
+            # Get repository content
             content = bitbucket_service.get_repository_content(
                 current_user.bitbucket_access_token,
                 workspace,
                 repo_slug,
                 path
             )
-            logger.info(f"Bitbucket service returned: {content}")
+            
+            if content is None:
+                logger.error(f"Bitbucket service returned None for {workspace}/{repo_slug}, path: {path}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Repository content not found or branch doesn't exist"
+                )
+            
+            logger.info(f"Bitbucket service returned {len(content)} items")
+            
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -428,15 +439,18 @@ async def get_repository_content(
         
         return {"content": content}
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching repository content for repo {repo_id}: {e}")
-        logger.error(f"Repository source: {repository.source_type if 'repository' in locals() else 'unknown'}")
+        logger.error(f"Repository source: {repository.source_type if repository else 'unknown'}")
+        logger.error(f"Repository full_name: {repository.full_name if repository else 'unknown'}")
         logger.error(f"Path: {path}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch repository content: {str(e)}"
         )
-
 
 
 @router.post("/{repo_id}/sync")

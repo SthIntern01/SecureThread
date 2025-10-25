@@ -723,6 +723,32 @@ async def get_custom_scans(
         )
 
 
+@router.get("/{scan_id}/force-fail")
+async def force_fail_scan(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Force fail a stuck scan - debug endpoint"""
+    
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    
+    if not scan:
+        return {"error": "Scan not found"}
+    
+    # Force update status
+    scan.status = "failed"
+    scan.completed_at = datetime.utcnow()
+    scan.error_message = "Scan timeout - manually stopped"
+    
+    db.commit()
+    
+    return {
+        "message": f"Scan {scan_id} marked as failed",
+        "old_status": "running",
+        "new_status": scan.status
+    }
+
 # Also add this endpoint for custom scan details
 @router.get("/custom/{scan_id}", response_model=dict)
 async def get_custom_scan_details(

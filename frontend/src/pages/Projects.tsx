@@ -781,26 +781,26 @@ const ProjectCard = ({
       <p className="text-sm text-white/70 mb-4 line-clamp-2">
         {project.description}
       </p>
-      <div className="flex items-center space-x-4 mb-4">
-        <div className="flex items-center space-x-2">
-          {getStatusIcon(project.status)}
-          <Badge className={`text-xs ${getStatusColor(project.status)}`}>
-            {project.status}
-          </Badge>
-        </div>
-        <div className="flex items-center space-x-2 text-sm text-white/70">
-          <GitBranch className="w-4 h-4" />
-          <span>{project.branch}</span>
-        </div>
-        {project.language && (
-          <Badge
-            variant="secondary"
-            className="text-xs bg-blue-100 text-blue-800"
-          >
-            {project.language}
-          </Badge>
-        )}
-      </div>
+     <div className="flex items-center space-x-4 mb-4">
+    <div className="flex items-center space-x-2 flex-shrink-0">
+      {getStatusIcon(project.status)}
+      <Badge className={`text-xs ${getStatusColor(project.status)}`}>
+        {project.status}
+      </Badge>
+    </div>
+    <div className="flex items-center space-x-2 text-sm text-white/70 min-w-0 flex-1">
+      <GitBranch className="w-4 h-4 flex-shrink-0" />
+      <span className="truncate">{project.branch}</span>
+    </div>
+    {project.language && (
+      <Badge
+        variant="secondary"
+        className="text-xs bg-blue-100 text-blue-800 flex-shrink-0"
+      >
+        {project.language}
+      </Badge>
+    )}
+  </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
@@ -956,7 +956,21 @@ const Projects = () => {
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
-  const { user } = useAuth();
+ const { user } = useAuth();
+const [authProvider, setAuthProvider] = useState<'github' | 'bitbucket' | null>(null);
+
+// Add this useEffect to update authProvider when user changes
+useEffect(() => {
+  if (user) {
+    if (user.bitbucket_username) {
+      setAuthProvider('bitbucket');
+    } else if (user.github_username) {
+      setAuthProvider('github');
+    } else {
+      setAuthProvider(null);
+    }
+  }
+}, [user]);
   const navigate = useNavigate();
 
   // Polling management
@@ -964,29 +978,9 @@ const Projects = () => {
     Map<number, NodeJS.Timeout>
   >(new Map());
 
-  // Helper functions for dynamic provider detection
-  const getAuthProvider = (): 'github' | 'bitbucket' | null => {
-  console.log('=== DEBUG AUTH PROVIDER ===');
-  console.log('User object:', user);
-  console.log('user.github_username:', user?.github_username);
-  console.log('user.bitbucket_username:', user?.bitbucket_username);
-  
-  if (!user) {
-    console.log('No user - returning null');
-    return null;
-  }
-  if (user.github_username) {
-    console.log('Found GitHub username - returning github');
-    return 'github';
-  }
-  if (user.bitbucket_username) {
-    console.log('Found Bitbucket username - returning bitbucket');
-    return 'bitbucket';
-  }
-  console.log('No provider found - returning null');
-  return null;
+const getAuthProvider = (): 'github' | 'bitbucket' | null => {
+  return authProvider;  // ← Just return the state directly
 };
-
   
 
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
@@ -1012,16 +1006,19 @@ const Projects = () => {
     }
   };
 
-  const handleImportClick = () => {
-  console.log('=== IMPORT CLICK ===');
+const handleImportClick = () => {
+  console.log('=== IMPORT CLICK DEBUG ===');
+  console.log('User:', user);
+  console.log('bitbucket_username:', user?.bitbucket_username);
+  console.log('github_username:', user?.github_username);
   
-  // If user has a specific provider account, use it directly
   const provider = getAuthProvider();
+  console.log('Detected provider:', provider);
+  
   if (provider) {
-    console.log('Detected provider:', provider);
     setImportProvider(provider);
   } else {
-    // If Google login (no specific provider), show dropdown
+    // Fallback: if no provider detected, show dropdown
     setShowImportDropdown(true);
   }
 };
@@ -1921,8 +1918,24 @@ console.log("Final Body:", JSON.stringify(requestBody, null, 2));
                       onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      <Github className="w-4 h-4 mr-2" />
-                      Import Repository
+                      {authProvider === 'bitbucket' ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                          </svg>
+                          Import Repository
+                        </>
+                      ) : authProvider === 'github' ? (
+                        <>
+                          <Github className="w-4 h-4 mr-2" />
+                          Import Repository
+                        </>
+                      ) : (
+                        <>
+                          <Github className="w-4 h-4 mr-2" />
+                          Import Repository
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>
