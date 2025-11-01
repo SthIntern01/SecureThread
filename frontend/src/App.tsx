@@ -7,7 +7,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { WorkspaceProvider } from "./contexts/WorkspaceContext"; 
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/DashboardPage";
 import Projects from "./pages/Projects";
 import Integrations from "./pages/Integrations";
 import Docs from "./pages/Docs"; 

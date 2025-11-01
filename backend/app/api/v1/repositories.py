@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Union
+from typing import List, Union, Optional
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
@@ -241,20 +241,36 @@ async def import_bitbucket_repositories(
 
 @router.get("/")
 async def get_user_repositories(
+    repository_id: Optional[int] = None,  # Add specific repo filtering
+    days_filter: Optional[int] = None,    # Add time filtering
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's imported repositories with latest scan information"""
-    repositories = db.query(Repository).filter(
+    """Get user's imported repositories with latest scan information and filtering"""
+    from datetime import datetime, timedelta
+    
+    # Base query - already user scoped
+    query = db.query(Repository).filter(
         Repository.owner_id == current_user.id
-    ).all()
+    )
+    
+    # Apply repository filter if specified
+    if repository_id:
+        query = query.filter(Repository.id == repository_id)
+    
+    repositories = query.all()
     
     repo_list = []
     for repo in repositories:
         # Get latest scan for this repository
-        latest_scan = db.query(Scan).filter(
-            Scan.repository_id == repo.id
-        ).order_by(Scan.started_at.desc()).first()
+        scan_query = db.query(Scan).filter(Scan.repository_id == repo.id)
+        
+        # Apply time filter to scans if specified
+        if days_filter:
+            cutoff_date = datetime.utcnow() - timedelta(days=days_filter)
+            scan_query = scan_query.filter(Scan.started_at >= cutoff_date)
+        
+        latest_scan = scan_query.order_by(Scan.started_at.desc()).first()
         
         repo_data = {
             "id": repo.id,
@@ -270,40 +286,67 @@ async def get_user_repositories(
             "language": repo.language,
             "is_private": repo.is_private,
             "is_fork": repo.is_fork,
-            "source": repo.source_type,  # Use the property from your model
+            "source": repo.source_type,
+            "user_id": current_user.id,  # ✅ Add user ID for verification
             "created_at": repo.created_at.isoformat() if repo.created_at else None,
             "updated_at": repo.updated_at.isoformat() if repo.updated_at else None,
-            # Add scan information
+            # Initialize scan information
             "latest_scan": None,
             "vulnerabilities": None,
             "security_score": None,
-            "code_coverage": None
+            "code_coverage": None,
+            "status": "pending"  # Default status
         }
 
         if latest_scan:
+            # Determine repository status based on scan
+            if latest_scan.status == "running":
+                repo_status = "scanning"
+            elif latest_scan.status == "completed":
+                repo_status = "completed"
+            elif latest_scan.status == "failed":
+                repo_status = "failed"
+            else:
+                repo_status = "active"
+
             repo_data.update({
-               "latest_scan": {
-            "id": latest_scan.id,
-            "status": latest_scan.status,
-            "scan_type": latest_scan.scan_type,  # ✅ ADD THIS LINE
-            "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
-            "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
-            "scan_duration": latest_scan.scan_duration
-        },
+                "latest_scan": {
+                    "id": latest_scan.id,
+                    "status": latest_scan.status,
+                    "scan_type": latest_scan.scan_type or "standard",
+                    "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
+                    "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
+                    "scan_duration": latest_scan.scan_duration,
+                    "total_vulnerabilities": latest_scan.total_vulnerabilities or 0,
+                    "critical_count": latest_scan.critical_count or 0,
+                    "high_count": latest_scan.high_count or 0,
+                    "medium_count": latest_scan.medium_count or 0,
+                    "low_count": latest_scan.low_count or 0,
+                    "repository_id": repo.id,
+                    "user_id": current_user.id  # ✅ Add user association
+                },
                 "vulnerabilities": {
-                    "total": latest_scan.total_vulnerabilities,
-                    "critical": latest_scan.critical_count,
-                    "high": latest_scan.high_count,
-                    "medium": latest_scan.medium_count,
-                    "low": latest_scan.low_count
+                    "total": latest_scan.total_vulnerabilities or 0,
+                    "critical": latest_scan.critical_count or 0,
+                    "high": latest_scan.high_count or 0,
+                    "medium": latest_scan.medium_count or 0,
+                    "low": latest_scan.low_count or 0
                 },
                 "security_score": latest_scan.security_score,
-                "code_coverage": latest_scan.code_coverage
+                "code_coverage": latest_scan.code_coverage,
+                "status": repo_status
             })
+        else:
+            # No scans yet
+            repo_data["status"] = "active"
         
         repo_list.append(repo_data)
     
-    return {"repositories": repo_list}
+    return {
+        "repositories": repo_list,
+        "total_count": len(repo_list),
+        "user_id": current_user.id  # ✅ Add user verification
+    }
 
 
 @router.get("/{repo_id}")

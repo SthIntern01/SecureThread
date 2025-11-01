@@ -10,6 +10,7 @@ from app.api.v1 import (
     bitbucket_auth,
     feedback,
     teams,
+    metrics,
     scan_rules,
     custom_scans
 )
@@ -31,6 +32,9 @@ api_router.include_router(bitbucket_auth.router, prefix="/auth", tags=["Bitbucke
 # Workspace router
 api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"]) 
+
+#Metrics router
+api_router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 
 # Feature routers
 api_router.include_router(repositories.router, prefix="/repositories", tags=["repositories"])

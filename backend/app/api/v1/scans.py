@@ -1,9 +1,9 @@
-# Replace the file: backend/app/api/v1/scans.py
+# backend/app/api/v1/scans.py - COMPLETE CORRECTED VERSION
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
-from datetime import datetime  # ADD THIS IMPORT
+from datetime import datetime
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
@@ -85,16 +85,16 @@ class VulnerabilityResponse(BaseModel):
 
 async def run_scan_background(
     repository_id: int,
-    access_token: str,  # Generic token (not just GitHub)
-    provider_type: str,  # "github", "bitbucket", "gitlab"
+    access_token: str,
+    provider_type: str,
     scan_config: Optional[Dict[str, Any]],
     db: Session
 ):
-    """Background task to run repository scan - FIXED MULTI-PROVIDER"""
+    """Background task to run repository scan"""
     try:
         scanner_service = ScannerService(db)
         await scanner_service.start_repository_scan(
-            repository_id, access_token, provider_type, scan_config  # FIXED: Use correct parameters
+            repository_id, access_token, provider_type, scan_config
         )
     except Exception as e:
         logger.error(f"Background scan failed: {e}")
@@ -131,7 +131,7 @@ async def start_repository_scan(
             detail="Repository not found"
         )
 
-    # NEW: Multi-provider access token detection
+    # Multi-provider access token detection
     access_token = None
     if repository.source_type == "github":
         access_token = current_user.github_access_token
@@ -159,8 +159,6 @@ async def start_repository_scan(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Repository source '{repository.source_type}' not supported for scanning"
         )
-
-    
     
     # Check if there's already a running scan
     existing_scan = db.query(Scan).filter(
@@ -179,21 +177,20 @@ async def start_repository_scan(
         scan = Scan(
             repository_id=scan_request.repository_id,
             status="pending",
-             scan_type="ai",
+            scan_type="ai",
             scan_config=scan_request.scan_config or {},
-            scan_metadata={}  # Initialize with empty dict
+            scan_metadata={}
         )
         db.add(scan)
         db.commit()
         db.refresh(scan)
         
         # Start background scan
-        # CORRECT - use the multi-provider token:
         background_tasks.add_task(
             run_scan_background,
             scan_request.repository_id,
-            access_token,  # <- Use the detected token
-            repository.source_type,  # <- Also pass the provider type
+            access_token,
+            repository.source_type,
             scan_request.scan_config,
             db
         )
@@ -261,9 +258,9 @@ async def get_scan_status(
         security_score=scan.security_score,
         code_coverage=scan.code_coverage,
         error_message=scan.error_message,
-        scan_metadata=getattr(scan, 'scan_metadata', {}) or {}  # Safe access
+        scan_metadata=getattr(scan, 'scan_metadata', {}) or {}
     )
-    
+
 
 @router.get("/{scan_id}/file-status", response_model=List[FileStatusResponse])
 async def get_scan_file_status(
@@ -303,12 +300,6 @@ async def get_scan_file_status(
     
     return file_status_list
 
-
-# Update the get_detailed_scan_results function in backend/app/api/v1/scans.py
-
-# Update for backend/app/api/v1/scans.py - Ensure detailed endpoint works correctly
-
-# Update for backend/app/api/v1/scans.py - Ensure detailed endpoint works correctly
 
 @router.get("/{scan_id}/detailed", response_model=ScanDetailedResponse)
 async def get_detailed_scan_results(
@@ -360,26 +351,26 @@ async def get_detailed_scan_results(
                 })
             
             # Determine final status
-            status = file_result.get("status", "unknown")
+            status_value = file_result.get("status", "unknown")
             reason = file_result.get("reason", "")
             
             # Adjust status based on vulnerabilities found
-            if status == "scanned" and len(file_vulnerabilities) > 0:
-                status = "vulnerable"
+            if status_value == "scanned" and len(file_vulnerabilities) > 0:
+                status_value = "vulnerable"
                 reason = f"Found {len(file_vulnerabilities)} vulnerabilities"
-            elif status == "scanned" and len(file_vulnerabilities) == 0:
+            elif status_value == "scanned" and len(file_vulnerabilities) == 0:
                 reason = "Scan OK - no vulnerabilities found"
-            elif status == "skipped":
+            elif status_value == "skipped":
                 reason = "Did not scan due to API constraints"
-            elif status == "error":
+            elif status_value == "error":
                 reason = "Scan Failed"
             
             file_results.append(FileStatusResponse(
                 file_path=file_result.get("file_path", ""),
-                status=status,
+                status=status_value,
                 reason=reason,
                 vulnerability_count=len(file_vulnerabilities),
-                file_size=file_result.get("file_size", 0)  # Ensure we have a default value
+                file_size=file_result.get("file_size", 0)
             ))
     else:
         logger.warning(f"No file scan results found in scan {scan_id} metadata")
@@ -614,13 +605,14 @@ async def stop_scan(
     
     # Update scan status to stopped
     scan.status = "stopped"
-    scan.completed_at = datetime.utcnow()  # Now datetime is imported
+    scan.completed_at = datetime.utcnow()
     scan.error_message = "Scan stopped by user"
     
     db.commit()
     db.refresh(scan)
     
     return {"message": "Scan stopped successfully"}
+
 
 @router.get("/{scan_id}/details", response_model=ScanDetailedResponse)
 async def get_scan_details_legacy(
@@ -662,33 +654,36 @@ async def debug_scan_metadata(
         "file_scan_results_count": len(scan.scan_metadata.get("file_scan_results", [])) if scan.scan_metadata else 0
     }
 
-# Add this to your scans.py file after the existing endpoints
 
+# ✅ FIXED CUSTOM SCANS ENDPOINT - NO PARAMETERS
 @router.get("/custom/", response_model=dict)
 async def get_custom_scans(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)  # ✅ CORRECT
+    db: Session = Depends(get_db)
 ):
-    """Get all custom scan results"""
+    """Get user's custom scan results - USER SCOPED"""
     try:
-        # ✅ FIX: Use proper JSONB query for PostgreSQL/MySQL
-        from sqlalchemy import cast, String
+        # Base query - only get scans for repositories owned by current user
+        query = db.query(Scan).join(Repository).filter(
+            Repository.owner_id == current_user.id,
+            Scan.scan_metadata.isnot(None)
+        )
         
-        # Query scans with custom rules - FIXED
-        all_scans = db.query(Scan).all()
+        # Get all user's scans first
+        all_user_scans = query.all()
         
-        # Filter in Python instead of SQL (more reliable for JSONB)
-        custom_scans = [
-            scan for scan in all_scans 
-            if scan.scan_metadata 
-            and isinstance(scan.scan_metadata, dict)
-            and scan.scan_metadata.get('scan_type') == 'custom_rules'
-        ]
+        # Filter for custom scans in Python (more reliable for JSONB)
+        custom_scans = []
+        for scan in all_user_scans:
+            if (scan.scan_metadata 
+                and isinstance(scan.scan_metadata, dict)
+                and scan.scan_metadata.get('scan_type') == 'custom_rules'):
+                custom_scans.append(scan)
         
-        # Sort by started_at
-        custom_scans.sort(key=lambda x: x.started_at, reverse=True)
+        # Sort by started_at (most recent first)
+        custom_scans.sort(key=lambda x: x.started_at or datetime.min, reverse=True)
         
-        logger.info(f"Found {len(custom_scans)} custom scans")
+        logger.info(f"Found {len(custom_scans)} custom scans for user {current_user.id}")
         
         scans_data = []
         for scan in custom_scans:
@@ -703,26 +698,119 @@ async def get_custom_scans(
                 'status': scan.status,
                 'started_at': scan.started_at.isoformat() if scan.started_at else None,
                 'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
-                'total_vulnerabilities': scan.total_vulnerabilities,
-                'critical_count': scan.critical_count,
-                'high_count': scan.high_count,
-                'medium_count': scan.medium_count,
-                'low_count': scan.low_count,
-                'security_score': scan.security_score,
-                'scan_metadata': scan.scan_metadata or {}
+                'total_vulnerabilities': scan.total_vulnerabilities or 0,
+                'critical_count': scan.critical_count or 0,
+                'high_count': scan.high_count or 0,
+                'medium_count': scan.medium_count or 0,
+                'low_count': scan.low_count or 0,
+                'security_score': scan.security_score or 0,
+                'user_id': current_user.id,
+                'scan_metadata': {
+                    'scan_type': scan.scan_metadata.get('scan_type', 'custom_rules'),
+                    'rules_count': scan.scan_metadata.get('rules_count', 0),
+                    'custom_rules_count': scan.scan_metadata.get('custom_rules_count', 0),
+                    'files_scanned': scan.total_files_scanned or 0
+                }
             }
             scans_data.append(scan_data)
         
         return {
             "scans": scans_data,
-            "total_count": len(scans_data)
+            "total_count": len(scans_data),
+            "user_id": current_user.id
         }
         
     except Exception as e:
-        logger.error(f"Error fetching custom scans: {e}")
+        logger.error(f"Error fetching custom scans for user {current_user.id}: {e}")
+        # Return empty result instead of error for better UX
+        return {
+            "scans": [],
+            "total_count": 0,
+            "user_id": current_user.id
+        }
+
+
+@router.get("/custom/{scan_id}", response_model=dict)
+async def get_custom_scan_details(
+    scan_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information for a specific custom scan - USER SCOPED"""
+    try:
+        # Verify scan ownership through repository ownership
+        scan = db.query(Scan).join(Repository).filter(
+            Scan.id == scan_id,
+            Repository.owner_id == current_user.id
+        ).first()
+        
+        if not scan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scan not found or access denied"
+            )
+        
+        # Verify it's a custom scan in Python
+        if not scan.scan_metadata or scan.scan_metadata.get('scan_type') != 'custom_rules':
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Custom scan not found"
+            )
+        
+        # Get repository info
+        repo = db.query(Repository).filter(Repository.id == scan.repository_id).first()
+        
+        # Get vulnerabilities for this scan
+        vulnerabilities = db.query(Vulnerability).filter(
+            Vulnerability.scan_id == scan_id
+        ).all()
+        
+        vuln_data = []
+        for vuln in vulnerabilities:
+            vuln_data.append({
+                'id': vuln.id,
+                'title': vuln.title,
+                'description': vuln.description,
+                'severity': vuln.severity,
+                'category': vuln.category,
+                'file_path': vuln.file_path,
+                'line_number': vuln.line_number,
+                'risk_score': vuln.risk_score,
+                'status': vuln.status,
+                'detected_at': vuln.detected_at.isoformat() if vuln.detected_at else None
+            })
+        
+        return {
+            'scan': {
+                'id': scan.id,
+                'repository_id': scan.repository_id,
+                'repository_name': repo.full_name if repo else 'Unknown',
+                'status': scan.status,
+                'started_at': scan.started_at.isoformat() if scan.started_at else None,
+                'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
+                'total_files_scanned': scan.total_files_scanned or 0,
+                'total_vulnerabilities': scan.total_vulnerabilities or 0,
+                'critical_count': scan.critical_count or 0,
+                'high_count': scan.high_count or 0,
+                'medium_count': scan.medium_count or 0,
+                'low_count': scan.low_count or 0,
+                'security_score': scan.security_score or 0,
+                'code_coverage': scan.code_coverage or 0,
+                'scan_duration': scan.scan_duration,
+                'user_id': current_user.id,
+                'scan_metadata': scan.scan_metadata or {}
+            },
+            'vulnerabilities': vuln_data,
+            'vulnerability_count': len(vuln_data)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching custom scan details for user {current_user.id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch custom scans"
+            detail="Failed to fetch custom scan details"
         )
 
 
@@ -751,6 +839,7 @@ async def force_fail_scan(
         "old_status": "running",
         "new_status": scan.status
     }
+
 
 @router.post("/admin/cleanup-stuck-scans")
 async def cleanup_stuck_scans(
@@ -808,85 +897,3 @@ async def cleanup_stuck_scans(
         "fixed_scan_ids": fixed_scan_ids,
         "cutoff_time": cutoff_time.isoformat()
     }
-
-# Also add this endpoint for custom scan details
-@router.get("/custom/{scan_id}", response_model=dict)
-async def get_custom_scan_details(
-    scan_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get detailed information for a specific custom scan"""
-    try:
-        # ✅ FIX: Verify scan ownership without JSONB filter first
-        scan = db.query(Scan).join(Repository).filter(
-            Scan.id == scan_id,
-            Repository.owner_id == current_user.id
-        ).first()
-        
-        if not scan:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Scan not found"
-            )
-        
-        # ✅ Then verify it's a custom scan in Python
-        if not scan.scan_metadata or scan.scan_metadata.get('scan_type') != 'custom_rules':
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Custom scan not found"
-            )
-        
-        # Get repository info
-        repo = db.query(Repository).filter(Repository.id == scan.repository_id).first()
-        
-        # Get vulnerabilities for this scan
-        vulnerabilities = db.query(Vulnerability).filter(
-            Vulnerability.scan_id == scan_id
-        ).all()
-        
-        vuln_data = []
-        for vuln in vulnerabilities:
-            vuln_data.append({
-                'id': vuln.id,
-                'title': vuln.title,
-                'description': vuln.description,
-                'severity': vuln.severity,
-                'category': vuln.category,
-                'file_path': vuln.file_path,
-                'line_number': vuln.line_number,
-                'risk_score': vuln.risk_score,
-                'status': vuln.status
-            })
-        
-        return {
-            'scan': {
-                'id': scan.id,
-                'repository_id': scan.repository_id,
-                'repository_name': repo.full_name if repo else 'Unknown',
-                'status': scan.status,
-                'started_at': scan.started_at.isoformat() if scan.started_at else None,
-                'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
-                'total_files_scanned': scan.total_files_scanned,
-                'total_vulnerabilities': scan.total_vulnerabilities,
-                'critical_count': scan.critical_count,
-                'high_count': scan.high_count,
-                'medium_count': scan.medium_count,
-                'low_count': scan.low_count,
-                'security_score': scan.security_score,
-                'code_coverage': scan.code_coverage,
-                'scan_duration': scan.scan_duration,
-                'scan_metadata': scan.scan_metadata or {}
-            },
-            'vulnerabilities': vuln_data,
-            'vulnerability_count': len(vuln_data)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching custom scan details: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch custom scan details"
-        )

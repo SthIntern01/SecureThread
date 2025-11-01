@@ -1,5 +1,4 @@
-// src/components/AppSidebar.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
@@ -33,15 +32,17 @@ const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         sidebarOpen ? "space-x-3 px-3" : "justify-center px-0"
       } py-3 text-sm font-normal transition-all duration-300`}
     >
-      <img
-        src={logo}
-        alt="Secure Thread Logo"
-        className={`${sidebarOpen ? "h-12" : "h-14"} w-auto flex-shrink-0 transition-all duration-300`}
-      />
+      <div className={`${sidebarOpen ? "w-12 h-12" : "w-10 h-10"} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
+        <img
+          src={logo}
+          alt="Secure Thread Logo"
+          className="w-full h-full object-contain"
+        />
+      </div>
       {sidebarOpen && (
         <div className="font-bold text-white text-lg tracking-wide text-center">
-          <div>SECURE</div>
-          <div>THREAD</div>
+          <div>SANDBOX</div>
+          <div>SECURITY</div>
         </div>
       )}
     </Link>
