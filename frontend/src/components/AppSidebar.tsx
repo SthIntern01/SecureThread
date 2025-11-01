@@ -16,6 +16,8 @@ import {
   IconUser,
   IconLogout,
   IconRobot,
+  IconMoon,
+  IconSun,
 } from "@tabler/icons-react";
 import { ChevronDown, Plus, Settings, Check } from "lucide-react";
 
@@ -202,6 +204,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const { user, logout } = useAuth();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -279,6 +282,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
     setShowProfileDropdown(!showProfileDropdown);
   };
 
+  const handleThemeToggle = () => {
+    setIsDarkMode(!isDarkMode);
+    // TODO: Implement theme switching logic
+    console.log('Theme toggled:', !isDarkMode ? 'dark' : 'light');
+  };
+
   return (
     <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
       <SidebarBody className="justify-between gap-10">
@@ -301,6 +310,49 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
             {bottomLinks.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
+            
+            {/* Theme Toggle - Button Style */}
+            {sidebarOpen ? (
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-2 bg-neutral-800 rounded-lg p-1">
+                  <button
+                    onClick={() => setIsDarkMode(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
+                      !isDarkMode
+                        ? 'bg-white text-gray-900'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <IconSun className="h-4 w-4" />
+                    <span className="text-sm font-medium">Light</span>
+                  </button>
+                  <button
+                    onClick={() => setIsDarkMode(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
+                      isDarkMode
+                        ? 'bg-neutral-700 text-white'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <IconMoon className="h-4 w-4" />
+                    <span className="text-sm font-medium">Dark</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={handleThemeToggle}
+                className="flex justify-center py-3 cursor-pointer"
+              >
+                <div className="relative w-10 h-10 bg-neutral-700 rounded-full flex items-center justify-center hover:bg-neutral-600 transition-colors">
+                  {isDarkMode ? (
+                    <IconMoon className="h-5 w-5 text-neutral-400" />
+                  ) : (
+                    <IconSun className="h-5 w-5 text-yellow-500" />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 border-t border-brand-gray/30 relative">

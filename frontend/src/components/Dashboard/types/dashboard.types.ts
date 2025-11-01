@@ -191,12 +191,12 @@ export interface CustomScanResult {
 }
 
 export interface DashboardData {
-  securityScore: number;
+  securityScore: number | null;  // 🔧 Allow null
   criticalIssues: number;
   totalVulnerabilities: number;
   activeProjects: number;
   scansToday: number;
-  codeCoverage: number;
+  codeCoverage: number | null;  // 🔧 Allow null
   activeScanningProjects: number;
   totalProjects: number;
   recentActivity: Array<{

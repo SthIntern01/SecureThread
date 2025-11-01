@@ -388,6 +388,21 @@ const DashboardContainer = () => {
       };
 
 const calculateRepositorySpecificMetrics = () => {
+
+   if (allRepos.length === 0) {
+    console.log('🚫 EMPTY ACCOUNT - No repositories found');
+    return {
+      securityScore: null,     // 🔧 NULL for empty accounts
+      totalVulnerabilities: 0,
+      criticalIssues: 0,
+      totalFiles: 0,
+      activeProjects: 0,
+      totalProjects: 0,
+      activeScanningProjects: 0,
+      isEmpty: true            // 🔧 Flag for empty state UI
+    };
+  }
+
   if (selectedRepository === 'all') {
     // Use API totals when viewing all repositories
     const apiSecurityScore = transformedMetrics.codeQualityMetrics.overall_security_score;
@@ -503,7 +518,10 @@ const calculateRepositorySpecificMetrics = () => {
         totalVulnerabilities: repoMetrics.totalVulnerabilities,
         activeProjects: repoMetrics.activeProjects,
         scansToday: scansToday,
-        codeCoverage: Math.round(metricsData.code_quality_metrics?.code_coverage?.average || 50),
+        codeCoverage: metricsData.code_quality_metrics?.code_coverage?.average !== null && 
+              metricsData.code_quality_metrics?.code_coverage?.average !== undefined
+              ? Math.round(metricsData.code_quality_metrics.code_coverage.average) 
+              : null,
         activeScanningProjects: repoMetrics.activeScanningProjects,
         totalProjects: repoMetrics.totalProjects,
         recentActivity: calculateRecentActivity(processedRepos, processedScans),
@@ -599,26 +617,26 @@ const calculateRepositorySpecificMetrics = () => {
   }, [showTimeDropdown, showRepoDropdown]);
 
   // Default data
-  const data = dashboardData || {
-    securityScore: 100,
-    criticalIssues: 0,
-    totalVulnerabilities: 0,
-    activeProjects: 0,
-    scansToday: 0,
-    codeCoverage: 0,
-    activeScanningProjects: 0,
-    totalProjects: 0,
-    recentActivity: [],
-    vulnerabilityTypes: [],
-    customScans: [],
-    customScanStats: {
-      totalCustomScans: 0,
-      activeCustomScans: 0,
-      customScanVulnerabilities: 0,
-      customScanCritical: 0
-    },
-    advancedMetrics: undefined
-  };
+const data = dashboardData || {
+  securityScore: null,      // 🔧 NULL instead of default
+  criticalIssues: 0,
+  totalVulnerabilities: 0,
+  activeProjects: 0,
+  scansToday: 0,
+  codeCoverage: null,       // 🔧 NULL instead of default
+  activeScanningProjects: 0,
+  totalProjects: 0,
+  recentActivity: [],
+  vulnerabilityTypes: [],
+  customScans: [],
+  customScanStats: {
+    totalCustomScans: 0,
+    activeCustomScans: 0,
+    customScanVulnerabilities: 0,
+    customScanCritical: 0
+  },
+  advancedMetrics: undefined
+};
 
   if (loading && !dashboardData) {
     return (
