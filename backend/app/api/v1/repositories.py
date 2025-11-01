@@ -249,6 +249,8 @@ async def get_user_repositories(
     """Get user's imported repositories with latest scan information and filtering"""
     from datetime import datetime, timedelta
     
+    logger.info(f"🎯 REPO API CALLED - User: {current_user.id}, RepoID: {repository_id}")
+    
     # Base query - already user scoped
     query = db.query(Repository).filter(
         Repository.owner_id == current_user.id
@@ -257,12 +259,14 @@ async def get_user_repositories(
     # Apply repository filter if specified
     if repository_id:
         query = query.filter(Repository.id == repository_id)
+        logger.info(f"🎯 FILTERING BY REPOSITORY ID: {repository_id}")
     
     repositories = query.all()
+    logger.info(f"📊 REPOSITORIES FOUND: {len(repositories)}")
     
     repo_list = []
     for repo in repositories:
-        # Get latest scan for this repository
+        # Get latest scan for this repository (CONSISTENT WITH METRICS)
         scan_query = db.query(Scan).filter(Scan.repository_id == repo.id)
         
         # Apply time filter to scans if specified
@@ -322,6 +326,7 @@ async def get_user_repositories(
                     "high_count": latest_scan.high_count or 0,
                     "medium_count": latest_scan.medium_count or 0,
                     "low_count": latest_scan.low_count or 0,
+                    "total_files_scanned": latest_scan.total_files_scanned or 0,  # ✅ ADD THIS
                     "repository_id": repo.id,
                     "user_id": current_user.id  # ✅ Add user association
                 },
@@ -336,11 +341,16 @@ async def get_user_repositories(
                 "code_coverage": latest_scan.code_coverage,
                 "status": repo_status
             })
+            
+            logger.info(f"📊 REPO {repo.name} - Latest scan vulnerabilities: {latest_scan.total_vulnerabilities}")
         else:
             # No scans yet
             repo_data["status"] = "active"
+            logger.info(f"📊 REPO {repo.name} - No scans found")
         
         repo_list.append(repo_data)
+    
+    logger.info(f"🎯 REPO API RESULT - Total repos: {len(repo_list)}, Filter: {repository_id}")
     
     return {
         "repositories": repo_list,

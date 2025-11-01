@@ -65,11 +65,12 @@ const MetricsRow: React.FC<MetricsRowProps> = ({ data }) => {
             <FileCode className="w-8 h-8 text-purple-400" />
           </div>
           <div className="text-2xl font-bold text-purple-400 mb-1">
-            {data.advancedMetrics?.codeQualityMetrics?.totalFiles || 0}
+            {/* 🔧 FIX: Use the advanced metrics data */}
+            {data.advancedMetrics?.codeQualityMetrics?.total_files || 0}
           </div>
           <div className="text-white/70 font-medium text-sm">Files Scanned</div>
           <div className="text-xs text-purple-300 mt-1">
-            {(data.advancedMetrics?.codeQualityMetrics?.totalLinesOfCode || 0).toLocaleString()} LoC
+            {(data.advancedMetrics?.codeQualityMetrics?.total_lines_of_code || 0).toLocaleString()} LoC
           </div>
         </div>
         

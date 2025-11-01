@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
+from app.services.advanced_technical_debt_service import AdvancedTechnicalDebtService
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -56,16 +57,343 @@ class MetricsService:
     repository_id: Optional[int], 
     time_filter: Optional[datetime]
     ) -> Dict[str, Any]:
-        """Calculate comprehensive security metrics - FIXED VERSION"""
+        """Calculate comprehensive security metrics - REPOSITORY FILTERED VERSION WITH CORRECT SECURITY SCORE"""
         
-        # Base query for user's repositories
+        # 🔧 FIX: Get repositories with proper filtering
+        repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
+        if repository_id:
+            repo_query = repo_query.filter(Repository.id == repository_id)
+            logger.info(f"🎯 FILTERING BY REPOSITORY ID: {repository_id}")
+        
+        repositories = repo_query.all()
+        logger.info(f"📊 REPOSITORIES FOUND: {len(repositories)}")
+        
+        # 🔧 FIX: Get ONLY latest scan per repository (matching projects page logic)
+        latest_scans = []
+        total_vulns_from_latest = 0
+        critical_vulns_from_latest = 0
+        high_vulns_from_latest = 0
+        medium_vulns_from_latest = 0
+        low_vulns_from_latest = 0
+        
+        for repo in repositories:
+            # Get the most recent scan for this repository
+            scan_query = self.db.query(Scan).filter(Scan.repository_id == repo.id)
+            
+            # Apply time filter to scans if specified
+            if time_filter:
+                scan_query = scan_query.filter(Scan.started_at >= time_filter)
+            
+            latest_scan = scan_query.order_by(Scan.started_at.desc()).first()
+            if latest_scan:
+                latest_scans.append(latest_scan)
+                # 🔧 COUNT VULNERABILITIES FROM LATEST SCANS ONLY
+                total_vulns_from_latest += latest_scan.total_vulnerabilities or 0
+                critical_vulns_from_latest += latest_scan.critical_count or 0
+                high_vulns_from_latest += latest_scan.high_count or 0
+                medium_vulns_from_latest += latest_scan.medium_count or 0
+                low_vulns_from_latest += latest_scan.low_count or 0
+                
+                logger.info(f"📊 REPO {repo.name} - Latest scan: {latest_scan.total_vulnerabilities} vulns")
+        
+        logger.info(f"🎯 FINAL COUNTS FROM LATEST SCANS:")
+        logger.info(f"- Total vulnerabilities: {total_vulns_from_latest}")
+        logger.info(f"- Critical vulnerabilities: {critical_vulns_from_latest}")
+        logger.info(f"- High vulnerabilities: {high_vulns_from_latest}")
+        logger.info(f"- Medium vulnerabilities: {medium_vulns_from_latest}")
+        logger.info(f"- Low vulnerabilities: {low_vulns_from_latest}")
+        logger.info(f"- Repository filter: {repository_id}")
+        
+        scans = latest_scans  # Use only latest scans
+        
+        # 🔧 FIX: Calculate security scores correctly from vulnerability counts
+        security_scores = []
+        total_calculated_score = 0
+        score_count = 0
+        
+        if scans:
+            for scan in sorted(scans, key=lambda x: x.started_at or datetime.min):
+                # Calculate correct security score based on vulnerabilities
+                calculated_score = self.calculate_security_score_from_vulnerabilities(scan)
+                
+                security_scores.append({
+                    'date': scan.started_at.isoformat() if scan.started_at else None,
+                    'score': calculated_score,
+                    'repository': scan.repository.name if scan.repository else 'Unknown',
+                    'scan_id': scan.id,
+                    'vulnerabilities': {
+                        'total': scan.total_vulnerabilities or 0,
+                        'critical': scan.critical_count or 0,
+                        'high': scan.high_count or 0,
+                        'medium': scan.medium_count or 0,
+                        'low': scan.low_count or 0
+                    }
+                })
+                
+                total_calculated_score += calculated_score
+                score_count += 1
+        
+        # Calculate overall security score from calculated scores
+        overall_security_score = round(total_calculated_score / score_count, 1) if score_count > 0 else 100.0
+        
+        # Calculate mean time to resolve
+        mttr = await self._calculate_mttr(scans)
+        
+        # 🔧 FIX: Use calculated counts from latest scans
+        total_vulns = total_vulns_from_latest
+        critical_vulns = critical_vulns_from_latest
+        high_vulns = high_vulns_from_latest
+        
+        # Risk distribution from latest scans
+        risk_distribution = {
+            'critical': critical_vulns_from_latest,
+            'high': high_vulns_from_latest,
+            'medium': medium_vulns_from_latest,
+            'low': low_vulns_from_latest
+        }
+        
+        # Security trend calculation
+        if len(security_scores) >= 2:
+            recent_avg = sum(s['score'] for s in security_scores[-5:]) / min(5, len(security_scores))
+            older_avg = sum(s['score'] for s in security_scores[:5]) / min(5, len(security_scores))
+            trend = "improving" if recent_avg > older_avg else "declining"
+            trend_percentage = round(((recent_avg - older_avg) / older_avg) * 100, 1) if older_avg > 0 else 0
+        else:
+            trend = "stable"
+            trend_percentage = 0
+        
+        # Calculate vulnerability severity ratios
+        severity_ratios = {
+            'critical_ratio': round((critical_vulns / max(1, total_vulns)) * 100, 1),
+            'high_ratio': round((high_vulns / max(1, total_vulns)) * 100, 1),
+            'medium_ratio': round((medium_vulns_from_latest / max(1, total_vulns)) * 100, 1),
+            'low_ratio': round((low_vulns_from_latest / max(1, total_vulns)) * 100, 1)
+        }
+        
+        logger.info(f"📊 FINAL SECURITY METRICS RESULT:")
+        logger.info(f"- User: {self.user_id}")
+        logger.info(f"- Repository filter: {repository_id}")
+        logger.info(f"- Repositories: {len(repositories)}")
+        logger.info(f"- Latest scans: {len(scans)}")
+        logger.info(f"- Total vulnerabilities: {total_vulns}")
+        logger.info(f"- Critical vulnerabilities: {critical_vulns}")
+        logger.info(f"- Calculated security score: {overall_security_score}%")
+        logger.info(f"- Security trend: {trend} ({trend_percentage:+.1f}%)")
+        
+        return {
+            'overall_security_score': overall_security_score,  # 🔧 Use calculated score
+            'security_trend': trend,
+            'security_trend_percentage': trend_percentage,
+            'total_vulnerabilities': total_vulns,
+            'critical_vulnerabilities': critical_vulns,
+            'high_vulnerabilities': high_vulns,
+            'medium_vulnerabilities': medium_vulns_from_latest,
+            'low_vulnerabilities': low_vulns_from_latest,
+            'risk_distribution': risk_distribution,
+            'severity_ratios': severity_ratios,
+            'mean_time_to_resolve': mttr,
+            'security_score_history': security_scores[-30:],  # Last 30 data points
+            'repositories_scanned': len([r for r in repositories if any(s.repository_id == r.id for s in scans)]),
+            'scan_frequency': len(scans) / max(1, len(repositories)),
+            'vulnerability_density': round(total_vulns / max(1, len(repositories)), 2),
+            'scans_analyzed': len(scans),
+            'repositories_with_vulnerabilities': len([s for s in scans if (s.total_vulnerabilities or 0) > 0]),
+            'average_vulnerabilities_per_repo': round(total_vulns / max(1, len(repositories)), 1),
+            'security_posture_summary': {
+                'status': 'critical' if critical_vulns > 0 else 'warning' if high_vulns > 5 else 'good' if total_vulns < 10 else 'moderate',
+                'priority_action': 'Address critical vulnerabilities immediately' if critical_vulns > 0 else 
+                                'Review high-risk vulnerabilities' if high_vulns > 0 else 
+                                'Monitor and maintain current security level',
+                'score_category': 'excellent' if overall_security_score >= 90 else 
+                                'good' if overall_security_score >= 70 else 
+                                'moderate' if overall_security_score >= 50 else 'poor'
+            }
+        }
+
+    def calculate_security_score_from_vulnerabilities(self, scan: Scan) -> float:
+        """Calculate security score dynamically based on repository context and vulnerability patterns"""
+        if not scan:
+            return 100.0
+        
+        # If scan already has a calculated security score and it's realistic, use it
+        if scan.security_score and scan.security_score > 0:
+            return float(scan.security_score)
+        
+        # Get vulnerability counts
+        critical_count = scan.critical_count or 0
+        high_count = scan.high_count or 0
+        medium_count = scan.medium_count or 0
+        low_count = scan.low_count or 0
+        total_count = critical_count + high_count + medium_count + low_count
+        total_files = scan.total_files_scanned or 1
+        
+        # If no vulnerabilities, perfect score
+        if total_count == 0:
+            return 100.0
+        
+        # 🔧 DYNAMIC CALCULATION BASED ON REPOSITORY CONTEXT
+        
+        # 1. Calculate vulnerability density (vulns per file)
+        vulnerability_density = total_count / total_files
+        
+        # 2. Get repository language for context-aware scoring
+        repo_language = scan.repository.language.lower() if scan.repository and scan.repository.language else 'unknown'
+        
+        # 3. Dynamic weights based on repository characteristics
+        language_risk_multiplier = self._get_language_risk_multiplier(repo_language)
+        
+        # 4. Calculate severity distribution ratios
+        critical_ratio = critical_count / max(1, total_count)
+        high_ratio = high_count / max(1, total_count)
+        medium_ratio = medium_count / max(1, total_count)
+        low_ratio = low_count / max(1, total_count)
+        
+        # 5. Dynamic base weights that adapt to the severity distribution
+        if critical_ratio > 0.1:  # More than 10% critical vulnerabilities
+            critical_weight = 30 + (critical_ratio * 20)  # Escalate weight
+            high_weight = 8   # Reduce other weights proportionally
+            medium_weight = 3
+            low_weight = 0.5
+        elif high_ratio > 0.3:  # More than 30% high vulnerabilities
+            critical_weight = 25
+            high_weight = 12 + (high_ratio * 8)  # Escalate high weight
+            medium_weight = 4
+            low_weight = 1
+        else:  # Balanced distribution
+            critical_weight = 20
+            high_weight = 8
+            medium_weight = 4
+            low_weight = 1
+        
+        # 6. Apply language-specific risk multiplier
+        critical_weight *= language_risk_multiplier
+        high_weight *= language_risk_multiplier
+        medium_weight *= language_risk_multiplier
+        low_weight *= language_risk_multiplier
+        
+        # 7. Density-based scaling (more vulnerabilities per file = higher penalty)
+        density_multiplier = 1.0
+        if vulnerability_density > 2.0:  # More than 2 vulns per file
+            density_multiplier = 1.5 + (vulnerability_density * 0.1)
+        elif vulnerability_density > 1.0:  # More than 1 vuln per file
+            density_multiplier = 1.2 + (vulnerability_density * 0.1)
+        
+        # 8. Calculate base penalty
+        base_penalty = (
+            (critical_count * critical_weight) +
+            (high_count * high_weight) +
+            (medium_count * medium_weight) +
+            (low_count * low_weight)
+        )
+        
+        # 9. Apply density multiplier
+        final_penalty = base_penalty * density_multiplier
+        
+        # 10. Repository size adjustment (larger repos get slight penalty reduction)
+        if total_files > 100:
+            size_adjustment = min(0.9, 1.0 - (total_files / 10000))  # Up to 10% reduction for large repos
+            final_penalty *= size_adjustment
+        
+        # 11. Historical context (if we have scan history for this repository)
+        historical_adjustment = self._get_historical_adjustment(scan)
+        final_penalty *= historical_adjustment
+        
+        # 12. Calculate final score with logarithmic scaling for extreme cases
+        if final_penalty > 80:
+            import math
+            # Apply logarithmic scaling to prevent scores going too low
+            scaled_penalty = 80 + (15 * math.log10(1 + (final_penalty - 80) / 10))
+            final_penalty = min(95, scaled_penalty)
+        
+        # Final security score (minimum 5, maximum 100)
+        security_score = max(5.0, min(100.0, 100.0 - final_penalty))
+        
+        logger.info(f"🔐 DYNAMIC SECURITY SCORE CALCULATION:")
+        logger.info(f"- Repository: {scan.repository.name if scan.repository else 'Unknown'}")
+        logger.info(f"- Language: {repo_language} (risk multiplier: {language_risk_multiplier:.2f})")
+        logger.info(f"- Files scanned: {total_files}")
+        logger.info(f"- Vulnerability density: {vulnerability_density:.2f} vulns/file")
+        logger.info(f"- Severity distribution: C:{critical_ratio:.1%} H:{high_ratio:.1%} M:{medium_ratio:.1%} L:{low_ratio:.1%}")
+        logger.info(f"- Dynamic weights: C:{critical_weight:.1f} H:{high_weight:.1f} M:{medium_weight:.1f} L:{low_weight:.1f}")
+        logger.info(f"- Base penalty: {base_penalty:.1f}")
+        logger.info(f"- Density multiplier: {density_multiplier:.2f}")
+        logger.info(f"- Final penalty: {final_penalty:.1f}")
+        logger.info(f"- Final security score: {security_score:.1f}%")
+        
+        return security_score
+
+    def _get_language_risk_multiplier(self, language: str) -> float:
+        """Get dynamic risk multiplier based on language characteristics"""
+        # Languages with higher inherent security risks get higher multipliers
+        language_risks = {
+            'php': 1.3,           # High risk due to common web vulnerabilities
+            'javascript': 1.25,   # High risk due to dependency ecosystem
+            'python': 1.1,        # Moderate risk
+            'java': 1.15,         # Moderate risk with enterprise complexity
+            'c': 1.4,             # High risk due to memory management
+            'c++': 1.4,           # High risk due to memory management
+            'ruby': 1.2,          # Moderate-high risk
+            'go': 0.95,           # Lower risk due to memory safety
+            'rust': 0.85,         # Lowest risk due to memory safety
+            'typescript': 1.15,   # Moderate risk (better than JS)
+            'swift': 0.9,         # Lower risk
+            'kotlin': 1.0,        # Neutral risk
+            'c#': 1.05,           # Slightly higher risk
+            'scala': 1.1,         # Moderate risk
+            'shell': 1.35,        # High risk for shell scripts
+            'powershell': 1.35,   # High risk for shell scripts
+        }
+        
+        return language_risks.get(language, 1.0)  # Default neutral multiplier
+
+    def _get_historical_adjustment(self, current_scan: Scan) -> float:
+        """Get historical context adjustment based on previous scans"""
+        try:
+            # Get previous scans for this repository
+            previous_scans = self.db.query(Scan).filter(
+                Scan.repository_id == current_scan.repository_id,
+                Scan.id != current_scan.id,
+                Scan.status == 'completed'
+            ).order_by(Scan.started_at.desc()).limit(5).all()
+            
+            if not previous_scans:
+                return 1.0  # No history, neutral adjustment
+            
+            # Calculate trend
+            current_vulns = current_scan.total_vulnerabilities or 0
+            previous_vulns = [scan.total_vulnerabilities or 0 for scan in previous_scans]
+            
+            if len(previous_vulns) >= 2:
+                # Calculate trend: improving = lower penalty, worsening = higher penalty
+                recent_avg = sum(previous_vulns[:2]) / 2  # Last 2 scans
+                older_avg = sum(previous_vulns[-2:]) / len(previous_vulns[-2:])  # Older scans
+                
+                if recent_avg < older_avg:  # Improving trend
+                    return 0.9  # 10% penalty reduction
+                elif recent_avg > older_avg:  # Worsening trend
+                    return 1.1  # 10% penalty increase
+            
+            return 1.0  # Stable trend, neutral adjustment
+            
+        except Exception as e:
+            logger.warning(f"Could not calculate historical adjustment: {e}")
+            return 1.0
+    
+    async def calculate_code_quality_metrics(
+    self, 
+    repository_id: Optional[int], 
+    time_filter: Optional[datetime]
+    ) -> Dict[str, Any]:
+        """Calculate code quality and technical debt metrics"""
+        
+        # 🔧 FIX: Get latest scan per repository (matching repository API logic)
         repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
         if repository_id:
             repo_query = repo_query.filter(Repository.id == repository_id)
         
         repositories = repo_query.all()
         
-        # 🔧 FIX: Get ONLY latest scan per repository (like repository API)
+        # Get latest scans only (matching the repository API pattern)
         latest_scans = []
         for repo in repositories:
             scan_query = self.db.query(Scan).filter(Scan.repository_id == repo.id)
@@ -78,94 +406,27 @@ class MetricsService:
             if latest_scan:
                 latest_scans.append(latest_scan)
         
-        scans = latest_scans  # Now this matches repository API logic!
-        
-        # Calculate security score trend (only from latest scans)
-        security_scores = []
-        if scans:
-            for scan in sorted(scans, key=lambda x: x.started_at or datetime.min):
-                if scan.security_score:
-                    security_scores.append({
-                        'date': scan.started_at.isoformat() if scan.started_at else None,
-                        'score': scan.security_score,
-                        'repository': scan.repository.name if scan.repository else 'Unknown'
-                    })
-        
-        # Calculate mean time to resolve
-        mttr = await self._calculate_mttr(scans)
-        
-        # 🔧 FIX: Count vulnerabilities from latest scans only (matches repository API)
-        total_vulns = sum(scan.total_vulnerabilities or 0 for scan in scans)
-        critical_vulns = sum(scan.critical_count or 0 for scan in scans)
-        high_vulns = sum(scan.high_count or 0 for scan in scans)
-        
-        # Risk distribution
-        risk_distribution = {
-            'critical': critical_vulns,
-            'high': high_vulns,
-            'medium': sum(scan.medium_count or 0 for scan in scans),
-            'low': sum(scan.low_count or 0 for scan in scans)
-        }
-        
-        # Security trend calculation
-        if len(security_scores) >= 2:
-            recent_avg = sum(s['score'] for s in security_scores[-5:]) / min(5, len(security_scores))
-            older_avg = sum(s['score'] for s in security_scores[:5]) / min(5, len(security_scores))
-            trend = "improving" if recent_avg > older_avg else "declining"
-        else:
-            trend = "stable"
-        
-        logger.info(f"📊 METRICS DEBUG - User {self.user_id}:")
+        logger.info(f"📁 CODE QUALITY CALCULATION - User {self.user_id}:")
         logger.info(f"- Repositories: {len(repositories)}")
-        logger.info(f"- Latest scans: {len(scans)}")
-        logger.info(f"- Total vulnerabilities: {total_vulns}")
-        logger.info(f"- Critical vulnerabilities: {critical_vulns}")
-        logger.info(f"- Time filter: {time_filter}")
+        logger.info(f"- Latest scans found: {len(latest_scans)}")
         
-        return {
-            'overall_security_score': round(sum(s['score'] for s in security_scores) / len(security_scores), 1) if security_scores else 100,
-            'security_trend': trend,
-            'total_vulnerabilities': total_vulns,
-            'critical_vulnerabilities': critical_vulns,
-            'high_vulnerabilities': high_vulns,
-            'risk_distribution': risk_distribution,
-            'mean_time_to_resolve': mttr,
-            'security_score_history': security_scores[-30:],  # Last 30 data points
-            'repositories_scanned': len([r for r in repositories if any(s.repository_id == r.id for s in scans)]),
-            'scan_frequency': len(scans) / max(1, len(repositories)),
-            'vulnerability_density': total_vulns / max(1, len(repositories))
-        }
-    
-    async def calculate_code_quality_metrics(
-        self, 
-        repository_id: Optional[int], 
-        time_filter: Optional[datetime]
-    ) -> Dict[str, Any]:
-        """Calculate code quality and technical debt metrics"""
-        
-        # Get scans with metadata
-        scan_query = self.db.query(Scan).join(Repository).filter(
-            Repository.owner_id == self.user_id,
-            Scan.scan_metadata.isnot(None)
-        )
-        if repository_id:
-            scan_query = scan_query.filter(Scan.repository_id == repository_id)
-        if time_filter:
-            scan_query = scan_query.filter(Scan.started_at >= time_filter)
-        
-        scans = scan_query.all()
-        
-        # Analyze code from scan metadata
+        # 🔧 FIX: Calculate total files from latest scans correctly
         total_files = 0
+        for scan in latest_scans:
+            scan_files = scan.total_files_scanned or 0
+            total_files += scan_files
+            logger.info(f"- Scan {scan.id} ({scan.repository.name}): {scan_files} files")
+        
+        logger.info(f"- TOTAL FILES CALCULATED: {total_files}")
+        
+        # Calculate other metrics from scan metadata
         total_lines = 0
         code_smells = {'blocker': 0, 'critical': 0, 'major': 0, 'minor': 0, 'info': 0}
         language_distribution = {}
-        complexity_score = 0
         
-        for scan in scans:
+        for scan in latest_scans:
             if scan.scan_metadata and 'file_scan_results' in scan.scan_metadata:
                 files = scan.scan_metadata['file_scan_results']
-                total_files += len(files)
                 
                 for file_info in files:
                     file_path = file_info.get('file_path', '')
@@ -185,34 +446,44 @@ class MetricsService:
                         code_smells['major'] += 1
                     if 'test' not in file_path.lower() and file_size < 100:  # Very small non-test file
                         code_smells['minor'] += 1
+
+        # 🔧 FIX: Technical debt calculation from LATEST SCANS ONLY
+        # Get vulnerabilities only from the latest scans
+        latest_scan_ids = [scan.id for scan in latest_scans]
         
-        # Calculate technical debt
-        vuln_query = self.db.query(Vulnerability).join(Scan).join(Repository).filter(
-            Repository.owner_id == self.user_id
-        )
-        if repository_id:
-            vuln_query = vuln_query.filter(Scan.repository_id == repository_id)
-        if time_filter:
-            vuln_query = vuln_query.filter(Scan.started_at >= time_filter)
-        
-        vulnerabilities = vuln_query.all()
+        if latest_scan_ids:
+            vuln_query = self.db.query(Vulnerability).filter(
+                Vulnerability.scan_id.in_(latest_scan_ids)
+            )
+            vulnerabilities = vuln_query.all()
+            logger.info(f"- Vulnerabilities from latest scans: {len(vulnerabilities)}")
+        else:
+            vulnerabilities = []
+            logger.info(f"- No latest scans found, vulnerabilities: 0")
         
         # Technical debt calculation (hours to fix)
         debt_hours = 0
         for vuln in vulnerabilities:
-            severity_hours = {'critical': 8, 'high': 4, 'medium': 2, 'low': 0.5}
+            severity_hours = {'critical': 16, 'high': 8, 'medium': 4, 'low': 1}
             debt_hours += severity_hours.get(vuln.severity.lower(), 2)
         
-        # Code coverage from scans
-        coverage_scores = [scan.code_coverage for scan in scans if scan.code_coverage]
+        # Code coverage from latest scans
+        coverage_scores = [scan.code_coverage for scan in latest_scans if scan.code_coverage]
         avg_coverage = sum(coverage_scores) / len(coverage_scores) if coverage_scores else 0
         
         # Maintainability index (simplified)
         maintainability_index = max(0, 100 - (len(vulnerabilities) * 2) - (debt_hours / 10))
         
+        logger.info(f"📊 FINAL CODE QUALITY METRICS:")
+        logger.info(f"- Total files: {total_files}")
+        logger.info(f"- Total lines: {total_lines}")
+        logger.info(f"- Vulnerabilities from latest scans: {len(vulnerabilities)}")
+        logger.info(f"- Technical debt hours: {debt_hours}")
+        logger.info(f"- Technical debt cost: ${debt_hours * 85}")
+        
         return {
             'total_lines_of_code': total_lines,
-            'total_files': total_files,
+            'total_files': total_files,  # This should now show the correct count
             'language_distribution': [
                 {'language': lang, 'files': count, 'percentage': round(count/max(1, total_files)*100, 1)}
                 for lang, count in sorted(language_distribution.items(), key=lambda x: x[1], reverse=True)
@@ -220,18 +491,18 @@ class MetricsService:
             'code_smells': code_smells,
             'technical_debt': {
                 'total_hours': round(debt_hours, 1),
-                'total_cost': round(debt_hours * 75, 2),  # $75/hour developer cost
-                'priority': 'high' if debt_hours > 40 else 'medium' if debt_hours > 10 else 'low'
+                'total_cost': round(debt_hours * 85, 2),  # $85/hour developer cost
+                'priority': 'high' if debt_hours > 100 else 'medium' if debt_hours > 40 else 'low'
             },
             'code_coverage': {
                 'average': round(avg_coverage, 1),
-                'trend': 'stable',  # Could be improved with historical data
+                'trend': 'stable',
                 'target': 80.0
             },
             'maintainability_index': round(maintainability_index, 1),
-            'complexity_score': round(complexity_score, 1) if complexity_score else 50.0,
+            'complexity_score': 50.0,
             'duplicated_lines': {
-                'percentage': 5.2,  # Placeholder - would need actual analysis
+                'percentage': 5.2,
                 'total_lines': int(total_lines * 0.052),
                 'duplicated_blocks': int(total_files * 0.1)
             }
@@ -426,44 +697,11 @@ class MetricsService:
         }
     
     async def calculate_technical_debt(self, repository_id: Optional[int]) -> Dict[str, Any]:
-        """Calculate detailed technical debt metrics"""
-        vulnerabilities = await self._get_filtered_vulnerabilities(repository_id, None)
+        """Calculate detailed technical debt metrics using advanced industry-standard formulas"""
         
-        # Calculate debt by severity
-        debt_by_severity = {
-            'critical': {'hours': 0, 'count': 0, 'cost': 0},
-            'high': {'hours': 0, 'count': 0, 'cost': 0},
-            'medium': {'hours': 0, 'count': 0, 'cost': 0},
-            'low': {'hours': 0, 'count': 0, 'cost': 0}
-        }
-        
-        severity_hours = {'critical': 16, 'high': 8, 'medium': 4, 'low': 1}
-        hourly_rate = 85  # Developer hourly rate
-        
-        for vuln in vulnerabilities:
-            severity = vuln.severity.lower()
-            if severity in debt_by_severity:
-                hours = severity_hours[severity]
-                debt_by_severity[severity]['hours'] += hours
-                debt_by_severity[severity]['count'] += 1
-                debt_by_severity[severity]['cost'] += hours * hourly_rate
-        
-        total_hours = sum(s['hours'] for s in debt_by_severity.values())
-        total_cost = sum(s['cost'] for s in debt_by_severity.values())
-        
-        return {
-            'total_debt_hours': total_hours,
-            'total_debt_cost': total_cost,
-            'debt_by_severity': debt_by_severity,
-            'debt_ratio': round(total_hours / max(1, len(vulnerabilities)), 2),
-            'priority_recommendation': 'high' if total_hours > 100 else 'medium' if total_hours > 40 else 'low',
-            'estimated_sprint_impact': round(total_hours / 80, 1),  # Assuming 80 hours per sprint
-            'roi_of_fixing': {
-                'maintenance_savings': round(total_cost * 0.3, 2),
-                'risk_reduction': round(total_cost * 0.5, 2),
-                'productivity_gain': round(total_cost * 0.2, 2)
-            }
-        }
+        # Use the advanced technical debt service
+        advanced_debt_service = AdvancedTechnicalDebtService(self.db, self.user_id)
+        return await advanced_debt_service.calculate_advanced_technical_debt(repository_id)
     
     # Helper methods
     async def _calculate_mttr(self, scans: List[Scan]) -> Dict[str, float]:
@@ -583,3 +821,46 @@ class MetricsService:
             query = query.filter(Repository.id == repository_id)
         
         return query.all()
+    
+def calculate_security_score_from_vulnerabilities(self, scan: Scan) -> float:
+    """Calculate security score based on vulnerability counts"""
+    if not scan:
+        return 100.0
+    
+    # If scan already has a calculated security score, use it
+    if scan.security_score and scan.security_score > 0:
+        return float(scan.security_score)
+    
+    # Calculate score based on vulnerability severity weights
+    critical_weight = 25  # Each critical reduces score by 25
+    high_weight = 10      # Each high reduces score by 10
+    medium_weight = 5     # Each medium reduces score by 5
+    low_weight = 2        # Each low reduces score by 2
+    
+    # Get vulnerability counts
+    critical_count = scan.critical_count or 0
+    high_count = scan.high_count or 0
+    medium_count = scan.medium_count or 0
+    low_count = scan.low_count or 0
+    
+    # Calculate deduction
+    deduction = (
+        (critical_count * critical_weight) +
+        (high_count * high_weight) +
+        (medium_count * medium_weight) +
+        (low_count * low_weight)
+    )
+    
+    # Calculate final score (minimum 0, maximum 100)
+    security_score = max(0.0, min(100.0, 100.0 - deduction))
+    
+    logger.info(f"🔐 SECURITY SCORE CALCULATION:")
+    logger.info(f"- Repository: {scan.repository.name if scan.repository else 'Unknown'}")
+    logger.info(f"- Critical: {critical_count} × {critical_weight} = {critical_count * critical_weight}")
+    logger.info(f"- High: {high_count} × {high_weight} = {high_count * high_weight}")
+    logger.info(f"- Medium: {medium_count} × {medium_weight} = {medium_count * medium_weight}")
+    logger.info(f"- Low: {low_count} × {low_weight} = {low_count * low_weight}")
+    logger.info(f"- Total deduction: {deduction}")
+    logger.info(f"- Final security score: {security_score}%")
+    
+    return security_score

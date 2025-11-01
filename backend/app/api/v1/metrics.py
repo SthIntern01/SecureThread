@@ -108,3 +108,43 @@ async def get_dependency_health(
     except Exception as e:
         logger.error(f"Error calculating dependency health: {e}")
         raise HTTPException(status_code=500, detail="Failed to calculate dependency health")
+    
+
+@router.get("/debug-scan-data")
+async def debug_scan_data(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check scan data"""
+    
+    # Get latest scans
+    repositories = db.query(Repository).filter(Repository.owner_id == current_user.id).all()
+    
+    debug_info = {
+        "user_id": current_user.id,
+        "total_repositories": len(repositories),
+        "scan_details": []
+    }
+    
+    for repo in repositories:
+        latest_scan = db.query(Scan).filter(
+            Scan.repository_id == repo.id
+        ).order_by(Scan.started_at.desc()).first()
+        
+        if latest_scan:
+            scan_info = {
+                "repository_name": repo.name,
+                "scan_id": latest_scan.id,
+                "total_files_scanned": latest_scan.total_files_scanned,
+                "total_vulnerabilities": latest_scan.total_vulnerabilities,
+                "critical_count": latest_scan.critical_count,
+                "high_count": latest_scan.high_count,
+                "medium_count": latest_scan.medium_count,
+                "low_count": latest_scan.low_count,
+                "scan_metadata_exists": latest_scan.scan_metadata is not None,
+                "scan_metadata_keys": list(latest_scan.scan_metadata.keys()) if latest_scan.scan_metadata else [],
+                "file_scan_results_count": len(latest_scan.scan_metadata.get("file_scan_results", [])) if latest_scan.scan_metadata else 0
+            }
+            debug_info["scan_details"].append(scan_info)
+    
+    return debug_info
