@@ -360,8 +360,48 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const exportReportAsPDF = async () => {
+  if (!scanDetails) return;
+
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/${scanId}/report/pdf?report_type=comprehensive`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.ok) {
+      // Get the PDF blob
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `security-report-${repositoryName}-${scanDetails.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      // Fallback to old method if API fails
+      console.warn("PDF API not available, using fallback method");
+      exportReportAsPDFLegacy();
+    }
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    // Fallback to old method
+    exportReportAsPDFLegacy();
+  }
+};
+
   // Fixed PDF export function using jsPDF
-  const exportReportAsPDF = () => {
+  const exportReportAsPDFLegacy = () => {
     if (!scanDetails) return;
 
     // Create a new window with the report content

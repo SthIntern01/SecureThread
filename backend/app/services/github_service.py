@@ -467,7 +467,7 @@ class GitHubService:
             return None
 
     def get_repository_tree(self, access_token: str, repo_full_name: str, tree_sha: str = None) -> Optional[Dict[str, Any]]:
-        """Get repository tree structure"""
+        """Get repository tree structure with recursive file discovery"""
         try:
             headers = {
                 "Authorization": f"token {access_token}",
@@ -479,14 +479,32 @@ class GitHubService:
             if not tree_sha:
                 repo_info = self.get_repository_info(access_token, repo_full_name)
                 if not repo_info:
+                    logger.error(f"Could not get repository info for {repo_full_name}")
                     return None
                 tree_sha = repo_info.get("default_branch", "main")
             
+            # Get tree with recursive=1 parameter to get all files
             url = f"https://api.github.com/repos/{repo_full_name}/git/trees/{tree_sha}?recursive=1"
+            logger.info(f"Fetching repository tree from: {url}")
+            
             response = requests.get(url, headers=headers, timeout=30)
             
             if response.status_code == 200:
-                return response.json()
+                tree_data = response.json()
+                logger.info(f"Successfully fetched tree with {len(tree_data.get('tree', []))} items")
+                return tree_data
+            elif response.status_code == 404:
+                logger.warning(f"Tree not found for {repo_full_name} with sha {tree_sha}, trying HEAD")
+                # Try with HEAD if the branch name doesn't work
+                url = f"https://api.github.com/repos/{repo_full_name}/git/trees/HEAD?recursive=1"
+                response = requests.get(url, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    tree_data = response.json()
+                    logger.info(f"Successfully fetched HEAD tree with {len(tree_data.get('tree', []))} items")
+                    return tree_data
+                else:
+                    logger.error(f"Failed to fetch HEAD tree: {response.status_code} - {response.text}")
+                    return None
             else:
                 logger.error(f"Failed to fetch repository tree: {response.status_code} - {response.text}")
                 return None

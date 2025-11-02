@@ -15,10 +15,13 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-class CustomScanRequest(BaseModel):
+class UnifiedScanRequest(BaseModel):
     repository_id: int
     selected_rules: List[int] = []
     custom_rules: Optional[List[Dict[str, Any]]] = None
+    enable_llm_enhancement: bool = True
+    max_files_to_scan: int = 100
+    scan_priority: str = 'comprehensive'
     scan_config: Optional[Dict[str, Any]] = None
 
 class ScanResponse(BaseModel):
@@ -43,14 +46,15 @@ class ScanResponse(BaseModel):
     class Config:
         from_attributes = True
 
-async def run_custom_scan_background(
+async def run_unified_scan_background(
     repository_id: int,
     access_token: str,
     provider_type: str,
     rules: List[Dict[str, Any]],
+    use_llm_enhancement: bool,
     scan_config: Optional[Dict[str, Any]]
 ):
-    """Background task to run custom rule scan"""
+    """Background task to run unified LLM-enhanced rule scan"""
     from app.core.database import SessionLocal
     db = SessionLocal()
     scan = None
@@ -59,23 +63,25 @@ async def run_custom_scan_background(
         from app.services.custom_scanner_service import CustomScannerService
         from datetime import datetime
         
-        logger.info(f"🚀 Starting custom scan background task for repository {repository_id}")
+        logger.info(f"🚀 Starting unified scan background task for repository {repository_id}")
         scanner_service = CustomScannerService(db)
         
-        scan = await scanner_service.scan_with_custom_rules(
+        # Use the new unified scanning method
+        scan = await scanner_service.unified_security_scan(
             repository_id,
             access_token,
             provider_type,
             rules,
+            use_llm_enhancement,
             scan_config
         )
         
         # ✅ CRITICAL: Refresh and verify
         db.refresh(scan)
-        logger.info(f"✅ Custom scan background task completed - scan_id: {scan.id}, status: {scan.status}")
+        logger.info(f"✅ Unified scan background task completed - scan_id: {scan.id}, status: {scan.status}")
         
     except Exception as e:
-        logger.error(f"❌ Custom scan background task failed: {e}", exc_info=True)
+        logger.error(f"❌ Unified scan background task failed: {e}", exc_info=True)
         
         # ✅ Update scan status to failed with proper error handling
         try:
@@ -100,14 +106,14 @@ async def run_custom_scan_background(
     finally:
         db.close()
 
-@router.post("/start", response_model=ScanResponse)
-async def start_custom_scan(
-    scan_request: CustomScanRequest,
+@router.post("/unified/start", response_model=ScanResponse)
+async def start_unified_scan(
+    scan_request: UnifiedScanRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Start a custom rule-based security scan"""
+    """Start a unified LLM-enhanced rule-based security scan"""
     
     # Verify repository ownership
     repository = db.query(Repository).filter(
@@ -149,32 +155,79 @@ async def start_custom_scan(
         )
     
     try:
+        # Get selected built-in rules
+        selected_rules = []
+        if scan_request.selected_rules:
+            selected_rules = db.query(ScanRule).filter(
+                ScanRule.id.in_(scan_request.selected_rules),
+                ScanRule.is_active == True
+            ).all()
+        else:
+            # Default to high-priority rules if none selected
+            selected_rules = db.query(ScanRule).filter(
+                ScanRule.is_active == True,
+                ScanRule.severity.in_(['critical', 'high'])
+            ).limit(10).all()
+        
+        # Combine with custom rules
+        all_rules = []
+        for rule in selected_rules:
+            all_rules.append({
+                'id': rule.id,
+                'name': rule.name,
+                'content': rule.rule_content,
+                'category': rule.category,
+                'severity': rule.severity,
+                'type': 'built_in'
+            })
+        
+        # Add custom rules if provided
+        if scan_request.custom_rules:
+            for i, custom_rule in enumerate(scan_request.custom_rules):
+                all_rules.append({
+                    'id': f'custom_{i}',
+                    'name': custom_rule.get('name', f'Custom Rule {i+1}'),
+                    'content': custom_rule.get('rule_content', ''),
+                    'category': custom_rule.get('category', 'custom'),
+                    'severity': custom_rule.get('severity', 'medium'),
+                    'type': 'custom'
+                })
+        
+        if not all_rules:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No rules selected for scanning"
+            )
+
         # Create initial scan record
         scan = Scan(
             repository_id=scan_request.repository_id,
             status="pending",
-            scan_type="custom",
+            scan_type="unified_llm_rules",
             scan_config=scan_request.scan_config or {},
             scan_metadata={
-                'scan_type': 'custom_rules',
-                'selected_rules_count': len(scan_request.selected_rules),
-                'custom_rules_count': len(scan_request.custom_rules) if scan_request.custom_rules else 0
+                'scan_type': 'unified_llm_rules',
+                'rules_count': len(all_rules),
+                'built_in_rules_count': len(selected_rules),
+                'custom_rules_count': len(scan_request.custom_rules) if scan_request.custom_rules else 0,
+                'llm_enhancement_enabled': scan_request.enable_llm_enhancement,
+                'max_files_to_scan': scan_request.max_files_to_scan,
+                'scan_priority': scan_request.scan_priority
             }
         )
         db.add(scan)
         db.commit()
         db.refresh(scan)
         
-        # Start background custom scan
+        # Start background unified scan
         background_tasks.add_task(
-            run_custom_scan_background,
+            run_unified_scan_background,
             scan_request.repository_id,
             access_token,
             repository.source_type,
-            scan_request.selected_rules,
-            scan_request.custom_rules,
-            scan_request.scan_config,
-            db
+            all_rules,
+            scan_request.enable_llm_enhancement,
+            scan_request.scan_config
         )
         
         return ScanResponse(
@@ -198,27 +251,51 @@ async def start_custom_scan(
         )
     
     except Exception as e:
-        logger.error(f"Error starting custom scan: {e}")
+        logger.error(f"Error starting unified scan: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start custom scan"
+            status_code=status.HTTP_500_INTERNAL_SERVER_INTERNAL_ERROR,
+            detail="Failed to start unified scan"
         )
+
+# Keep existing endpoints for backward compatibility
+@router.post("/start", response_model=ScanResponse)
+async def start_custom_scan(
+    scan_request: UnifiedScanRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Legacy endpoint - redirects to unified scan"""
+    return await start_unified_scan(scan_request, background_tasks, current_user, db)
 
 @router.get("/", response_model=dict)
 async def get_custom_scans(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all custom scan results"""
+    """Get all unified and custom scan results"""
     try:
-        # Query scans with custom rules
-        custom_scans = db.query(Scan).join(Repository).filter(
+        # Query scans with unified or custom rules
+        unified_scans = db.query(Scan).join(Repository).filter(
             Repository.owner_id == current_user.id,
-            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
-        ).order_by(Scan.started_at.desc()).all()
+            Scan.scan_metadata.isnot(None)
+        ).all()
+        
+        # Filter for relevant scan types
+        relevant_scans = []
+        for scan in unified_scans:
+            if (scan.scan_metadata 
+                and isinstance(scan.scan_metadata, dict)
+                and scan.scan_metadata.get('scan_type') in ['custom_rules', 'unified_llm_rules']):
+                relevant_scans.append(scan)
+        
+        # Sort by started_at (most recent first)
+        relevant_scans.sort(key=lambda x: x.started_at or datetime.min, reverse=True)
+        
+        logger.info(f"Found {len(relevant_scans)} unified/custom scans for user {current_user.id}")
         
         scans_data = []
-        for scan in custom_scans:
+        for scan in relevant_scans:
             # Get repository name
             repo = db.query(Repository).filter(Repository.id == scan.repository_id).first()
             repo_name = repo.full_name if repo else "Unknown Repository"
@@ -228,49 +305,61 @@ async def get_custom_scans(
                 'repository_id': scan.repository_id,
                 'repository_name': repo_name,
                 'status': scan.status,
+                'scan_type': scan.scan_type,
                 'started_at': scan.started_at.isoformat() if scan.started_at else None,
                 'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
-                'total_vulnerabilities': scan.total_vulnerabilities,
-                'critical_count': scan.critical_count,
-                'high_count': scan.high_count,
-                'medium_count': scan.medium_count,
-                'low_count': scan.low_count,
-                'security_score': scan.security_score,
+                'total_vulnerabilities': scan.total_vulnerabilities or 0,
+                'critical_count': scan.critical_count or 0,
+                'high_count': scan.high_count or 0,
+                'medium_count': scan.medium_count or 0,
+                'low_count': scan.low_count or 0,
+                'security_score': scan.security_score or 0,
+                'code_coverage': scan.code_coverage or 0,
+                'user_id': current_user.id,
                 'scan_metadata': scan.scan_metadata or {}
             }
             scans_data.append(scan_data)
         
         return {
             "scans": scans_data,
-            "total_count": len(scans_data)
+            "total_count": len(scans_data),
+            "user_id": current_user.id
         }
         
     except Exception as e:
-        logger.error(f"Error fetching custom scans: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch custom scans"
-        )
+        logger.error(f"Error fetching scans for user {current_user.id}: {e}")
+        return {
+            "scans": [],
+            "total_count": 0,
+            "user_id": current_user.id
+        }
 
 @router.get("/{scan_id}", response_model=dict)
-async def get_custom_scan_details(
+async def get_scan_details(
     scan_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed information for a specific custom scan"""
+    """Get detailed information for a specific unified/custom scan"""
     try:
-        # Verify scan ownership and that it's a custom scan
+        # Verify scan ownership through repository ownership
         scan = db.query(Scan).join(Repository).filter(
             Scan.id == scan_id,
-            Repository.owner_id == current_user.id,
-            Scan.scan_metadata.contains({'scan_type': 'custom_rules'})
+            Repository.owner_id == current_user.id
         ).first()
         
         if not scan:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Custom scan not found"
+                detail="Scan not found or access denied"
+            )
+        
+        # Verify it's a relevant scan type
+        if (not scan.scan_metadata 
+            or scan.scan_metadata.get('scan_type') not in ['custom_rules', 'unified_llm_rules']):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scan not found"
             )
         
         # Get repository info
@@ -279,6 +368,9 @@ async def get_custom_scan_details(
         # Get vulnerabilities for this scan
         vulnerabilities = db.query(Vulnerability).filter(
             Vulnerability.scan_id == scan_id
+        ).order_by(
+            Vulnerability.severity.desc(),
+            Vulnerability.risk_score.desc()
         ).all()
         
         vuln_data = []
@@ -289,10 +381,19 @@ async def get_custom_scan_details(
                 'description': vuln.description,
                 'severity': vuln.severity,
                 'category': vuln.category,
+                'cwe_id': vuln.cwe_id,
+                'owasp_category': vuln.owasp_category,
                 'file_path': vuln.file_path,
                 'line_number': vuln.line_number,
+                'line_end_number': vuln.line_end_number,
+                'code_snippet': vuln.code_snippet,
+                'recommendation': vuln.recommendation,
+                'fix_suggestion': vuln.fix_suggestion,
                 'risk_score': vuln.risk_score,
-                'status': vuln.status
+                'exploitability': vuln.exploitability,
+                'impact': vuln.impact,
+                'status': vuln.status,
+                'detected_at': vuln.detected_at.isoformat() if vuln.detected_at else None
             })
         
         return {
@@ -301,17 +402,19 @@ async def get_custom_scan_details(
                 'repository_id': scan.repository_id,
                 'repository_name': repo.full_name if repo else 'Unknown',
                 'status': scan.status,
+                'scan_type': scan.scan_type,
                 'started_at': scan.started_at.isoformat() if scan.started_at else None,
                 'completed_at': scan.completed_at.isoformat() if scan.completed_at else None,
-                'total_files_scanned': scan.total_files_scanned,
-                'total_vulnerabilities': scan.total_vulnerabilities,
-                'critical_count': scan.critical_count,
-                'high_count': scan.high_count,
-                'medium_count': scan.medium_count,
-                'low_count': scan.low_count,
-                'security_score': scan.security_score,
-                'code_coverage': scan.code_coverage,
+                'total_files_scanned': scan.total_files_scanned or 0,
+                'total_vulnerabilities': scan.total_vulnerabilities or 0,
+                'critical_count': scan.critical_count or 0,
+                'high_count': scan.high_count or 0,
+                'medium_count': scan.medium_count or 0,
+                'low_count': scan.low_count or 0,
+                'security_score': scan.security_score or 0,
+                'code_coverage': scan.code_coverage or 0,
                 'scan_duration': scan.scan_duration,
+                'user_id': current_user.id,
                 'scan_metadata': scan.scan_metadata or {}
             },
             'vulnerabilities': vuln_data,
@@ -321,8 +424,8 @@ async def get_custom_scan_details(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching custom scan details: {e}")
+        logger.error(f"Error fetching scan details for user {current_user.id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch custom scan details"
+            detail="Failed to fetch scan details"
         )

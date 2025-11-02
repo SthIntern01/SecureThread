@@ -3,12 +3,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
+
+import io
 from datetime import datetime
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
 from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
+from fastapi.responses import StreamingResponse
+from app.services.pdf_report_service import PDFReportService
 from app.services.scanner_service import ScannerService
 from pydantic import BaseModel
 import logging
@@ -897,3 +901,54 @@ async def cleanup_stuck_scans(
         "fixed_scan_ids": fixed_scan_ids,
         "cutoff_time": cutoff_time.isoformat()
     }
+
+@router.get("/{scan_id}/report/pdf")
+async def export_scan_report_pdf(
+    scan_id: int,
+    report_type: str = "comprehensive",
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Export scan report as professional PDF"""
+    
+    try:
+        # Initialize PDF service
+        from app.services.pdf_report_service import PDFReportService
+        pdf_service = PDFReportService()
+        
+        # Generate PDF
+        pdf_content = await pdf_service.generate_security_report(
+            scan_id=scan_id,
+            db=db,
+            user=current_user,
+            report_type=report_type
+        )
+        
+        # Prepare response
+        filename = f"security-report-scan-{scan_id}-{report_type}.pdf"
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_content),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Length": str(len(pdf_content))
+            }
+        )
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error generating PDF report for scan {scan_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate PDF report"
+        )

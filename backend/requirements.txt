@@ -16,13 +16,13 @@ python-dotenv==1.0.1
 httpx==0.27.2
 requests==2.32.3
 
-#custom scanning
+# Custom scanning
 pyahocorasack==2.0.0
 
 # GitHub API
 PyGithub==2.4.0
 
-# Google OAuth - ADD THESE TWO LINES
+# Google OAuth
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
 
@@ -32,6 +32,11 @@ fastapi-cors==0.0.6
 # Pydantic for data validation
 pydantic==2.11.7
 pydantic-settings==2.6.0
+
+# PDF Generation - NEW
+weasyprint==62.3
+jinja2==3.1.4
+pillow==10.4.0
 
 # Development
 pytest==8.3.3

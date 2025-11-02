@@ -1384,7 +1384,7 @@ const startScanPolling = useCallback(
   setShowScanMethodModal(true);
 };
 
-const handleGenAIScan = async () => {
+const handleUnifiedScan = async (scanConfig: any) => {
   if (!selectedProjectForScan) return;
   
   setShowScanMethodModal(false);
@@ -1400,30 +1400,38 @@ const handleGenAIScan = async () => {
     setScanningProjects((prev) => new Set(prev).add(projectId));
 
     const token = localStorage.getItem("access_token");
+    
+    // Prepare request body based on scan config
+    const requestBody = {
+      repository_id: projectId,
+      selected_rules: scanConfig.selectedRules || [1, 2, 3, 4, 5], // Default rules
+      custom_rules: scanConfig.customRules || null,
+      enable_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
+      max_files_to_scan: scanConfig.maxFilesToScan || 100,
+      scan_priority: scanConfig.scanPriority || 'comprehensive',
+      scan_config: {
+        scan_type: 'unified_llm_rules',
+        ...scanConfig
+      }
+    };
+
+    console.log("Starting unified scan with:", requestBody);
+    
     const response = await fetch(
-      `${
-        import.meta.env.VITE_API_URL || "http://localhost:8000"
-      }/api/v1/scans/start`,
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/unified/start`,
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          repository_id: projectId,
-          scan_config: {
-            max_files: 10,
-            max_vulnerabilities: 5,
-            priority_scan: true,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
     if (response.ok) {
       const data = await response.json();
-      console.log("Scan started:", data);
+      console.log("Unified scan started:", data);
 
       // Update the project status immediately
       setProjects((prevProjects) =>
@@ -1434,6 +1442,7 @@ const handleGenAIScan = async () => {
                 latest_scan: {
                   id: data.id,
                   status: "pending",
+                  scan_type: "unified_llm_rules",
                   started_at: data.started_at,
                 },
                 status: "scanning" as const,
@@ -1445,10 +1454,9 @@ const handleGenAIScan = async () => {
       // Start polling for scan status
       startScanPolling(data.id, projectId);
     } else {
-  const errorData = await response.json();
-  console.error("Custom scan failed:", errorData);
-  console.error("Validation errors:", JSON.stringify(errorData.detail, null, 2)); // ✅ ADD THIS LINE
-  setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
+      const errorData = await response.json();
+      console.error("Unified scan failed:", errorData);
+      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start unified scan');
       setScanningProjects((prev) => {
         const newSet = new Set(prev);
         newSet.delete(projectId);
@@ -1456,7 +1464,7 @@ const handleGenAIScan = async () => {
       });
     }
   } catch (error) {
-    console.error("Error starting scan:", error);
+    console.error("Error starting unified scan:", error);
     setError("Network error occurred while starting scan");
     setScanningProjects((prev) => {
       const newSet = new Set(prev);
@@ -1467,7 +1475,6 @@ const handleGenAIScan = async () => {
     setSelectedProjectForScan(null);
   }
 };
-
 
 const handleStopScan = async (projectId: number) => {
   try {
@@ -1521,103 +1528,7 @@ const handleStopScan = async (projectId: number) => {
 };
 
 
-const handleCustomScan = async (selectedRules: number[], customRules?: any[]) => {
-  if (!selectedProjectForScan) {
-    console.error("No project selected for scan");
-    return;
-  }
 
-  const projectId = selectedProjectForScan.id;
-  setShowScanMethodModal(false);
-  
-  console.log("=== CUSTOM SCAN DEBUG ===");
-  console.log("Project ID:", projectId);
-  console.log("Selected Rules:", selectedRules);
-  console.log("Custom Rules:", customRules);
-  
-  try {
-    setScanningProjects((prev) => new Set(prev).add(projectId));
-    
-    const token = localStorage.getItem("access_token");
-    
-    const requestBody = {
-  repository_id: projectId,
-  selected_rule_ids: Array.isArray(selectedRules) && selectedRules.length > 0 
-    ? selectedRules 
-    : [1, 2, 3, 4], // ✅ Use default rules if none selected
-  custom_rules: null,
-  scan_config: null
-};
-
-console.log("=== REQUEST DEBUG ===");
-console.log("Project ID:", projectId);
-console.log("Selected Rules:", selectedRules);
-console.log("Is Array?", Array.isArray(selectedRules));
-console.log("Length:", selectedRules?.length);
-console.log("Final Body:", JSON.stringify(requestBody, null, 2));
-    console.log("Request Body:", JSON.stringify(requestBody, null, 2));
-    
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scan-rules/custom/scan`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody)
-      }
-    );
-    
-    console.log("Response Status:", response.status);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Custom scan started successfully:", data);
-      
-      // Update the project status immediately
-      setProjects((prevProjects) =>
-        prevProjects.map((project) =>
-          project.id === projectId
-            ? {
-                ...project,
-                latest_scan: {
-                  id: data.scan_id,
-                  status: "pending",
-                  started_at: new Date().toISOString(),
-                },
-                status: "scanning" as const,
-              }
-            : project
-        )
-      );
-
-      // Start polling for scan status
-      if (data.scan_id) {
-        startScanPolling(data.scan_id, projectId);
-      }
-    } else {
-      const errorData = await response.json();
-      console.error("Custom scan failed:", errorData);
-      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start custom scan');
-      setScanningProjects((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(projectId);
-        return newSet;
-      });
-    }
-  } catch (error) {
-    console.error("Custom scan failed:", error);
-    setError("Network error occurred while starting custom scan");
-    setScanningProjects((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(projectId);
-      return newSet;
-    });
-  } finally {
-    setSelectedProjectForScan(null);
-  }
-};
 
   const handleDeleteProject = async (projectId: number) => {
     try {
@@ -2120,8 +2031,7 @@ console.log("Final Body:", JSON.stringify(requestBody, null, 2));
     setShowScanMethodModal(false);
     setSelectedProjectForScan(null);
   }}
-  onSelectGenAI={handleGenAIScan}
-  onSelectCustom={handleCustomScan}
+  onSelectUnifiedScan={handleUnifiedScan}
   projectName={selectedProjectForScan?.name}
 />
 
