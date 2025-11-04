@@ -110,6 +110,7 @@ interface Project {
   latest_scan?: {
     id: number;
     status: string;
+    scan_type?: string;
     started_at: string;
     completed_at?: string;
     scan_duration?: string;
@@ -384,7 +385,41 @@ const ImportRepositoriesModal = ({
   );
 };
 
+// Helper function to get scan type display label
+const getScanTypeLabel = (scanType: string | null | undefined): string => {
+  switch (scanType) {
+    case 'custom':
+      return 'Custom Scan';
+    case 'ai':
+      return 'Gen AI Scan';
+    default:
+      return 'Security Scan';
+  }
+};
 
+// Helper function to get scan type icon
+const getScanTypeIcon = (scanType: string | null | undefined): string => {
+  switch (scanType) {
+    case 'custom':
+      return '⚙️';
+    case 'ai':
+      return '🤖';
+    default:
+      return '🔍';
+  }
+};
+
+// Helper function to get scan type badge color
+const getScanTypeBadgeColor = (scanType: string | null | undefined): string => {
+  switch (scanType) {
+    case 'custom':
+      return 'bg-purple-500';
+    case 'ai':
+      return 'bg-blue-500';
+    default:
+      return 'bg-gray-500';
+  }
+};
 
 const ImportBitbucketRepositoriesModal = ({
   isOpen,
@@ -646,20 +681,45 @@ const ProjectCard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "active":
-      case "completed":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case "scanning":
-        return <Activity className="w-4 h-4 text-blue-500 animate-pulse" />;
-      case "failed":
-        return <XCircle className="w-4 h-4 text-red-500" />;
-      case "pending":
-      default:
-        return <Clock className="w-4 h-4 text-gray-500" />;
-    }
-  };
+  const getScanTypeLabel = (scanType: string | null | undefined): string => {
+  switch (scanType) {
+    case 'custom':
+      return 'Custom Scan';
+    case 'ai':
+      return 'Gen AI Scan';
+    default:
+      return 'Security Scan';
+  }
+};
+
+// Helper function to get scan type icon
+const getScanTypeIcon = (scanType: string | null | undefined): string => {
+  switch (scanType) {
+    case 'custom':
+      return '⚙️';
+    case 'ai':
+      return '🤖';
+    default:
+      return '🔍';
+  }
+};
+
+  const getStatusIcon = (status: string, scanType?: string) => {
+  switch (status) {
+    case "active":
+    case "completed":
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    case "scanning":
+      return (
+        <span className="text-base">{getScanTypeIcon(scanType)}</span>
+      );
+    case "failed":
+      return <XCircle className="w-4 h-4 text-red-500" />;
+    case "pending":
+    default:
+      return <Clock className="w-4 h-4 text-gray-500" />;
+  }
+};
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -781,26 +841,40 @@ const ProjectCard = ({
       <p className="text-sm text-white/70 mb-4 line-clamp-2">
         {project.description}
       </p>
-      <div className="flex items-center space-x-4 mb-4">
-        <div className="flex items-center space-x-2">
-          {getStatusIcon(project.status)}
-          <Badge className={`text-xs ${getStatusColor(project.status)}`}>
-            {project.status}
-          </Badge>
-        </div>
-        <div className="flex items-center space-x-2 text-sm text-white/70">
-          <GitBranch className="w-4 h-4" />
-          <span>{project.branch}</span>
-        </div>
-        {project.language && (
-          <Badge
-            variant="secondary"
-            className="text-xs bg-blue-100 text-blue-800"
-          >
-            {project.language}
-          </Badge>
+     <div className="flex items-center space-x-4 mb-4">
+    <div className="flex items-center space-x-2 flex-shrink-0">
+      {getStatusIcon(project.status, project.latest_scan?.scan_type)}
+      <Badge className={`text-xs ${getStatusColor(project.status)}`}>
+        {project.status === "completed" && (
+          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Completed</span>
         )}
-      </div>
+        {project.status === "scanning" && (
+          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Running...</span>
+        )}
+        {project.status === "failed" && (
+          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Failed</span>
+        )}
+        {project.status === "pending" && (
+          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Pending</span>
+        )}
+        {!["completed", "scanning", "failed", "pending"].includes(project.status) && (
+          <span>{project.status}</span>
+        )}
+      </Badge>
+    </div>
+    <div className="flex items-center space-x-2 text-sm text-white/70 min-w-0 flex-1">
+      <GitBranch className="w-4 h-4 flex-shrink-0" />
+      <span className="truncate">{project.branch}</span>
+    </div>
+    {project.language && (
+      <Badge
+        variant="secondary"
+        className="text-xs bg-blue-100 text-blue-800 flex-shrink-0"
+      >
+        {project.language}
+      </Badge>
+    )}
+  </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
@@ -956,7 +1030,21 @@ const Projects = () => {
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
-  const { user } = useAuth();
+ const { user } = useAuth();
+const [authProvider, setAuthProvider] = useState<'github' | 'bitbucket' | null>(null);
+
+// Add this useEffect to update authProvider when user changes
+useEffect(() => {
+  if (user) {
+    if (user.bitbucket_username) {
+      setAuthProvider('bitbucket');
+    } else if (user.github_username) {
+      setAuthProvider('github');
+    } else {
+      setAuthProvider(null);
+    }
+  }
+}, [user]);
   const navigate = useNavigate();
 
   // Polling management
@@ -964,29 +1052,9 @@ const Projects = () => {
     Map<number, NodeJS.Timeout>
   >(new Map());
 
-  // Helper functions for dynamic provider detection
-  const getAuthProvider = (): 'github' | 'bitbucket' | null => {
-  console.log('=== DEBUG AUTH PROVIDER ===');
-  console.log('User object:', user);
-  console.log('user.github_username:', user?.github_username);
-  console.log('user.bitbucket_username:', user?.bitbucket_username);
-  
-  if (!user) {
-    console.log('No user - returning null');
-    return null;
-  }
-  if (user.github_username) {
-    console.log('Found GitHub username - returning github');
-    return 'github';
-  }
-  if (user.bitbucket_username) {
-    console.log('Found Bitbucket username - returning bitbucket');
-    return 'bitbucket';
-  }
-  console.log('No provider found - returning null');
-  return null;
+const getAuthProvider = (): 'github' | 'bitbucket' | null => {
+  return authProvider;  // ← Just return the state directly
 };
-
   
 
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
@@ -1012,16 +1080,19 @@ const Projects = () => {
     }
   };
 
-  const handleImportClick = () => {
-  console.log('=== IMPORT CLICK ===');
+const handleImportClick = () => {
+  console.log('=== IMPORT CLICK DEBUG ===');
+  console.log('User:', user);
+  console.log('bitbucket_username:', user?.bitbucket_username);
+  console.log('github_username:', user?.github_username);
   
-  // If user has a specific provider account, use it directly
   const provider = getAuthProvider();
+  console.log('Detected provider:', provider);
+  
   if (provider) {
-    console.log('Detected provider:', provider);
     setImportProvider(provider);
   } else {
-    // If Google login (no specific provider), show dropdown
+    // Fallback: if no provider detected, show dropdown
     setShowImportDropdown(true);
   }
 };
@@ -1108,11 +1179,14 @@ const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
             scanDuration: repo.latest_scan?.scan_duration,
             created_at: repo.created_at,
             updated_at: repo.updated_at,
-            latest_scan: repo.latest_scan,
+            latest_scan: repo.latest_scan ? {           
+              ...repo.latest_scan,                       
+              scan_type: repo.latest_scan.scan_type      
+            } : undefined,                                
             security_score: repo.security_score,
             code_coverage: repo.code_coverage,
-          })
-        );
+                      })
+                    );
 
         setProjects(transformedProjects);
         setFilteredProjects(transformedProjects);
@@ -1138,129 +1212,169 @@ const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
   };
 
   const clearScanPolling = useCallback(
-    (scanId: number) => {
-      const interval = pollIntervals.get(scanId);
+  (scanId: number) => {
+    setPollIntervals((prev) => {
+      const interval = prev.get(scanId);
       if (interval) {
+        console.log(`🛑 Clearing interval for scan ${scanId}`);
         clearInterval(interval);
-        setPollIntervals((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(scanId);
-          return newMap;
-        });
+        const newMap = new Map(prev);
+        newMap.delete(scanId);
+        return newMap;
       }
-    },
-    [pollIntervals]
-  );
+      return prev;
+    });
+  },
+  [] 
+);
 
-  const startScanPolling = useCallback(
-    (scanId: number, projectId: number) => {
-      // Clear any existing polling for this scan
-      clearScanPolling(scanId);
+const startScanPolling = useCallback(
+  (scanId: number, projectId: number) => {
+    console.log(`🚀 Starting polling for scan ${scanId}`);
+    
+    // Clear any existing polling for this scan
+    clearScanPolling(scanId);
 
-      const pollInterval = setInterval(async () => {
-        try {
-          const token = localStorage.getItem("access_token");
-          const response = await fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:8000"
-            }/api/v1/scans/${scanId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            }
+    const pollInterval = setInterval(async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:8000"
+          }/api/v1/scans/${scanId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const scanData = await response.json();
+          
+          console.log(`📊 Scan ${scanId} status: ${scanData.status}`);
+
+          setProjects((prevProjects) =>
+            prevProjects.map((project) =>
+              project.id === projectId
+                ? {
+                    ...project,
+                    latest_scan: {
+                      id: scanData.id,
+                      status: scanData.status,
+                      scan_type: scanData.scan_type,
+                      started_at: scanData.started_at,
+                      completed_at: scanData.completed_at,
+                      scan_duration: scanData.scan_duration,
+                    },
+                    status:
+                      scanData.status === "completed"
+                        ? ("completed" as const)
+                        : scanData.status === "failed"
+                        ? ("failed" as const)
+                        : ("scanning" as const),
+                    vulnerabilities:
+                      scanData.total_vulnerabilities !== undefined
+                        ? {
+                            total: scanData.total_vulnerabilities,
+                            critical: scanData.critical_count,
+                            high: scanData.high_count,
+                            medium: scanData.medium_count,
+                            low: scanData.low_count,
+                          }
+                        : project.vulnerabilities,
+                    security_score: scanData.security_score,
+                    code_coverage: scanData.code_coverage,
+                    coverage: scanData.code_coverage,
+                    scanDuration: scanData.scan_duration,
+                    lastScan: scanData.completed_at
+                      ? new Date(scanData.completed_at).toLocaleDateString()
+                      : null,
+                  }
+                : project
+            )
           );
 
-          if (response.ok) {
-            const scanData = await response.json();
-
-            setProjects((prevProjects) =>
-              prevProjects.map((project) =>
-                project.id === projectId
-                  ? {
-                      ...project,
-                      latest_scan: {
-                        id: scanData.id,
-                        status: scanData.status,
-                        started_at: scanData.started_at,
-                        completed_at: scanData.completed_at,
-                        scan_duration: scanData.scan_duration,
-                      },
-                      status:
-                        scanData.status === "completed"
-                          ? ("completed" as const)
-                          : scanData.status === "failed"
-                          ? ("failed" as const)
-                          : ("scanning" as const),
-                      vulnerabilities:
-                        scanData.total_vulnerabilities !== undefined
-                          ? {
-                              total: scanData.total_vulnerabilities,
-                              critical: scanData.critical_count,
-                              high: scanData.high_count,
-                              medium: scanData.medium_count,
-                              low: scanData.low_count,
-                            }
-                          : project.vulnerabilities,
-                      security_score: scanData.security_score,
-                      code_coverage: scanData.code_coverage,
-                      coverage: scanData.code_coverage,
-                      scanDuration: scanData.scan_duration,
-                      lastScan: scanData.completed_at
-                        ? new Date(scanData.completed_at).toLocaleDateString()
-                        : null,
-                    }
-                  : project
-              )
-            );
-
-            // Stop polling if scan is completed, failed, or stopped
-            if (["completed", "failed", "stopped"].includes(scanData.status)) {
-              clearScanPolling(scanId);
-              setScanningProjects((prev) => {
-                const newSet = new Set(prev);
-                newSet.delete(projectId);
-                return newSet;
-              });
-            }
-          } else {
-            console.error("Failed to fetch scan status:", response.status);
-            // Stop polling on error
-            clearScanPolling(scanId);
+          // ✅ CRITICAL FIX: Stop polling if scan is completed, failed, or stopped
+          if (["completed", "failed", "stopped"].includes(scanData.status)) {
+            console.log(`✅ Scan ${scanId} completed with status: ${scanData.status}, stopping polling`);
+            
+            // ✅ Clear interval IMMEDIATELY with direct reference
+            clearInterval(pollInterval);
+            
+            // ✅ Remove from state
+            setPollIntervals((prev) => {
+              const newMap = new Map(prev);
+              newMap.delete(scanId);
+              return newMap;
+            });
+            
+            // ✅ Remove from scanning projects
             setScanningProjects((prev) => {
               const newSet = new Set(prev);
               newSet.delete(projectId);
               return newSet;
             });
           }
-        } catch (error) {
-          console.error("Error polling scan status:", error);
+        } else {
+          console.error("Failed to fetch scan status:", response.status);
           // Stop polling on error
-          clearScanPolling(scanId);
+          clearInterval(pollInterval);
+          setPollIntervals((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(scanId);
+            return newMap;
+          });
           setScanningProjects((prev) => {
             const newSet = new Set(prev);
             newSet.delete(projectId);
             return newSet;
           });
         }
-      }, 5000); // Poll every 5 seconds
-
-      // Store the interval
-      setPollIntervals((prev) => new Map(prev).set(scanId, pollInterval));
-
-      // Auto-stop polling after 30 minutes to prevent infinite polling
-      setTimeout(() => {
-        clearScanPolling(scanId);
+      } catch (error) {
+        console.error("Error polling scan status:", error);
+        // Stop polling on error
+        clearInterval(pollInterval);
+        setPollIntervals((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(scanId);
+          return newMap;
+        });
         setScanningProjects((prev) => {
           const newSet = new Set(prev);
           newSet.delete(projectId);
           return newSet;
         });
-      }, 30 * 60 * 1000);
-    },
-    [clearScanPolling]
-  );
+      }
+    }, 5000); // Poll every 5 seconds
+
+    // Store the interval
+    setPollIntervals((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(scanId, pollInterval);
+      console.log(`📝 Stored interval for scan ${scanId}`);
+      return newMap;
+    });
+
+    // Auto-stop polling after 30 minutes to prevent infinite polling
+    setTimeout(() => {
+      console.log(`⏰ Auto-stopping polling for scan ${scanId} after 30 minutes`);
+      clearInterval(pollInterval);
+      setPollIntervals((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(scanId);
+        return newMap;
+      });
+      setScanningProjects((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+    }, 30 * 60 * 1000);
+  },
+  [clearScanPolling]
+);
 
   const handleStartScan = async (projectId: number) => {
   const project = projects.find(p => p.id === projectId);
@@ -1921,8 +2035,24 @@ console.log("Final Body:", JSON.stringify(requestBody, null, 2));
                       onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      <Github className="w-4 h-4 mr-2" />
-                      Import Repository
+                      {authProvider === 'bitbucket' ? (
+                        <>
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                          </svg>
+                          Import Repository
+                        </>
+                      ) : authProvider === 'github' ? (
+                        <>
+                          <Github className="w-4 h-4 mr-2" />
+                          Import Repository
+                        </>
+                      ) : (
+                        <>
+                          <Github className="w-4 h-4 mr-2" />
+                          Import Repository
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>

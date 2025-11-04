@@ -6,6 +6,8 @@ from app.core.database import get_db
 from app.schemas.auth import GitHubAuthRequest, GitHubAuthResponse, Token
 from app.services.auth_service import AuthService
 from app.services.github_service import GitHubService
+from app.models.repository import Repository 
+from app.models.vulnerability import Scan
 from app.api.deps import get_current_active_user
 from app.models.user import User
 import logging
@@ -132,22 +134,74 @@ async def refresh_token(
             detail=f"Failed to refresh token: {str(e)}"
         )
 
+# Replace the entire get_current_user_info function in auth.py
+
 @router.get("/me")
 async def get_current_user_info(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get current authenticated user's information"""
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "github_username": current_user.github_username,
-        "gitlab_username": current_user.gitlab_username,
-        "bitbucket_username": current_user.bitbucket_username,
-        "google_email": current_user.google_email,
-        "full_name": current_user.full_name,
-        "avatar_url": current_user.avatar_url,
-        "is_active": current_user.is_active,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
-        "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
-    }
+    """Get current authenticated user's information with additional context"""
+    try:
+        # Get user's repository count
+        repo_count = db.query(Repository).filter(
+            Repository.owner_id == current_user.id
+        ).count()
+        
+        # Get user's total scans count
+        total_scans = db.query(Scan).join(Repository).filter(
+            Repository.owner_id == current_user.id
+        ).count()
+        
+        # Get custom scans count
+        all_user_scans = db.query(Scan).join(Repository).filter(
+            Repository.owner_id == current_user.id
+        ).all()
+        
+        custom_scans_count = sum(1 for scan in all_user_scans 
+                               if scan.scan_metadata 
+                               and isinstance(scan.scan_metadata, dict)
+                               and scan.scan_metadata.get('scan_type') == 'custom_rules')
+        
+        return {
+            "id": current_user.id,
+            "email": current_user.email,
+            "username": current_user.github_username or current_user.gitlab_username or current_user.bitbucket_username,
+            "github_username": current_user.github_username,
+            "gitlab_username": current_user.gitlab_username,
+            "bitbucket_username": current_user.bitbucket_username,
+            "google_email": current_user.google_email,
+            "full_name": current_user.full_name,
+            "avatar_url": current_user.avatar_url,
+            "is_active": current_user.is_active,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+            "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
+            # ✅ Add dashboard context
+            "stats": {
+                "total_repositories": repo_count,
+                "total_scans": total_scans,
+                "custom_scans": custom_scans_count
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error fetching user info for user {current_user.id}: {e}")
+        # Return basic user info if stats fail
+        return {
+            "id": current_user.id,
+            "email": current_user.email,
+            "username": current_user.github_username or current_user.gitlab_username or current_user.bitbucket_username,
+            "github_username": current_user.github_username,
+            "gitlab_username": current_user.gitlab_username,
+            "bitbucket_username": current_user.bitbucket_username,
+            "google_email": current_user.google_email,
+            "full_name": current_user.full_name,
+            "avatar_url": current_user.avatar_url,
+            "is_active": current_user.is_active,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+            "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
+            "stats": {
+                "total_repositories": 0,
+                "total_scans": 0,
+                "custom_scans": 0
+            }
+        }

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Union
+from typing import List, Union, Optional
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
@@ -241,20 +241,40 @@ async def import_bitbucket_repositories(
 
 @router.get("/")
 async def get_user_repositories(
+    repository_id: Optional[int] = None,  # Add specific repo filtering
+    days_filter: Optional[int] = None,    # Add time filtering
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's imported repositories with latest scan information"""
-    repositories = db.query(Repository).filter(
+    """Get user's imported repositories with latest scan information and filtering"""
+    from datetime import datetime, timedelta
+    
+    logger.info(f"🎯 REPO API CALLED - User: {current_user.id}, RepoID: {repository_id}")
+    
+    # Base query - already user scoped
+    query = db.query(Repository).filter(
         Repository.owner_id == current_user.id
-    ).all()
+    )
+    
+    # Apply repository filter if specified
+    if repository_id:
+        query = query.filter(Repository.id == repository_id)
+        logger.info(f"🎯 FILTERING BY REPOSITORY ID: {repository_id}")
+    
+    repositories = query.all()
+    logger.info(f"📊 REPOSITORIES FOUND: {len(repositories)}")
     
     repo_list = []
     for repo in repositories:
-        # Get latest scan for this repository
-        latest_scan = db.query(Scan).filter(
-            Scan.repository_id == repo.id
-        ).order_by(Scan.started_at.desc()).first()
+        # Get latest scan for this repository (CONSISTENT WITH METRICS)
+        scan_query = db.query(Scan).filter(Scan.repository_id == repo.id)
+        
+        # Apply time filter to scans if specified
+        if days_filter:
+            cutoff_date = datetime.utcnow() - timedelta(days=days_filter)
+            scan_query = scan_query.filter(Scan.started_at >= cutoff_date)
+        
+        latest_scan = scan_query.order_by(Scan.started_at.desc()).first()
         
         repo_data = {
             "id": repo.id,
@@ -270,39 +290,73 @@ async def get_user_repositories(
             "language": repo.language,
             "is_private": repo.is_private,
             "is_fork": repo.is_fork,
-            "source": repo.source_type,  # Use the property from your model
+            "source": repo.source_type,
+            "user_id": current_user.id,  # ✅ Add user ID for verification
             "created_at": repo.created_at.isoformat() if repo.created_at else None,
             "updated_at": repo.updated_at.isoformat() if repo.updated_at else None,
-            # Add scan information
+            # Initialize scan information
             "latest_scan": None,
             "vulnerabilities": None,
             "security_score": None,
-            "code_coverage": None
+            "code_coverage": None,
+            "status": "pending"  # Default status
         }
 
         if latest_scan:
+            # Determine repository status based on scan
+            if latest_scan.status == "running":
+                repo_status = "scanning"
+            elif latest_scan.status == "completed":
+                repo_status = "completed"
+            elif latest_scan.status == "failed":
+                repo_status = "failed"
+            else:
+                repo_status = "active"
+
             repo_data.update({
                 "latest_scan": {
                     "id": latest_scan.id,
                     "status": latest_scan.status,
+                    "scan_type": latest_scan.scan_type or "standard",
                     "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
                     "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
-                    "scan_duration": latest_scan.scan_duration
+                    "scan_duration": latest_scan.scan_duration,
+                    "total_vulnerabilities": latest_scan.total_vulnerabilities or 0,
+                    "critical_count": latest_scan.critical_count or 0,
+                    "high_count": latest_scan.high_count or 0,
+                    "medium_count": latest_scan.medium_count or 0,
+                    "low_count": latest_scan.low_count or 0,
+                    "total_files_scanned": latest_scan.total_files_scanned or 0,  # ✅ ADD THIS
+                    "repository_id": repo.id,
+                    "user_id": current_user.id  # ✅ Add user association
                 },
                 "vulnerabilities": {
-                    "total": latest_scan.total_vulnerabilities,
-                    "critical": latest_scan.critical_count,
-                    "high": latest_scan.high_count,
-                    "medium": latest_scan.medium_count,
-                    "low": latest_scan.low_count
+                    "total": latest_scan.total_vulnerabilities or 0,
+                    "critical": latest_scan.critical_count or 0,
+                    "high": latest_scan.high_count or 0,
+                    "medium": latest_scan.medium_count or 0,
+                    "low": latest_scan.low_count or 0
                 },
                 "security_score": latest_scan.security_score,
-                "code_coverage": latest_scan.code_coverage
+                "code_coverage": latest_scan.code_coverage,
+                "status": repo_status
             })
+            
+            logger.info(f"📊 REPO {repo.name} - Latest scan vulnerabilities: {latest_scan.total_vulnerabilities}")
+        else:
+            # No scans yet
+            repo_data["status"] = "active"
+            logger.info(f"📊 REPO {repo.name} - No scans found")
         
         repo_list.append(repo_data)
     
-    return {"repositories": repo_list}
+    logger.info(f"🎯 REPO API RESULT - Total repos: {len(repo_list)}, Filter: {repository_id}")
+    
+    return {
+        "repositories": repo_list,
+        "total_count": len(repo_list),
+        "user_id": current_user.id  # ✅ Add user verification
+    }
 
 
 @router.get("/{repo_id}")
@@ -384,6 +438,7 @@ async def get_repository_content(
                 repository.full_name,
                 path
             )
+            
         elif repository.source_type == "bitbucket":
             logger.info("Processing Bitbucket repository")
             if not current_user.bitbucket_access_token:
@@ -396,24 +451,34 @@ async def get_repository_content(
             from app.services.bitbucket_services import BitbucketService
             bitbucket_service = BitbucketService()
 
-        # Extract workspace and repo_slug from full_name
+            # Extract workspace and repo_slug from full_name
             try:
                 workspace, repo_slug = repository.full_name.split("/", 1)
                 logger.info(f"Parsed workspace: {workspace}, repo_slug: {repo_slug}")
-            except ValueError:
+            except ValueError as e:
+                logger.error(f"Failed to parse full_name '{repository.full_name}': {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid repository full_name format for Bitbucket"
+                    detail=f"Invalid repository full_name format for Bitbucket: {repository.full_name}"
                 )
             
-            # You'll need to implement this method in BitbucketService
+            # Get repository content
             content = bitbucket_service.get_repository_content(
                 current_user.bitbucket_access_token,
                 workspace,
                 repo_slug,
                 path
             )
-            logger.info(f"Bitbucket service returned: {content}")
+            
+            if content is None:
+                logger.error(f"Bitbucket service returned None for {workspace}/{repo_slug}, path: {path}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Repository content not found or branch doesn't exist"
+                )
+            
+            logger.info(f"Bitbucket service returned {len(content)} items")
+            
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -428,15 +493,18 @@ async def get_repository_content(
         
         return {"content": content}
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching repository content for repo {repo_id}: {e}")
-        logger.error(f"Repository source: {repository.source_type if 'repository' in locals() else 'unknown'}")
+        logger.error(f"Repository source: {repository.source_type if repository else 'unknown'}")
+        logger.error(f"Repository full_name: {repository.full_name if repository else 'unknown'}")
         logger.error(f"Path: {path}")
+        logger.exception("Full traceback:")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch repository content: {str(e)}"
         )
-
 
 
 @router.post("/{repo_id}/sync")

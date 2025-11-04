@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
@@ -16,8 +16,10 @@ import {
   IconUser,
   IconLogout,
   IconRobot,
+  IconMoon,
+  IconSun,
 } from "@tabler/icons-react";
-import { ChevronDown, Plus, Settings } from "lucide-react";
+import { ChevronDown, Plus, Settings, Check } from "lucide-react";
 
 interface AppSidebarProps {
   sidebarOpen: boolean;
@@ -32,15 +34,17 @@ const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         sidebarOpen ? "space-x-3 px-3" : "justify-center px-0"
       } py-3 text-sm font-normal transition-all duration-300`}
     >
-      <img
-        src={logo}
-        alt="Secure Thread Logo"
-        className={`${sidebarOpen ? "h-12" : "h-14"} w-auto flex-shrink-0 transition-all duration-300`}
-      />
+      <div className={`${sidebarOpen ? "w-12 h-12" : "w-10 h-10"} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
+        <img
+          src={logo}
+          alt="Secure Thread Logo"
+          className="w-full h-full object-contain"
+        />
+      </div>
       {sidebarOpen && (
         <div className="font-bold text-white text-lg tracking-wide text-center">
-          <div>SECURE</div>
-          <div>THREAD</div>
+          <div>SANDBOX</div>
+          <div>SECURITY</div>
         </div>
       )}
     </Link>
@@ -52,10 +56,11 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
   const { currentWorkspace, workspaces, switchWorkspace } = useWorkspace();
 
-  const handleWorkspaceSwitch = async (workspaceId: string) => {
+  const handleWorkspaceSwitch = async (workspaceId: number) => {
     try {
       await switchWorkspace(workspaceId);
       setShowDropdown(false);
+      // Reload to refresh all data for the new workspace
       window.location.reload();
     } catch (error) {
       console.error('Error switching workspace:', error);
@@ -98,6 +103,9 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               <div className="text-white font-semibold text-sm truncate">
                 {currentWorkspace.name.replace("'s Workspace", "").replace("'s Team", "").trim()}
               </div>
+              <div className="text-neutral-400 text-xs">
+                {currentWorkspace.repository_count} {currentWorkspace.repository_count === 1 ? 'repo' : 'repos'}
+              </div>
             </div>
             <ChevronDown className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
           </>
@@ -105,50 +113,89 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       </button>
 
       {showDropdown && sidebarOpen && (
-        <div className="absolute top-full left-3 right-3 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[400px] overflow-y-auto">
-          {/* Other Workspaces */}
-          {workspaces.filter(w => w.id !== currentWorkspace.id).length > 0 && (
-            <>
-              {workspaces
-                .filter(w => w.id !== currentWorkspace.id)
-                .map((workspace) => (
-                  <button
-                    key={workspace.id}
-                    onClick={() => handleWorkspaceSwitch(workspace.id)}
-                    className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-gray-700 text-sm font-semibold">
-                        {workspace.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-gray-900 text-sm font-medium truncate">
-                      {workspace.name}
-                    </span>
-                  </button>
-                ))}
-              <div className="border-t border-gray-200 my-1"></div>
-            </>
-          )}
+        <>
+          {/* Backdrop to close dropdown when clicking outside */}
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setShowDropdown(false)}
+          />
+          
+          <div className="absolute top-full left-3 right-3 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[400px] overflow-y-auto">
+            {/* Current Workspace */}
+            <div className="px-4 py-2 border-b border-gray-200">
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Current Workspace</p>
+            </div>
+            <div className="px-4 py-2.5 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-semibold text-sm">
+                    {currentWorkspace.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-gray-900 text-sm font-medium truncate">
+                    {currentWorkspace.name}
+                  </p>
+                  <p className="text-gray-500 text-xs">
+                    {currentWorkspace.repository_count} {currentWorkspace.repository_count === 1 ? 'repository' : 'repositories'}
+                  </p>
+                </div>
+              </div>
+              <Check className="w-5 h-5 text-accent flex-shrink-0" />
+            </div>
 
-          {/* Create New Workspace */}
-          <button
-            onClick={handleCreateWorkspace}
-            className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
-          >
-            <Plus className="w-5 h-5 text-gray-700 flex-shrink-0" />
-            <span className="text-gray-900 text-sm font-medium whitespace-nowrap">Create New Workspace</span>
-          </button>
+            {/* Other Workspaces */}
+            {workspaces.filter(w => w.id !== currentWorkspace.id).length > 0 && (
+              <>
+                <div className="px-4 py-2 border-t border-gray-200 mt-2">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Switch to</p>
+                </div>
+                {workspaces
+                  .filter(w => w.id !== currentWorkspace.id)
+                  .map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      onClick={() => handleWorkspaceSwitch(workspace.id)}
+                      className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-700 text-sm font-semibold">
+                          {workspace.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-gray-900 text-sm font-medium truncate">
+                          {workspace.name}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          {workspace.repository_count} {workspace.repository_count === 1 ? 'repo' : 'repos'}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+              </>
+            )}
 
-          {/* Workspace Settings */}
-          <button
-            onClick={handleWorkspaceSettings}
-            className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
-          >
-            <Settings className="w-5 h-5 text-gray-700 flex-shrink-0" />
-            <span className="text-gray-900 text-sm font-medium">Workspace Settings</span>
-          </button>
-        </div>
+            {/* Actions */}
+            <div className="border-t border-gray-200 mt-2 pt-2">
+              <button
+                onClick={handleCreateWorkspace}
+                className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+              >
+                <Plus className="w-5 h-5 text-gray-700 flex-shrink-0" />
+                <span className="text-gray-900 text-sm font-medium">Create New Workspace</span>
+              </button>
+
+              <button
+                onClick={handleWorkspaceSettings}
+                className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
+              >
+                <Settings className="w-5 h-5 text-gray-700 flex-shrink-0" />
+                <span className="text-gray-900 text-sm font-medium">Workspace Settings</span>
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -157,6 +204,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const { user, logout } = useAuth();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -234,6 +282,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
     setShowProfileDropdown(!showProfileDropdown);
   };
 
+  const handleThemeToggle = () => {
+    setIsDarkMode(!isDarkMode);
+    // TODO: Implement theme switching logic
+    console.log('Theme toggled:', !isDarkMode ? 'dark' : 'light');
+  };
+
   return (
     <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
       <SidebarBody className="justify-between gap-10">
@@ -256,6 +310,49 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
             {bottomLinks.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
+            
+            {/* Theme Toggle - Button Style */}
+            {sidebarOpen ? (
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-2 bg-neutral-800 rounded-lg p-1">
+                  <button
+                    onClick={() => setIsDarkMode(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
+                      !isDarkMode
+                        ? 'bg-white text-gray-900'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <IconSun className="h-4 w-4" />
+                    <span className="text-sm font-medium">Light</span>
+                  </button>
+                  <button
+                    onClick={() => setIsDarkMode(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
+                      isDarkMode
+                        ? 'bg-neutral-700 text-white'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <IconMoon className="h-4 w-4" />
+                    <span className="text-sm font-medium">Dark</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={handleThemeToggle}
+                className="flex justify-center py-3 cursor-pointer"
+              >
+                <div className="relative w-10 h-10 bg-neutral-700 rounded-full flex items-center justify-center hover:bg-neutral-600 transition-colors">
+                  {isDarkMode ? (
+                    <IconMoon className="h-5 w-5 text-neutral-400" />
+                  ) : (
+                    <IconSun className="h-5 w-5 text-yellow-500" />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 border-t border-brand-gray/30 relative">
@@ -264,39 +361,47 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
             </div>
 
             {showProfileDropdown && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                <button
-                  onClick={() => {
-                    navigate("/profile");
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <IconUser className="h-4 w-4" />
-                  <span>My Profile</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/settings");
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <IconSettings className="h-4 w-4" />
-                  <span>Account Settings</span>
-                </button>
-                <div className="border-t border-gray-200 my-1"></div>
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <IconLogout className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
+              <>
+                {/* Backdrop */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowProfileDropdown(false)}
+                />
+                
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  <button
+                    onClick={() => {
+                      navigate("/profile");
+                      setShowProfileDropdown(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <IconUser className="h-4 w-4" />
+                    <span>My Profile</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate("/settings");
+                      setShowProfileDropdown(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <IconSettings className="h-4 w-4" />
+                    <span>Account Settings</span>
+                  </button>
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setShowProfileDropdown(false);
+                    }}
+                    className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <IconLogout className="h-4 w-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

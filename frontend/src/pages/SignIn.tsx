@@ -11,6 +11,7 @@ import {
   IconBolt,
   IconTool,
 } from "@tabler/icons-react";
+import sandboxLogo from "../images/sandboxlogo.png";
 
 const SignInPage = () => {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
@@ -663,10 +664,11 @@ const SignInPage = () => {
         </div>
         <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
           <div className="flex items-center space-x-3 mb-12">
-            <div className="w-10 h-10 bg-[#FF6B00] rounded-lg flex items-center justify-center">
-              <IconShield className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold">SECURE THREAD</span>
+            <img 
+              src={sandboxLogo} 
+              alt="Sandbox Logo" 
+              className="w-70 h-20"
+            />
           </div>
           <div className="mb-12">
             <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">

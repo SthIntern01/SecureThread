@@ -75,6 +75,18 @@ class Repository(Base):
 
     def __repr__(self):
         return f"<Repository(name='{self.name}', full_name='{self.full_name}', source='{self.source_type}')>"
+    
+
+    team_repositories = relationship(
+        "TeamRepository",
+        back_populates="repository",
+        cascade="all, delete-orphan"
+    )
+    
+    @property
+    def teams(self):
+        """Get all teams this repository belongs to"""
+        return [tr.team for tr in self.team_repositories]
 
 
 class UserRepositoryAccess(Base):
