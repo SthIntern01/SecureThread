@@ -662,7 +662,7 @@ const SignInPage = () => {
             }}
           ></div>
         </div>
-        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
+        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 theme-text">
           <div className="flex items-center space-x-3 mb-12">
             <img 
               src={sandboxLogo} 
@@ -737,15 +737,15 @@ const SignInPage = () => {
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center justify-center space-x-2 mb-8">
             <div className="w-8 h-8 bg-[#FF6B00] rounded-lg flex items-center justify-center">
-              <IconShield className="w-5 h-5 text-white" />
+              <IconShield className="w-5 h-5 theme-text" />
             </div>
-            <span className="text-xl font-bold text-white">SECURE THREAD</span>
+            <span className="text-xl font-bold theme-text">SECURE THREAD</span>
           </div>
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-bold theme-text mb-2">
               Get started for free
             </h2>
-            <p className="text-white/80 text-lg">
+            <p className="theme-text-secondary text-lg">
               Secure in seconds – Start free, no card required
             </p>
           </div>
@@ -758,7 +758,7 @@ const SignInPage = () => {
             <button
               onClick={handleGitHubLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e]/90 hover:bg-[#1a1e22]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e]/90 hover:bg-[#1a1e22]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border theme-border"
             >
               <IconBrandGithub className="w-5 h-5" />
               <span>
@@ -770,7 +770,7 @@ const SignInPage = () => {
             <button
               onClick={handleGoogleLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-gray-100/80 dark:bg-white/10 hover:bg-white/20 backdrop-blur-sm theme-text font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
             >
               <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
               <span>
@@ -782,7 +782,7 @@ const SignInPage = () => {
             <button
               onClick={handleGitLabLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border border-white/10"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border theme-border"
             >
               <IconBrandGitlab className="w-5 h-5" />
               <span>
@@ -794,7 +794,7 @@ const SignInPage = () => {
             <button
               onClick={handleBitbucketLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border border-white/10 disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border theme-border disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
@@ -807,7 +807,7 @@ const SignInPage = () => {
             </button>
           </div>
           <div className="text-center mb-6">
-            <p className="text-sm text-white/80">
+            <p className="text-sm theme-text-secondary">
               Or sign up with{" "}
               <button
                 onClick={() => handleComingSoonProvider("Enterprise SSO")}
@@ -842,9 +842,9 @@ const SignInPage = () => {
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="w-4 h-4 text-[#FF6B00] bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
+                className="w-4 h-4 text-[#FF6B00] bg-gray-100/80 dark:bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
               />
-              <span className="text-sm text-white/80">
+              <span className="text-sm theme-text-secondary">
                 Remember my login details
               </span>
             </label>

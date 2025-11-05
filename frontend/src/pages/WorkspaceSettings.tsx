@@ -298,7 +298,7 @@ const MemberRow = ({
   };
 
   return (
-    <div className="flex items-center justify-between py-4 border-b border-white/10 last:border-b-0">
+    <div className="flex items-center justify-between py-4 border-b theme-border last:border-b-0">
       <div className="flex items-center space-x-4">
         <div className="w-10 h-10 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full flex items-center justify-center">
           {member.avatar ? (
@@ -312,7 +312,7 @@ const MemberRow = ({
           )}
         </div>
         <div>
-          <h3 className="font-semibold text-white">{member.name}</h3>
+          <h3 className="font-semibold theme-text">{member.name}</h3>
           <p className="text-sm text-white/70">{member.email}</p>
         </div>
       </div>
@@ -332,7 +332,7 @@ const MemberRow = ({
         {member.role !== "Owner" && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+              <button className="p-2 hover:bg-gray-100/80 dark:bg-white/10 rounded-lg transition-colors">
                 <MoreHorizontal className="w-4 h-4 text-white/70" />
               </button>
             </DropdownMenuTrigger>
@@ -479,21 +479,21 @@ const handleChangeRole = async (id: number, newRole: string) => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               {/* Header */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Workspace Settings</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Workspace Settings</span>
                 </div>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                       {currentWorkspace?.name || workspaceName}
                     </h1>
-                    <p className="text-white/80">
+                    <p className="theme-text-secondary">
                       Manage your workspace settings and preferences
                     </p>
                   </div>
@@ -501,7 +501,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
               </div>
 
               {/* Tabs */}
-              <div className="border-b border-white/10">
+              <div className="border-b theme-border">
                 <div className="flex flex-wrap px-8 gap-1">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
@@ -512,7 +512,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                         className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                           activeTab === tab.id
                             ? "text-accent border-b-2 border-accent"
-                            : "text-white/70 hover:text-white"
+                            : "text-white/70 hover:theme-text"
                         }`}
                       >
                         <Icon className="w-4 h-4" />
@@ -528,41 +528,41 @@ const handleChangeRole = async (id: number, newRole: string) => {
                 {/* General Tab */}
                 {activeTab === "general" && (
                   <div className="space-y-6">
-                    <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                      <h3 className="text-xl font-semibold text-white mb-4">
+                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+                      <h3 className="text-xl font-semibold theme-text mb-4">
                         Workspace Info
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-white/80 mb-2">
+                          <label className="block text-sm font-medium theme-text-secondary mb-2">
                             Workspace Name
                           </label>
                           <Input
                             value={workspaceName}
                             onChange={(e) => setWorkspaceName(e.target.value)}
-                            className="bg-white/10 border-white/20 text-white"
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-white/80 mb-2">
+                          <label className="block text-sm font-medium theme-text-secondary mb-2">
                             Account Type
                           </label>
                           <Input
                             value="GitHub"
                             readOnly
-                            className="bg-white/5 border-white/20 text-white/60"
+                            className="theme-bg-subtle border-white/20 theme-text-muted"
                           />
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                      <h3 className="text-xl font-semibold text-white mb-4">
+                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+                      <h3 className="text-xl font-semibold theme-text mb-4">
                         Workspace Plan
                       </h3>
                       <div className="flex items-center justify-between">
                         <div>
-                          <Badge className="bg-purple-500 text-white mb-2">
+                          <Badge className="bg-purple-500 theme-text mb-2">
                             Pro Trial
                           </Badge>
                           <p className="text-white/70 text-sm">
@@ -587,7 +587,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                           placeholder="Search members..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                         />
                       </div>
                       <Button
@@ -599,7 +599,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                       </Button>
                     </div>
 
-                    <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
+                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
                       {loading ? (
                         <div className="text-center py-12">
                           <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -608,7 +608,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                       ) : filteredMembers.length === 0 ? (
                         <div className="text-center py-12">
                           <Users className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                          <h3 className="text-xl font-semibold text-white mb-2">
+                          <h3 className="text-xl font-semibold theme-text mb-2">
                             No Members Found
                           </h3>
                         </div>
@@ -633,7 +633,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <Select defaultValue="all">
-                        <SelectTrigger className="w-48 bg-white/10 border-white/20 text-white">
+                        <SelectTrigger className="w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -648,13 +648,13 @@ const handleChangeRole = async (id: number, newRole: string) => {
                       </Button>
                     </div>
 
-                    <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
+                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between py-4 border-b border-white/10">
+                        <div className="flex items-center justify-between py-4 border-b theme-border">
                           <div className="flex items-center space-x-4">
                             <Github className="w-8 h-8 text-white/70" />
                             <div>
-                              <h3 className="font-semibold text-white">deb-project</h3>
+                              <h3 className="font-semibold theme-text">deb-project</h3>
                               <p className="text-sm text-white/70">
                                 Sanjanadev/deb-project
                               </p>
@@ -676,9 +676,9 @@ const handleChangeRole = async (id: number, newRole: string) => {
 
                 {/* Other Tabs - Empty States */}
                 {activeTab === "clouds" && (
-                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center py-12 theme-bg-subtle rounded-2xl border theme-border">
                     <Cloud className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                    <h3 className="text-xl font-semibold theme-text mb-2">
                       Want to see the full picture?
                     </h3>
                     <p className="text-white/70 mb-6">
@@ -692,9 +692,9 @@ const handleChangeRole = async (id: number, newRole: string) => {
                 )}
 
                 {activeTab === "containers" && (
-                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center py-12 theme-bg-subtle rounded-2xl border theme-border">
                     <Package className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                    <h3 className="text-xl font-semibold theme-text mb-2">
                       No Containers Connected
                     </h3>
                     <p className="text-white/70 mb-6">
@@ -708,9 +708,9 @@ const handleChangeRole = async (id: number, newRole: string) => {
                 )}
 
                 {activeTab === "domains" && (
-                  <div className="text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center py-12 theme-bg-subtle rounded-2xl border theme-border">
                     <Globe className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                    <h3 className="text-xl font-semibold theme-text mb-2">
                       No Domains or APIs Added
                     </h3>
                     <p className="text-white/70 mb-6">
@@ -725,21 +725,21 @@ const handleChangeRole = async (id: number, newRole: string) => {
 
                 {activeTab === "integrations" && (
                   <div className="space-y-6">
-                    <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                      <h3 className="text-xl font-semibold text-white mb-4">
+                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+                      <h3 className="text-xl font-semibold theme-text mb-4">
                         Connected Integrations
                       </h3>
                       <div className="flex items-center justify-between py-4">
                         <div className="flex items-center space-x-4">
-                          <Github className="w-8 h-8 text-white" />
+                          <Github className="w-8 h-8 theme-text" />
                           <div>
-                            <h4 className="font-semibold text-white">GitHub</h4>
+                            <h4 className="font-semibold theme-text">GitHub</h4>
                             <p className="text-sm text-white/70">
                               Connected to 1 repository
                             </p>
                           </div>
                         </div>
-                        <Button variant="outline" className="border-white/20 text-white">
+                        <Button variant="outline" className="border-white/20 theme-text">
                           Configure
                         </Button>
                       </div>
@@ -753,7 +753,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                       <div className="flex items-start space-x-3">
                         <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
                         <div>
-                          <h3 className="font-semibold text-white mb-1">
+                          <h3 className="font-semibold theme-text mb-1">
                             SLA Configuration
                           </h3>
                           <p className="text-white/70 text-sm">
@@ -772,9 +772,9 @@ const handleChangeRole = async (id: number, newRole: string) => {
                         Danger Zone
                       </h3>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between py-4 border-b border-white/10">
+                        <div className="flex items-center justify-between py-4 border-b theme-border">
                           <div>
-                            <h4 className="font-semibold text-white">
+                            <h4 className="font-semibold theme-text">
                               Delete Workspace
                             </h4>
                             <p className="text-sm text-white/70">

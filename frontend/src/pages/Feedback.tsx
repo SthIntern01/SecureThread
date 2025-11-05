@@ -235,22 +235,22 @@ const Feedback = () => {
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
             {/* Single unified container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 {/* Breadcrumb */}
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Feedback</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Feedback</span>
                 </div>
 
                 <div className="text-center">
-                  <h1 className="text-3xl lg:text-4xl font-bold text-white mb-4">
+                  <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-4">
                     Feedback & Suggestions
                   </h1>
-                  <p className="text-white/80 text-lg max-w-2xl mx-auto">
+                  <p className="theme-text-secondary text-lg max-w-2xl mx-auto">
                     We'd love to hear your thoughts! Share bugs, feature requests, or ideas to help us improve the platform.
                   </p>
                 </div>
@@ -261,7 +261,7 @@ const Feedback = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Feedback Type */}
                   <div>
-                    <label className="block text-sm font-medium text-white mb-3">
+                    <label className="block text-sm font-medium theme-text mb-3">
                       Feedback Type *
                     </label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -275,12 +275,12 @@ const Feedback = () => {
                             className={`p-4 rounded-lg border-2 transition-all text-left ${
                               formData.type === type.value
                                 ? "border-accent bg-accent/20"
-                                : "border-white/20 bg-white/5 hover:bg-white/10"
+                                : "border-white/20 theme-bg-subtle hover:bg-gray-100/80 dark:bg-white/10"
                             }`}
                           >
                             <div className="flex items-center space-x-3">
                               <IconComponent className={`w-5 h-5 ${type.color}`} />
-                              <span className="font-medium text-white">{type.label}</span>
+                              <span className="font-medium theme-text">{type.label}</span>
                             </div>
                           </button>
                         );
@@ -291,11 +291,11 @@ const Feedback = () => {
                   {/* Severity/Priority */}
                   {showSeverityField && (
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium theme-text mb-3">
                         Severity/Priority *
                       </label>
                       <Select value={formData.severity} onValueChange={(value) => handleInputChange("severity", value)}>
-                        <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                        <SelectTrigger className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -313,14 +313,14 @@ const Feedback = () => {
 
                   {/* Description */}
                   <div>
-                    <label className="block text-sm font-medium text-white mb-3">
+                    <label className="block text-sm font-medium theme-text mb-3">
                       Description *
                     </label>
                     <textarea
                       value={formData.description}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       placeholder="Please provide detailed information about your feedback..."
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 resize-none h-32 focus:ring-2 focus:ring-accent focus:border-transparent"
+                      className="w-full p-4 bg-gray-100/80 dark:bg-white/10 border border-white/20 rounded-lg theme-text placeholder:text-white/50 resize-none h-32 focus:ring-2 focus:ring-accent focus:border-transparent"
                       required
                       minLength={10}
                     />
@@ -332,21 +332,21 @@ const Feedback = () => {
                   {/* Steps to Reproduce */}
                   {showStepsField && (
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium theme-text mb-3">
                         Steps to Reproduce (Optional)
                       </label>
                       <textarea
                         value={formData.stepsToReproduce}
                         onChange={(e) => handleInputChange("stepsToReproduce", e.target.value)}
                         placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."
-                        className="w-full p-4 bg-white/10 border border-white/20 rounded-lg text-white placeholder:text-white/50 resize-none h-24 focus:ring-2 focus:ring-accent focus:border-transparent"
+                        className="w-full p-4 bg-gray-100/80 dark:bg-white/10 border border-white/20 rounded-lg theme-text placeholder:text-white/50 resize-none h-24 focus:ring-2 focus:ring-accent focus:border-transparent"
                       />
                     </div>
                   )}
 
                   {/* File Upload */}
                   <div>
-                    <label className="block text-sm font-medium text-white mb-3">
+                    <label className="block text-sm font-medium theme-text mb-3">
                       Attachments (Optional)
                     </label>
                     <div className="border-2 border-dashed border-white/30 rounded-lg p-6 text-center">
@@ -367,7 +367,7 @@ const Feedback = () => {
                       />
                       <label
                         htmlFor="file-upload"
-                        className="inline-flex items-center px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 cursor-pointer transition-colors"
+                        className="inline-flex items-center px-4 py-2 bg-gray-100/80 dark:bg-white/10 border border-white/20 rounded-lg theme-text hover:bg-white/20 cursor-pointer transition-colors"
                       >
                         <FileText className="w-4 h-4 mr-2" />
                         Choose Files
@@ -377,10 +377,10 @@ const Feedback = () => {
                     {attachments.length > 0 && (
                       <div className="mt-4 space-y-2">
                         {attachments.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between bg-white/10 p-3 rounded-lg">
+                          <div key={index} className="flex items-center justify-between bg-gray-100/80 dark:bg-white/10 p-3 rounded-lg">
                             <div className="flex items-center space-x-2">
                               <FileText className="w-4 h-4 text-white/70" />
-                              <span className="text-white text-sm">{file.name}</span>
+                              <span className="theme-text text-sm">{file.name}</span>
                               <span className="text-white/50 text-xs">
                                 ({(file.size / 1024 / 1024).toFixed(2)} MB)
                               </span>
@@ -422,16 +422,16 @@ const Feedback = () => {
               </div>
 
               {/* Security Disclosure Section */}
-              <div className="p-8 bg-orange-500/10 border-t border-white/10">
+              <div className="p-8 bg-orange-500/10 border-t theme-border">
                 <div className="flex items-start space-x-4">
                   <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-6 h-6 text-orange-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                    <h3 className="text-lg font-semibold theme-text mb-2">
                       Security Disclosure Notice
                     </h3>
-                    <p className="text-white/80 leading-relaxed">
+                    <p className="theme-text-secondary leading-relaxed">
                       If you've discovered a critical security vulnerability in this platform, 
                       please submit it under <span className="font-semibold">Security Concern</span> or 
                       email us directly at{" "}

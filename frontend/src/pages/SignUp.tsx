@@ -57,8 +57,8 @@ const SignUpPage = () => {
         {/* Logo/Brand Section */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <IconShield className="h-8 w-8 text-white" />
-            <span className="text-2xl font-bold text-white">SECURE THREAD</span>
+            <IconShield className="h-8 w-8 theme-text" />
+            <span className="text-2xl font-bold theme-text">SECURE THREAD</span>
           </div>
           <p className="text-gray-300 text-sm">
             Join thousands of users who trust us with their security.
@@ -250,7 +250,7 @@ const SignUpPage = () => {
             {/* Sign Up Button */}
             <button
               type="submit"
-              className="w-full bg-accent hover:bg-accent/90 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 group mt-6"
+              className="w-full bg-accent hover:bg-accent/90 theme-text font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 group mt-6"
             >
               <span>Create Account</span>
               <IconArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
@@ -271,11 +271,11 @@ const SignUpPage = () => {
 
           {/* Social Sign Up */}
           <div className="grid grid-cols-2 gap-3">
-            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm">
+            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors theme-bg-subtle0 backdrop-blur-sm">
               <IconBrandGoogle className="h-5 w-5 text-red-500" />
               <span className="text-sm font-medium text-brand-black">Google</span>
             </button>
-            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors bg-white/50 backdrop-blur-sm">
+            <button className="flex items-center justify-center space-x-2 py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50/70 transition-colors theme-bg-subtle0 backdrop-blur-sm">
               <IconBrandGithub className="h-5 w-5 text-brand-black" />
               <span className="text-sm font-medium text-brand-black">GitHub</span>
             </button>

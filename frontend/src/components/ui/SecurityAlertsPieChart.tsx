@@ -222,8 +222,8 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center bg-black/40 rounded-full w-20 h-20 flex items-center justify-center backdrop-blur-sm">
             <div>
-              <div className="text-2xl font-bold text-white">{currentData.displayValue}</div>
-              <div className="text-white/60 text-xs">{currentData.label}</div>
+              <div className="text-2xl font-bold theme-text">{currentData.displayValue}</div>
+              <div className="theme-text-muted text-xs">{currentData.label}</div>
             </div>
           </div>
         </div>
@@ -240,9 +240,9 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
   ];
 
   return (
-    <div className="bg-black/20 rounded-lg p-6 backdrop-blur-sm">
+    <div className="theme-card rounded-lg p-6 backdrop-blur-sm">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-white flex items-center">
+        <h3 className="text-lg font-semibold theme-text flex items-center">
           <Zap className="w-5 h-5 mr-2 text-yellow-400" />
           Security Alerts
         </h3>
@@ -259,7 +259,7 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
       <div className="relative mb-6">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="w-full bg-white/10 rounded-lg px-4 py-2 flex items-center justify-between text-white hover:bg-white/20 transition-colors border border-white/20"
+          className="w-full bg-gray-100/80 dark:bg-white/10 rounded-lg px-4 py-2 flex items-center justify-between theme-text hover:bg-white/20 transition-colors border border-white/20"
         >
           <span className="capitalize">
             {severityOptions.find(opt => opt.value === selectedSeverity)?.label}
@@ -276,7 +276,7 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
                   setSelectedSeverity(option.value as any);
                   setShowDropdown(false);
                 }}
-                className={`w-full px-4 py-2 text-left hover:bg-white/10 transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                className={`w-full px-4 py-2 text-left hover:bg-gray-100/80 dark:bg-white/10 transition-colors first:rounded-t-lg last:rounded-b-lg ${
                   selectedSeverity === option.value ? 'bg-white/20 text-white' : 'text-white/70'
                 }`}
               >
@@ -294,13 +294,13 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
       {/* Dynamic legend */}
       <div className="space-y-3">
         {currentData.severityBreakdown.map((item) => (
-          <div key={item.name} className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/10">
+          <div key={item.name} className="flex items-center justify-between p-2 theme-bg-subtle rounded-lg border theme-border">
             <div className="flex items-center space-x-3">
               <div className={`w-4 h-4 rounded-full ${item.bgColor} border border-white/20`}></div>
               <span className="text-white/90 font-medium">{item.name}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-white font-bold">{item.value}</span>
+              <span className="theme-text font-bold">{item.value}</span>
               <span className="text-white/50 text-sm">({item.percentage.toFixed(1)}%)</span>
             </div>
           </div>
@@ -309,8 +309,8 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
 
       {/* Dynamic summary */}
       {isValid && total > 0 && (
-        <div className="mt-6 pt-4 border-t border-white/10">
-          <div className="text-center p-3 bg-white/5 rounded-lg">
+        <div className="mt-6 pt-4 border-t theme-border">
+          <div className="text-center p-3 theme-bg-subtle rounded-lg">
             <div className="text-white/70 text-sm">
               {breakdown.critical > 0 ? (
                 <span className="text-red-400 font-medium">

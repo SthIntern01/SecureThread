@@ -50,10 +50,10 @@ const CreateWorkspace = () => {
           <div className="max-w-2xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+              <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                 Create New Workspace
               </h1>
-              <p className="text-white/80">
+              <p className="theme-text-secondary">
                 Set up a new workspace to organize and scan your repositories
               </p>
             </div>
@@ -63,25 +63,25 @@ const CreateWorkspace = () => {
                 <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-semibold text-red-400 mb-1">Error</h4>
-                  <p className="text-white/80 text-sm">{error}</p>
+                  <p className="theme-text-secondary text-sm">{error}</p>
                 </div>
               </div>
             )}
 
             {/* Main Card */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               <div className="p-8">
                 {/* Icon */}
                 <div className="flex justify-center mb-6">
                   <div className="w-20 h-20 bg-gradient-to-br from-accent to-accent/80 rounded-2xl flex items-center justify-center shadow-xl">
-                    <Building2 className="w-10 h-10 text-white" />
+                    <Building2 className="w-10 h-10 theme-text" />
                   </div>
                 </div>
 
                 {/* Form */}
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-white font-semibold mb-2">
+                    <label className="block theme-text font-semibold mb-2">
                       Workspace Name
                     </label>
                     <Input
@@ -91,20 +91,20 @@ const CreateWorkspace = () => {
                         setWorkspaceName(e.target.value);
                         setError('');
                       }}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/50 text-lg py-6"
+                      className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50 text-lg py-6"
                       autoFocus
                     />
-                    <p className="text-white/60 text-sm mt-2">
+                    <p className="theme-text-muted text-sm mt-2">
                       Choose a descriptive name for your workspace
                     </p>
                   </div>
 
                   {/* Info Box */}
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <div className="theme-bg-subtle border theme-border rounded-xl p-4">
                     <div className="flex items-start space-x-3">
                       <Github className="w-5 h-5 text-white/70 flex-shrink-0 mt-0.5" />
                       <div>
-                        <h4 className="text-white font-semibold mb-1">Next Step</h4>
+                        <h4 className="theme-text font-semibold mb-1">Next Step</h4>
                         <p className="text-white/70 text-sm">
                           After creating your workspace, you'll select which GitHub repositories to scan for security vulnerabilities.
                         </p>
@@ -115,11 +115,11 @@ const CreateWorkspace = () => {
               </div>
 
               {/* Footer */}
-              <div className="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center">
+              <div className="p-6 theme-bg-subtle border-t theme-border flex justify-between items-center">
                 <Button
                   variant="outline"
                   onClick={() => navigate('/')}
-                  className="border-white/20 text-white hover:bg-white/10"
+                  className="border-white/20 theme-text hover:bg-gray-100/80 dark:bg-white/10"
                 >
                   Cancel
                 </Button>
@@ -138,8 +138,8 @@ const CreateWorkspace = () => {
             {/* Current Workspace Info (if exists) */}
             {currentWorkspace && (
               <div className="mt-6 text-center">
-                <p className="text-white/60 text-sm">
-                  Currently in: <span className="font-semibold text-white">{currentWorkspace.name}</span>
+                <p className="theme-text-muted text-sm">
+                  Currently in: <span className="font-semibold theme-text">{currentWorkspace.name}</span>
                 </p>
               </div>
             )}

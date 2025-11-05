@@ -15,8 +15,8 @@ const ChartContainer: React.FC<ChartContainerProps> = ({
   className = "" 
 }) => {
   return (
-    <div className={`bg-black/20 rounded-lg p-6 ${className}`}>
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className={`theme-card rounded-lg p-6 ${className}`}>
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         {Icon && <Icon className="w-5 h-5 mr-2" />}
         {title}
       </h3>

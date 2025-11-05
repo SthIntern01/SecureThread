@@ -67,13 +67,13 @@ const Profile = () => {
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
             {/* Main Container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               {/* Header */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">My Profile</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">My Profile</span>
                 </div>
 
                 <div className="flex items-center space-x-6">
@@ -85,11 +85,11 @@ const Profile = () => {
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/40 to-accent/60 flex items-center justify-center border-2 border-accent">
-                      <IconUser className="w-10 h-10 text-white" />
+                      <IconUser className="w-10 h-10 theme-text" />
                     </div>
                   )}
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-1">
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-1">
                       {user?.full_name || user?.github_username || user?.gitlab_username || user?.bitbucket_username || "User"}
                     </h1>
                     <p className="text-white/70">
@@ -103,15 +103,15 @@ const Profile = () => {
               <div className="p-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Personal Profile */}
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+                  <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+                    <h3 className="text-xl font-semibold theme-text mb-6 flex items-center">
                       <UserIcon className="w-5 h-5 mr-2 text-accent" />
                       Personal Profile
                     </h3>
 
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-sm font-semibold text-white/80 mb-3 uppercase tracking-wide">
+                        <h4 className="text-sm font-semibold theme-text-secondary mb-3 uppercase tracking-wide">
                           Linked Accounts
                         </h4>
                         {linkedAccounts.length > 0 ? (
@@ -119,17 +119,17 @@ const Profile = () => {
                             {linkedAccounts.map((account, index) => (
                               <div 
                                 key={index} 
-                                className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors"
+                                className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg border theme-border hover:bg-gray-100/80 dark:bg-white/10 transition-colors"
                               >
                                 <div className="flex items-center space-x-3">
-                                  <div className="text-white">
+                                  <div className="theme-text">
                                     {account.icon}
                                   </div>
                                   <div>
-                                    <div className="text-white font-medium">
+                                    <div className="theme-text font-medium">
                                       {user?.full_name || account.username}
                                     </div>
-                                    <div className="text-white/60 text-sm">
+                                    <div className="theme-text-muted text-sm">
                                       {account.provider}
                                     </div>
                                   </div>
@@ -139,9 +139,9 @@ const Profile = () => {
                             ))}
                           </div>
                         ) : (
-                          <div className="text-center py-8 bg-white/5 rounded-lg border border-white/10">
+                          <div className="text-center py-8 theme-bg-subtle rounded-lg border theme-border">
                             <Github className="w-12 h-12 text-white/30 mx-auto mb-3" />
-                            <p className="text-white/60 text-sm">
+                            <p className="theme-text-muted text-sm">
                               No accounts linked yet
                             </p>
                           </div>
@@ -151,19 +151,19 @@ const Profile = () => {
                   </div>
 
                   {/* Email Notifications */}
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-                    <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
+                  <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+                    <h3 className="text-xl font-semibold theme-text mb-6 flex items-center">
                       <Mail className="w-5 h-5 mr-2 text-accent" />
                       Email Notifications
                     </h3>
 
                     <div className="space-y-6">
                       <div>
-                        <h4 className="text-sm font-semibold text-white/80 mb-3 uppercase tracking-wide">
+                        <h4 className="text-sm font-semibold theme-text-secondary mb-3 uppercase tracking-wide">
                           Notification Email
                         </h4>
-                        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
-                          <span className="text-white">
+                        <div className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg border theme-border">
+                          <span className="theme-text">
                             {user?.email || "No email available"}
                           </span>
                           <ExternalLink className="w-4 h-4 text-white/40" />
@@ -171,16 +171,16 @@ const Profile = () => {
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-semibold text-white/80 mb-4 uppercase tracking-wide">
+                        <h4 className="text-sm font-semibold theme-text-secondary mb-4 uppercase tracking-wide">
                           Notification Preferences
                         </h4>
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
+                          <div className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg border theme-border hover:bg-gray-100/80 dark:bg-white/10 transition-colors">
                             <div>
-                              <label htmlFor="weekly-digest" className="text-white font-medium cursor-pointer block">
+                              <label htmlFor="weekly-digest" className="theme-text font-medium cursor-pointer block">
                                 Weekly Digest
                               </label>
-                              <p className="text-white/60 text-sm">
+                              <p className="theme-text-muted text-sm">
                                 Receive a summary every Monday
                               </p>
                             </div>
@@ -190,12 +190,12 @@ const Profile = () => {
                               onCheckedChange={setWeeklyDigest}
                             />
                           </div>
-                          <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
+                          <div className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg border theme-border hover:bg-gray-100/80 dark:bg-white/10 transition-colors">
                             <div>
-                              <label htmlFor="critical-issue" className="text-white font-medium cursor-pointer block">
+                              <label htmlFor="critical-issue" className="theme-text font-medium cursor-pointer block">
                                 Critical Issues
                               </label>
-                              <p className="text-white/60 text-sm">
+                              <p className="theme-text-muted text-sm">
                                 Get notified of critical vulnerabilities
                               </p>
                             </div>
@@ -216,7 +216,7 @@ const Profile = () => {
                   <div className="flex items-start space-x-3">
                     <UserIcon className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-white mb-1">
+                      <h4 className="font-semibold theme-text mb-1">
                         Profile Information
                       </h4>
                       <p className="text-white/70 text-sm">

@@ -29,7 +29,7 @@ const SecurityOverview: React.FC<SecurityOverviewProps> = ({
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white flex items-center">
+        <h3 className="text-lg font-semibold theme-text flex items-center">
           <Shield className="w-5 h-5 mr-2 text-accent" />
           Security Overview
         </h3>
@@ -44,13 +44,13 @@ const SecurityOverview: React.FC<SecurityOverviewProps> = ({
       </div>
       
       <div className="text-center mb-6">
-        <div className="text-3xl font-bold text-white mb-2">
+        <div className="text-3xl font-bold theme-text mb-2">
           {userInfo?.username}'s Security Posture
         </div>
         <div className={`text-xl font-semibold ${getSecurityScoreColor(data.securityScore)}`}>
           {data.securityScore}% Secure
         </div>
-        <div className="text-white/60 text-sm mt-2">
+        <div className="theme-text-muted text-sm mt-2">
           {selectedRepository === 'all' 
             ? `Monitoring ${data.totalProjects} repositories`
             : `Monitoring ${repositories.find(r => r.id === selectedRepository)?.name || 'selected repository'}`

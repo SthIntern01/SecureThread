@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import logo from "../images/logo.png";
 import {
@@ -42,7 +43,7 @@ const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         />
       </div>
       {sidebarOpen && (
-        <div className="font-bold text-white text-lg tracking-wide text-center">
+        <div className="font-bold theme-text text-lg tracking-wide text-center">
           <div>SANDBOX</div>
           <div>SECURITY</div>
         </div>
@@ -92,7 +93,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         }`}
       >
         <div className="w-10 h-10 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
-          <span className="text-white font-bold text-base">
+          <span className="theme-text font-bold text-base">
             {currentWorkspace.name.charAt(0).toUpperCase()}
           </span>
         </div>
@@ -100,7 +101,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         {sidebarOpen && (
           <>
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-white font-semibold text-sm truncate">
+              <div className="theme-text font-semibold text-sm truncate">
                 {currentWorkspace.name.replace("'s Workspace", "").replace("'s Team", "").trim()}
               </div>
               <div className="text-neutral-400 text-xs">
@@ -128,7 +129,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             <div className="px-4 py-2.5 bg-gray-50 flex items-center justify-between">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-semibold text-sm">
+                  <span className="theme-text font-semibold text-sm">
                     {currentWorkspace.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
@@ -204,7 +205,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) => {
   const { user, logout } = useAuth();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
+  const { theme, setTheme, actualTheme } = useTheme(); // REPLACE isDarkMode with this
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -283,9 +284,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
   };
 
   const handleThemeToggle = () => {
-    setIsDarkMode(!isDarkMode);
-    // TODO: Implement theme switching logic
-    console.log('Theme toggled:', !isDarkMode ? 'dark' : 'light');
+    setTheme(actualTheme === 'dark' ? 'light' : 'dark');
   };
 
   return (
@@ -316,9 +315,9 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
               <div className="px-4 py-3">
                 <div className="flex items-center gap-2 bg-neutral-800 rounded-lg p-1">
                   <button
-                    onClick={() => setIsDarkMode(false)}
+                    onClick={() => setTheme('light')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
-                      !isDarkMode
+                      actualTheme === 'light'
                         ? 'bg-white text-gray-900'
                         : 'text-neutral-400 hover:text-white'
                     }`}
@@ -327,9 +326,9 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
                     <span className="text-sm font-medium">Light</span>
                   </button>
                   <button
-                    onClick={() => setIsDarkMode(true)}
+                    onClick={() => setTheme('dark')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all ${
-                      isDarkMode
+                      actualTheme === 'dark'
                         ? 'bg-neutral-700 text-white'
                         : 'text-neutral-400 hover:text-white'
                     }`}
@@ -345,7 +344,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ sidebarOpen, setSidebarOpen }) 
                 className="flex justify-center py-3 cursor-pointer"
               >
                 <div className="relative w-10 h-10 bg-neutral-700 rounded-full flex items-center justify-center hover:bg-neutral-600 transition-colors">
-                  {isDarkMode ? (
+                  {actualTheme === 'dark' ? (
                     <IconMoon className="h-5 w-5 text-neutral-400" />
                   ) : (
                     <IconSun className="h-5 w-5 text-yellow-500" />

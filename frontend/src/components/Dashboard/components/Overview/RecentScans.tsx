@@ -19,12 +19,12 @@ const RecentScans: React.FC<RecentScansProps> = ({
 }) => {
   if (!data.recentActivity || data.recentActivity.length === 0) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <Clock className="w-5 h-5 mr-2" />
           Recent Scans
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Clock className="w-12 h-12 mx-auto mb-3 text-white/40" />
           <p>No recent activity</p>
           <p className="text-sm mt-2">Recent scans will appear here</p>
@@ -61,8 +61,8 @@ const RecentScans: React.FC<RecentScansProps> = ({
   }, []);
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <Clock className="w-5 h-5 mr-2" />
         Recent Scans
       </h3>
@@ -71,16 +71,16 @@ const RecentScans: React.FC<RecentScansProps> = ({
         {uniqueActivities.slice(0, 5).map((activity, index) => (
           <div 
             key={activity.uniqueKey || `${activity.scan_type}-${activity.id}-${activity.repository_id}-${index}`}
-            className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg"
+            className="flex items-center space-x-3 p-3 theme-bg-subtle rounded-lg"
           >
             <div className="flex-shrink-0">
               {getStatusIcon(activity.status)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium truncate">
+              <p className="theme-text font-medium truncate">
                 {activity.action}
               </p>
-              <div className="flex items-center space-x-2 text-sm text-white/60">
+              <div className="flex items-center space-x-2 text-sm theme-text-muted">
                 <span>{activity.time}</span>
                 <span>•</span>
                 <span className={`px-2 py-1 rounded text-xs ${

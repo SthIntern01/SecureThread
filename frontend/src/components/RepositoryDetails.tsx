@@ -167,15 +167,15 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case "critical":
-        return "bg-red-500 border-red-600 text-white";
+        return "bg-red-500 border-red-600 theme-text";
       case "high":
-        return "bg-orange-500 border-orange-600 text-white";
+        return "bg-orange-500 border-orange-600 theme-text";
       case "medium":
-        return "bg-yellow-500 border-yellow-600 text-white";
+        return "bg-yellow-500 border-yellow-600 theme-text";
       case "low":
-        return "bg-blue-500 border-blue-600 text-white";
+        return "bg-blue-500 border-blue-600 theme-text";
       default:
-        return "bg-gray-500 border-gray-600 text-white";
+        return "bg-gray-500 border-gray-600 theme-text";
     }
   };
 
@@ -980,7 +980,7 @@ const getVcsProviderName = (): string => {
               <div className="relative">
                 {baseIcon}
                 <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">!</span>
+                  <span className="theme-text text-xs font-bold">!</span>
                 </div>
               </div>
             );
@@ -989,7 +989,7 @@ const getVcsProviderName = (): string => {
               <div className="relative">
                 {baseIcon}
                 <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-green-600 flex items-center justify-center">
-                  <span className="text-white text-xs">✓</span>
+                  <span className="theme-text text-xs">✓</span>
                 </div>
               </div>
             );
@@ -998,7 +998,7 @@ const getVcsProviderName = (): string => {
               <div className="relative">
                 {baseIcon}
                 <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gray-400 flex items-center justify-center">
-                  <span className="text-white text-xs">-</span>
+                  <span className="theme-text text-xs">-</span>
                 </div>
               </div>
             );
@@ -1007,7 +1007,7 @@ const getVcsProviderName = (): string => {
               <div className="relative">
                 {baseIcon}
                 <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 flex items-center justify-center">
-                  <span className="text-white text-xs">×</span>
+                  <span className="theme-text text-xs">×</span>
                 </div>
               </div>
             );
@@ -1125,16 +1125,16 @@ const getVcsProviderName = (): string => {
           <div className="max-w-7xl mx-auto">
             {/* Header */}
             <div className="flex items-center space-x-2 text-sm mb-4">
-              <span className="font-medium text-white">SecureThread</span>
+              <span className="font-medium theme-text">SecureThread</span>
               <ChevronRight size={16} className="text-gray-300" />
               <button
                 onClick={onBack}
-                className="font-medium text-white hover:text-accent transition-colors"
+                className="font-medium theme-text hover:text-accent transition-colors"
               >
                 Projects
               </button>
               <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium text-white">{project.name}</span>
+              <span className="font-medium theme-text">{project.name}</span>
             </div>
 
             {/* Project Header */}

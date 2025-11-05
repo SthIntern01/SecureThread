@@ -263,11 +263,11 @@ function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
       {analyses.map((analysis, index) => (
         <div
           key={index}
-          className="bg-white/5 rounded-lg p-3 border border-white/10"
+          className="theme-bg-subtle rounded-lg p-3 border theme-border"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-white/60" />
+              <FileText className="w-4 h-4 theme-text-muted" />
               <span className="text-white/90 text-sm font-medium">
                 {analysis.file_name}
               </span>
@@ -294,13 +294,13 @@ function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
             <p className="text-red-400 text-xs">{analysis.error}</p>
           ) : (
             <div className="space-y-1">
-              <p className="text-white/60 text-xs">
+              <p className="theme-text-muted text-xs">
                 Size: {(analysis.file_size / 1024).toFixed(1)}KB
               </p>
               {analysis.vulnerability_count > 0 && (
                 <div className="space-y-1">
                   {analysis.vulnerabilities?.slice(0, 2).map((vuln, vIndex) => (
-                    <div key={vIndex} className="bg-white/5 rounded p-2">
+                    <div key={vIndex} className="theme-bg-subtle rounded p-2">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={cn(
                           "text-xs px-2 py-0.5 rounded",
@@ -312,7 +312,7 @@ function FileAnalysisResults({ analyses }: { analyses: FileAnalysis[] }) {
                           {vuln.severity?.toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-white/80 text-xs font-medium">{vuln.title}</p>
+                      <p className="theme-text-secondary text-xs font-medium">{vuln.title}</p>
                       {vuln.line_number && (
                         <p className="text-white/50 text-xs">Line {vuln.line_number}</p>
                       )}
@@ -633,13 +633,13 @@ const AIChat = () => {
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         {/* Header */}
-        <div className="flex-shrink-0 p-4 lg:p-6 border-b border-white/10">
+        <div className="flex-shrink-0 p-4 lg:p-6 border-b theme-border">
           <div className="max-w-none">
             {/* Breadcrumb Navigation */}
             <div className="flex items-center space-x-2 text-sm">
-              <span className="font-medium text-white">User</span>
+              <span className="font-medium theme-text">User</span>
               <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium text-white">AI Chat</span>
+              <span className="font-medium theme-text">AI Chat</span>
             </div>
           </div>
         </div>
@@ -683,7 +683,7 @@ const AIChat = () => {
                       <motion.button
                         key={suggestion.prefix}
                         onClick={() => selectCommandSuggestion(index)}
-                        className="flex items-center gap-2 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] rounded-lg text-sm text-white/60 hover:text-white/90 transition-all relative group border border-white/[0.05] hover:border-white/[0.15]"
+                        className="flex items-center gap-2 px-4 py-3 bg-white/[0.02] hover:bg-white/[0.08] rounded-lg text-sm theme-text-muted hover:text-white/90 transition-all relative group border border-white/[0.05] hover:border-white/[0.15]"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1 }}
@@ -722,8 +722,8 @@ const AIChat = () => {
                           className={cn(
                             "max-w-[85%] rounded-2xl px-6 py-4 text-sm leading-relaxed",
                             message.role === 'user'
-                              ? "bg-white/10 text-white ml-auto backdrop-blur-sm border border-white/10"
-                              : "bg-white/5 text-white/90 border border-white/10 backdrop-blur-sm"
+                              ? "bg-gray-100/80 dark:bg-white/10 theme-text ml-auto backdrop-blur-sm border theme-border"
+                              : "theme-bg-subtle text-white/90 border theme-border backdrop-blur-sm"
                           )}
                         >
                           <div className="whitespace-pre-wrap">{message.content}</div>
@@ -738,7 +738,7 @@ const AIChat = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                       >
-                        <div className="max-w-[85%] rounded-2xl px-6 py-4 bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <div className="max-w-[85%] rounded-2xl px-6 py-4 theme-bg-subtle border theme-border backdrop-blur-sm">
                           <FileAnalysisResults analyses={fileAnalyses} />
                         </div>
                       </motion.div>
@@ -752,7 +752,7 @@ const AIChat = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                       >
-                        <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl px-6 py-4">
+                        <div className="theme-bg-subtle border theme-border backdrop-blur-sm rounded-2xl px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center">
                               <span className="text-xs font-medium text-white/90">AI</span>
@@ -785,7 +785,7 @@ const AIChat = () => {
                       <motion.button
                         key={index}
                         onClick={() => handleSuggestionClick(suggestion)}
-                        className="px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-xs text-white/60 hover:text-white/90 transition-all border border-white/[0.05]"
+                        className="px-3 py-1.5 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg text-xs theme-text-muted hover:text-white/90 transition-all border border-white/[0.05]"
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: index * 0.05 }}
@@ -802,7 +802,7 @@ const AIChat = () => {
           </div>
 
           {/* Input Area */}
-          <div className="flex-shrink-0 p-4 lg:p-6 border-t border-white/10">
+          <div className="flex-shrink-0 p-4 lg:p-6 border-t theme-border">
             <div className="max-w-4xl mx-auto">
               {/* File Upload Modal */}
               <AnimatePresence>
@@ -815,17 +815,17 @@ const AIChat = () => {
                     onClick={() => setShowFileUpload(false)}
                   >
                     <motion.div
-                      className="bg-black/90 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10"
+                      className="bg-black/90 backdrop-blur-xl rounded-2xl p-6 max-w-md w-full mx-4 border theme-border"
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.9, opacity: 0 }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-medium">Upload Code Files</h3>
+                        <h3 className="theme-text font-medium">Upload Code Files</h3>
                         <button
                           onClick={() => setShowFileUpload(false)}
-                          className="text-white/40 hover:text-white"
+                          className="text-white/40 hover:theme-text"
                         >
                           <XIcon className="w-5 h-5" />
                         </button>
@@ -847,7 +847,7 @@ const AIChat = () => {
                   {showCommandPalette && (
                     <motion.div
                       ref={commandPaletteRef}
-                      className="absolute left-4 right-4 bottom-full mb-2 backdrop-blur-xl bg-black/90 rounded-lg z-50 shadow-lg border border-white/10 overflow-hidden"
+                      className="absolute left-4 right-4 bottom-full mb-2 backdrop-blur-xl bg-black/90 rounded-lg z-50 shadow-lg border theme-border overflow-hidden"
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 5 }}
@@ -860,15 +860,15 @@ const AIChat = () => {
                             className={cn(
                               "flex items-center gap-2 px-3 py-2 text-xs transition-colors cursor-pointer",
                               activeSuggestion === index
-                                ? "bg-white/10 text-white"
-                                : "text-white/70 hover:bg-white/5"
+                                ? "bg-gray-100/80 dark:bg-white/10 theme-text"
+                                : "text-white/70 hover:theme-bg-subtle"
                             )}
                             onClick={() => selectCommandSuggestion(index)}
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: index * 0.03 }}
                           >
-                            <div className="w-5 h-5 flex items-center justify-center text-white/60">
+                            <div className="w-5 h-5 flex items-center justify-center theme-text-muted">
                               {suggestion.icon}
                             </div>
                             <div className="font-medium">{suggestion.label}</div>
@@ -924,7 +924,7 @@ const AIChat = () => {
                       {attachedFiles.map((attachedFile) => (
                         <motion.div
                           key={attachedFile.id}
-                          className="flex items-center gap-2 text-xs bg-white/[0.03] py-1.5 px-3 rounded-lg text-white/70 border border-white/10"
+                          className="flex items-center gap-2 text-xs bg-white/[0.03] py-1.5 px-3 rounded-lg text-white/70 border theme-border"
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.9 }}
@@ -936,7 +936,7 @@ const AIChat = () => {
                           </span>
                           <button
                             onClick={() => removeAttachedFile(attachedFile.id)}
-                            className="text-white/40 hover:text-white transition-colors"
+                            className="text-white/40 hover:theme-text transition-colors"
                           >
                             <XIcon className="w-3 h-3" />
                           </button>
@@ -970,7 +970,7 @@ const AIChat = () => {
                       whileTap={{ scale: 0.94 }}
                       className={cn(
                         "p-2 text-white/40 hover:text-white/90 rounded-lg transition-colors relative group",
-                        showCommandPalette && "bg-white/10 text-white/90"
+                        showCommandPalette && "bg-gray-100/80 dark:bg-white/10 text-white/90"
                       )}
                     >
                       <Command className="w-4 h-4" />

@@ -40,7 +40,7 @@ const GitLabCallback = () => {
         noise={{ opacity: 0.8, scale: 1.2 }}
         sizing="fill"
       />
-      <div className="relative z-10 text-center text-white">
+      <div className="relative z-10 text-center theme-text">
         <h2 className="text-xl font-semibold">Authenticating...</h2>
         <p>Please wait, you will be redirected shortly.</p>
       </div>

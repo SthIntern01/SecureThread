@@ -14,12 +14,12 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
   
   if (!codeSmells && vulnerabilityTypes.length === 0) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <Bug className="w-5 h-5 mr-2" />
           Code Smells & Issues
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Bug className="w-12 h-12 mx-auto mb-3 text-green-400/60" />
           <p className="text-green-400">No code smells detected</p>
           <p className="text-sm mt-2">Your code quality looks good!</p>
@@ -80,8 +80,8 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
   const hasSmells = totalSmells > 0;
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <Bug className="w-5 h-5 mr-2" />
         Code Smells & Issues
       </h3>
@@ -102,7 +102,7 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
                       </div>
                       <div>
                         <div className={`font-medium ${category.color}`}>{category.label}</div>
-                        <div className="text-white/60 text-sm">
+                        <div className="theme-text-muted text-sm">
                           {category.key === 'blocker' ? 'Must fix immediately' :
                            category.key === 'critical' ? 'Should fix before release' :
                            category.key === 'major' ? 'Should fix in this sprint' :
@@ -119,7 +119,7 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
               ))}
             </div>
           ) : (
-            <div className="text-center py-4 text-white/60">
+            <div className="text-center py-4 theme-text-muted">
               <div className="w-12 h-12 mx-auto mb-3 bg-green-500/20 rounded-full flex items-center justify-center">
                 <Bug className="w-6 h-6 text-green-400" />
               </div>
@@ -136,7 +136,7 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
             
             <div className="space-y-2">
               {vulnerabilityTypes.slice(0, 5).map((vulnType, index) => (
-                <div key={`${vulnType.type}-${index}`} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                <div key={`${vulnType.type}-${index}`} className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
                       vulnType.critical > 0 ? 'bg-red-400' :
@@ -144,18 +144,18 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
                       vulnType.high > 0 ? 'bg-yellow-400' : 'bg-blue-400'
                     }`}></div>
                     <div>
-                      <div className="text-white font-medium capitalize">
+                      <div className="theme-text font-medium capitalize">
                         {vulnType.type.replace(/_/g, ' ')}
                       </div>
-                      <div className="text-white/60 text-sm">
+                      <div className="theme-text-muted text-sm">
                         {vulnType.critical > 0 && `${vulnType.critical} critical, `}
                         {vulnType.high > 0 && `${vulnType.high} high risk`}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-white font-bold">{vulnType.count}</div>
-                    <div className="text-white/60 text-xs">issues</div>
+                    <div className="theme-text font-bold">{vulnType.count}</div>
+                    <div className="theme-text-muted text-xs">issues</div>
                   </div>
                 </div>
               ))}
@@ -164,25 +164,25 @@ const CodeSmells: React.FC<CodeSmellsProps> = ({ data }) => {
         )}
 
         {/* Summary */}
-        <div className="pt-4 border-t border-white/10">
+        <div className="pt-4 border-t theme-border">
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
               <div className={`text-xl font-bold ${hasSmells ? 'text-yellow-400' : 'text-green-400'}`}>
                 {totalSmells}
               </div>
-              <div className="text-white/60 text-sm">Code Quality Issues</div>
+              <div className="theme-text-muted text-sm">Code Quality Issues</div>
             </div>
             <div>
               <div className="text-xl font-bold text-red-400">
                 {vulnerabilityTypes.reduce((sum, v) => sum + (v.critical || 0), 0)}
               </div>
-              <div className="text-white/60 text-sm">Security Issues</div>
+              <div className="theme-text-muted text-sm">Security Issues</div>
             </div>
           </div>
           
           {(hasSmells || vulnerabilityTypes.length > 0) && (
             <div className="mt-4 text-center">
-              <div className="text-white/60 text-sm">
+              <div className="theme-text-muted text-sm">
                 Prioritize fixing blocker and critical issues first
               </div>
             </div>
