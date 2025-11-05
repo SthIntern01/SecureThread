@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { EtherealBackground } from "../components/ui/ethereal-background";
+import { useTheme } from "../contexts/ThemeContext";
+import { ThemeBackground } from "../components/ui/theme-background";
 import {
   IconBrandGithub,
   IconBrandGitlab,
@@ -10,6 +11,8 @@ import {
   IconLink,
   IconBolt,
   IconTool,
+  IconSun,
+  IconMoon,
 } from "@tabler/icons-react";
 import sandboxLogo from "../images/sandboxlogo.png";
 
@@ -18,6 +21,7 @@ const SignInPage = () => {
   const [error, setError] = useState("");
   const popup = useRef<Window | null>(null);
   const popupInterval = useRef<number | null>(null);
+  const { actualTheme, setTheme } = useTheme();
 
   // Session-based tracking to prevent all duplicate requests
   const sessionKey = `oauth_session_${Date.now()}_${Math.random()}`;
@@ -26,6 +30,10 @@ const SignInPage = () => {
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const toggleTheme = () => {
+    setTheme(actualTheme === 'dark' ? 'light' : 'dark');
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -89,7 +97,7 @@ const SignInPage = () => {
     handleGitHubCallback(code);
   } else if (state === "securethread_google_auth") {
     handleGoogleCallbackInMainWindow(code);
-  } else if (state === "securethread_bitbucket_auth") {  // ADD THIS
+  } else if (state === "securethread_bitbucket_auth") {
     handleBitbucketCallback(code);
   }
 }
@@ -643,17 +651,26 @@ const SignInPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex relative overflow-hidden bg-[#111111]">
-      <EtherealBackground
-        className="absolute inset-0"
-        color="rgba(255, 255, 255, 0.6)"
-        animation={{ scale: 100, speed: 90 }}
-        noise={{ opacity: 0.8, scale: 1.2 }}
-        sizing="fill"
-      />
+    <div className="min-h-screen w-full flex relative overflow-hidden">
+      {/* Theme-Aware Background */}
+      <ThemeBackground />
+
+      {/* Theme Toggle Button - Top Right */}
+      <button
+        onClick={toggleTheme}
+        className="fixed top-6 right-6 z-50 p-3 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-2 border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group"
+        aria-label="Toggle theme"
+      >
+        {actualTheme === 'dark' ? (
+          <IconSun className="w-5 h-5 text-orange-500 group-hover:rotate-90 transition-transform duration-300" />
+        ) : (
+          <IconMoon className="w-5 h-5 text-gray-700 group-hover:-rotate-12 transition-transform duration-300" />
+        )}
+      </button>
+
       <div className="hidden lg:flex lg:w-1/2 relative z-10 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-transparent"></div>
           <div
             className="absolute inset-0"
             style={{
@@ -662,7 +679,7 @@ const SignInPage = () => {
             }}
           ></div>
         </div>
-        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 theme-text">
+        <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-gray-900 dark:text-white">
           <div className="flex items-center space-x-3 mb-12">
             <img 
               src={sandboxLogo} 
@@ -677,50 +694,50 @@ const SignInPage = () => {
           </div>
           <div className="space-y-6">
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconLink className="w-6 h-6 text-[#FF6B00]" />
+              <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconLink className="w-6 h-6 text-orange-500" />
               </div>
               <div>
                 <h3 className="text-xl font-semibold mb-2">
                   Link your projects effortlessly
                 </h3>
-                <p className="text-gray-300 leading-relaxed">
+                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
                   Connect GitHub, GitLab, Bitbucket, and other repositories with one-click
                   integration
                 </p>
               </div>
             </div>
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconBolt className="w-6 h-6 text-[#FF6B00]" />
+              <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconBolt className="w-6 h-6 text-orange-500" />
               </div>
               <div>
                 <h3 className="text-xl font-semibold mb-2">
                   Detect vulnerabilities in real time
                 </h3>
-                <p className="text-gray-300 leading-relaxed">
+                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
                   Advanced AI-powered scanning identifies security threats as
                   they emerge
                 </p>
               </div>
             </div>
             <div className="flex items-start space-x-4">
-              <div className="w-12 h-12 bg-[#FF6B00]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                <IconTool className="w-6 h-6 text-[#FF6B00]" />
+              <div className="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                <IconTool className="w-6 h-6 text-orange-500" />
               </div>
               <div>
                 <h3 className="text-xl font-semibold mb-2">
                   Apply rapid, step-by-step fixes
                 </h3>
-                <p className="text-gray-300 leading-relaxed">
+                <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
                   Get actionable remediation guidance with automated fix
                   suggestions
                 </p>
               </div>
             </div>
           </div>
-          <div className="mt-16 pt-8 border-t border-gray-700">
-            <p className="text-sm text-gray-400 mb-4">
+          <div className="mt-16 pt-8 border-t border-gray-300 dark:border-gray-700">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Trusted by leading software companies
             </p>
             <div className="flex items-center space-x-6 opacity-60">
@@ -736,21 +753,21 @@ const SignInPage = () => {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center justify-center space-x-2 mb-8">
-            <div className="w-8 h-8 bg-[#FF6B00] rounded-lg flex items-center justify-center">
-              <IconShield className="w-5 h-5 theme-text" />
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+              <IconShield className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold theme-text">SECURE THREAD</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">SECURE THREAD</span>
           </div>
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold theme-text mb-2">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Get started for free
             </h2>
-            <p className="theme-text-secondary text-lg">
+            <p className="text-gray-600 dark:text-gray-400 text-lg">
               Secure in seconds – Start free, no card required
             </p>
           </div>
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 text-red-100 rounded-lg text-sm">
+            <div className="mb-6 p-4 bg-red-100 dark:bg-red-500/20 backdrop-blur-sm border-2 border-red-300 dark:border-red-500/30 text-red-800 dark:text-red-100 rounded-lg text-sm">
               {error}
             </div>
           )}
@@ -758,7 +775,7 @@ const SignInPage = () => {
             <button
               onClick={handleGitHubLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e]/90 hover:bg-[#1a1e22]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border theme-border"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#24292e] hover:bg-[#1a1e22] dark:bg-[#24292e]/90 dark:hover:bg-[#1a1e22]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <IconBrandGithub className="w-5 h-5" />
               <span>
@@ -770,7 +787,7 @@ const SignInPage = () => {
             <button
               onClick={handleGoogleLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-gray-100/80 dark:bg-white/10 hover:bg-white/20 backdrop-blur-sm theme-text font-semibold rounded-lg border border-white/20 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white hover:bg-gray-50 dark:bg-gray-800/80 dark:hover:bg-gray-700/80 backdrop-blur-sm text-gray-900 dark:text-white font-semibold rounded-lg border-2 border-gray-300 dark:border-gray-600 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
               <span>
@@ -782,7 +799,7 @@ const SignInPage = () => {
             <button
               onClick={handleGitLabLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26]/90 hover:bg-[#e85d1f]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md border theme-border"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26] hover:bg-[#e85d1f] dark:bg-[#fc6d26]/90 dark:hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <IconBrandGitlab className="w-5 h-5" />
               <span>
@@ -794,10 +811,10 @@ const SignInPage = () => {
             <button
               onClick={handleBitbucketLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc]/90 hover:bg-[#003d99]/90 backdrop-blur-sm theme-text font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md border theme-border disabled:opacity-50"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc] hover:bg-[#003d99] dark:bg-[#0052cc]/90 dark:hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/>
               </svg>
               <span>
                 {loadingProvider === "bitbucket"
@@ -807,31 +824,31 @@ const SignInPage = () => {
             </button>
           </div>
           <div className="text-center mb-6">
-            <p className="text-sm theme-text-secondary">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Or sign up with{" "}
               <button
                 onClick={() => handleComingSoonProvider("Enterprise SSO")}
-                className="text-[#FF6B00] hover:text-[#FF6B00]/80 font-medium transition-colors"
+                className="text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors"
               >
                 Enterprise SSO
               </button>{" "}
               |{" "}
               <button
                 onClick={() => handleComingSoonProvider("Docker ID")}
-                className="text-[#FF6B00] hover:text-[#FF6B00]/80 font-medium transition-colors"
+                className="text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors"
               >
                 Docker ID
               </button>
             </p>
           </div>
-          <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-500/30 rounded-lg p-4 mb-6">
+          <div className="bg-blue-100 dark:bg-blue-500/20 backdrop-blur-sm border-2 border-blue-300 dark:border-blue-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-start space-x-3">
-              <IconShield className="w-5 h-5 text-blue-300 mt-0.5 flex-shrink-0" />
+              <IconShield className="w-5 h-5 text-blue-600 dark:text-blue-300 mt-0.5 flex-shrink-0" />
               <div>
-                <h4 className="font-semibold text-blue-100 text-sm">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
                   Secure read-only access
                 </h4>
-                <p className="text-xs text-blue-200 mt-1">
+                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
                   Our analysis does not require any agents, just read-only API
                   access. We never store your code.
                 </p>
@@ -842,29 +859,29 @@ const SignInPage = () => {
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                className="w-4 h-4 text-[#FF6B00] bg-gray-100/80 dark:bg-white/10 border-white/30 rounded focus:ring-accent focus:ring-2"
+                className="w-4 h-4 text-orange-500 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded focus:ring-orange-500 focus:ring-2"
               />
-              <span className="text-sm theme-text-secondary">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 Remember my login details
               </span>
             </label>
           </div>
           <div className="text-center">
-            <p className="text-xs text-white/70 leading-relaxed">
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
               We will not make any use of the auth provider without your
               permission.
               <br />
               By logging in or signing up, you agree to abide by our{" "}
               <a
                 href="#"
-                className="text-[#FF6B00] hover:text-[#FF6B00]/80 transition-colors"
+                className="text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
               >
                 Terms of Service
               </a>{" "}
               and{" "}
               <a
                 href="#"
-                className="text-[#FF6B00] hover:text-[#FF6B00]/80 transition-colors"
+                className="text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
               >
                 Privacy Policy
               </a>
