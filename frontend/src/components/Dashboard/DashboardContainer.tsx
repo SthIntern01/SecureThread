@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { EtherealBackground } from "../ui/ethereal-background";
+import { ThemeBackground } from "../ui/theme-background";
 import AppSidebar from "../AppSidebar";
 
 // Import header components
@@ -641,17 +641,12 @@ const data = dashboardData || {
   if (loading && !dashboardData) {
     return (
       <div className="w-full h-screen font-sans relative flex overflow-hidden">
-        <EtherealBackground
-          color="rgba(255, 255, 255, 0.6)"
-          animation={{ scale: 100, speed: 90 }}
-          noise={{ opacity: 0.8, scale: 1.2 }}
-          sizing="fill"
-        />
+        <ThemeBackground />
         <AppSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="p-4 lg:p-8">
             <div className="max-w-[95%] mx-auto">
-              <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              <div className="bg-white/95 dark:bg-white/10 backdrop-blur-lg rounded-3xl border-2 border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
                 <LoadingState />
               </div>
             </div>
@@ -664,17 +659,12 @@ const data = dashboardData || {
   if (error) {
     return (
       <div className="w-full h-screen font-sans relative flex overflow-hidden">
-        <EtherealBackground
-          color="rgba(255, 255, 255, 0.6)"
-          animation={{ scale: 100, speed: 90 }}
-          noise={{ opacity: 0.8, scale: 1.2 }}
-          sizing="fill"
-        />
+        <ThemeBackground />
         <AppSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="p-4 lg:p-8">
             <div className="max-w-[95%] mx-auto">
-              <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              <div className="bg-white/95 dark:bg-white/10 backdrop-blur-lg rounded-3xl border-2 border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
                 <ErrorState message={error} onRetry={() => fetchAllData(true)} />
               </div>
             </div>
@@ -686,12 +676,7 @@ const data = dashboardData || {
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
-      <EtherealBackground
-        color="rgba(255, 255, 255, 0.6)"
-        animation={{ scale: 100, speed: 90 }}
-        noise={{ opacity: 0.8, scale: 1.2 }}
-        sizing="fill"
-      />
+      <ThemeBackground />
 
       <AppSidebar
         sidebarOpen={sidebarOpen}
@@ -701,7 +686,7 @@ const data = dashboardData || {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-8">
           <div className="max-w-[95%] mx-auto">
-            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-white/95 dark:bg-white/10 backdrop-blur-lg rounded-3xl border-2 border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
               <DashboardHeader 

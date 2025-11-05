@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Zap, ChevronDown } from "lucide-react";
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SecurityAlertsPieChartProps {
   critical: number;
@@ -22,6 +23,7 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
 }) => {
   const [selectedSeverity, setSelectedSeverity] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [showDropdown, setShowDropdown] = useState(false);
+  const { actualTheme } = useTheme();
 
   // 🔧 DYNAMIC CALCULATION - Recalculate from raw data every time
   const dynamicVulnerabilityData = useMemo(() => {
@@ -179,7 +181,7 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
             cy={center}
             r={radius}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.1)"
+            stroke={actualTheme === 'dark' ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}
             strokeWidth={strokeWidth}
             className="opacity-30"
           />
@@ -220,10 +222,10 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
         
         {/* Dynamic center content */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center bg-black/40 rounded-full w-20 h-20 flex items-center justify-center backdrop-blur-sm">
+          <div className="text-center bg-gray-200/60 dark:bg-black/40 rounded-full w-20 h-20 flex items-center justify-center backdrop-blur-sm border-2 border-gray-300 dark:border-white/20">
             <div>
-              <div className="text-2xl font-bold theme-text">{currentData.displayValue}</div>
-              <div className="theme-text-muted text-xs">{currentData.label}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{currentData.displayValue}</div>
+              <div className="text-gray-600 dark:text-gray-400 text-xs">{currentData.label}</div>
             </div>
           </div>
         </div>
@@ -240,26 +242,26 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
   ];
 
   return (
-    <div className="theme-card rounded-lg p-6 backdrop-blur-sm">
+    <div className="bg-white/90 dark:bg-white/10 rounded-lg p-6 backdrop-blur-sm border-2 border-gray-300 dark:border-white/20 shadow-lg">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold theme-text flex items-center">
-          <Zap className="w-5 h-5 mr-2 text-yellow-400" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+          <Zap className="w-5 h-5 mr-2 text-yellow-500 dark:text-yellow-400" />
           Security Alerts
         </h3>
-        <div className="text-red-400 font-bold text-lg">
+        <div className="text-red-600 dark:text-red-400 font-bold text-lg">
           {total}
         </div>
       </div>
 
       {/* Debug info (remove in production) */}
-      <div className="mb-4 p-2 bg-blue-500/10 rounded text-xs text-blue-300">
+      <div className="mb-4 p-2 bg-blue-100 dark:bg-blue-500/10 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/30">
         Debug: C:{breakdown.critical} H:{breakdown.high} M:{breakdown.medium} L:{breakdown.low} = {breakdown.critical + breakdown.high + breakdown.medium + breakdown.low}
       </div>
 
       <div className="relative mb-6">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="w-full bg-gray-100/80 dark:bg-white/10 rounded-lg px-4 py-2 flex items-center justify-between theme-text hover:bg-white/20 transition-colors border border-white/20"
+          className="w-full bg-white dark:bg-white/10 rounded-lg px-4 py-2 flex items-center justify-between text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/20 transition-colors border-2 border-gray-300 dark:border-white/20"
         >
           <span className="capitalize">
             {severityOptions.find(opt => opt.value === selectedSeverity)?.label}
@@ -268,7 +270,7 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
         </button>
         
         {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900/95 rounded-lg border border-white/20 z-10 backdrop-blur-sm">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900/95 rounded-lg border-2 border-gray-300 dark:border-white/20 z-10 backdrop-blur-sm shadow-xl">
             {severityOptions.map((option) => (
               <button
                 key={option.value}
@@ -276,8 +278,10 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
                   setSelectedSeverity(option.value as any);
                   setShowDropdown(false);
                 }}
-                className={`w-full px-4 py-2 text-left hover:bg-gray-100/80 dark:bg-white/10 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                  selectedSeverity === option.value ? 'bg-white/20 text-white' : 'text-white/70'
+                className={`w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-white/10 transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                  selectedSeverity === option.value 
+                    ? 'bg-gray-200 dark:bg-white/20 text-gray-900 dark:text-white font-medium' 
+                    : 'text-gray-700 dark:text-white/70'
                 }`}
               >
                 {option.label}
@@ -294,14 +298,14 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
       {/* Dynamic legend */}
       <div className="space-y-3">
         {currentData.severityBreakdown.map((item) => (
-          <div key={item.name} className="flex items-center justify-between p-2 theme-bg-subtle rounded-lg border theme-border">
+          <div key={item.name} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-white/5 rounded-lg border-2 border-gray-300 dark:border-white/10">
             <div className="flex items-center space-x-3">
-              <div className={`w-4 h-4 rounded-full ${item.bgColor} border border-white/20`}></div>
-              <span className="text-white/90 font-medium">{item.name}</span>
+              <div className={`w-4 h-4 rounded-full ${item.bgColor} border-2 border-gray-400 dark:border-white/20`}></div>
+              <span className="text-gray-900 dark:text-white/90 font-medium">{item.name}</span>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="theme-text font-bold">{item.value}</span>
-              <span className="text-white/50 text-sm">({item.percentage.toFixed(1)}%)</span>
+              <span className="text-gray-900 dark:text-white font-bold">{item.value}</span>
+              <span className="text-gray-600 dark:text-white/50 text-sm">({item.percentage.toFixed(1)}%)</span>
             </div>
           </div>
         ))}
@@ -309,19 +313,19 @@ export const SecurityAlertsPieChart: React.FC<SecurityAlertsPieChartProps> = ({
 
       {/* Dynamic summary */}
       {isValid && total > 0 && (
-        <div className="mt-6 pt-4 border-t theme-border">
-          <div className="text-center p-3 theme-bg-subtle rounded-lg">
-            <div className="text-white/70 text-sm">
+        <div className="mt-6 pt-4 border-t-2 border-gray-300 dark:border-white/20">
+          <div className="text-center p-3 bg-gray-100 dark:bg-white/5 rounded-lg border-2 border-gray-300 dark:border-white/10">
+            <div className="text-gray-700 dark:text-white/70 text-sm">
               {breakdown.critical > 0 ? (
-                <span className="text-red-400 font-medium">
+                <span className="text-red-600 dark:text-red-400 font-medium">
                   🚨 {breakdown.critical} critical issues require immediate attention
                 </span>
               ) : breakdown.high > 0 ? (
-                <span className="text-orange-400 font-medium">
+                <span className="text-orange-600 dark:text-orange-400 font-medium">
                   ⚠️ {breakdown.high} high-risk issues need review
                 </span>
               ) : (
-                <span className="text-yellow-400 font-medium">
+                <span className="text-yellow-600 dark:text-yellow-400 font-medium">
                   📋 Monitor {breakdown.medium + breakdown.low} medium/low priority issues
                 </span>
               )}
