@@ -651,7 +651,7 @@ const data = dashboardData || {
         <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="p-4 lg:p-8">
             <div className="max-w-[95%] mx-auto">
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
                 <LoadingState />
               </div>
             </div>
@@ -674,7 +674,7 @@ const data = dashboardData || {
         <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
           <div className="p-4 lg:p-8">
             <div className="max-w-[95%] mx-auto">
-              <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
                 <ErrorState message={error} onRetry={() => fetchAllData(true)} />
               </div>
             </div>
@@ -701,7 +701,7 @@ const data = dashboardData || {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-8">
           <div className="max-w-[95%] mx-auto">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
               <DashboardHeader 

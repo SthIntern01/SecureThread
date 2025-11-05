@@ -114,8 +114,8 @@ const GitHubCallback = () => {
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <IconShield className="h-8 w-8 text-white" />
-            <span className="text-2xl font-bold text-white">SECURE THREAD</span>
+            <IconShield className="h-8 w-8 theme-text" />
+            <span className="text-2xl font-bold theme-text">SECURE THREAD</span>
           </div>
         </div>
 

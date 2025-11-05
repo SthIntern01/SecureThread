@@ -12,12 +12,12 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
   
   if (!mttr && !securityMetrics) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <Clock className="w-5 h-5 mr-2" />
           Resolution Time (MTTR)
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Clock className="w-12 h-12 mx-auto mb-3 text-white/40" />
           <p>No resolution data available</p>
           <p className="text-sm mt-2">Fix vulnerabilities to track resolution times</p>
@@ -83,18 +83,18 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
   ];
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <Clock className="w-5 h-5 mr-2" />
         Resolution Time (MTTR)
       </h3>
       
       <div className="space-y-4">
         {severityData.map((item) => (
-          <div key={item.severity} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+          <div key={item.severity} className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg">
             <div className="flex items-center space-x-3">
               <div className={`w-3 h-3 rounded-full ${item.bgColor}`}></div>
-              <span className="text-white font-medium">{item.severity}</span>
+              <span className="theme-text font-medium">{item.severity}</span>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -102,12 +102,12 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
                 <div className={`text-sm ${item.color}`}>
                   {item.current > 0 ? `${item.current} days` : 'No fixes yet'}
                 </div>
-                <div className="text-white/60 text-xs">Current MTTR</div>
+                <div className="theme-text-muted text-xs">Current MTTR</div>
               </div>
               
               <div className="text-right">
-                <div className="text-white/80 text-sm">{item.target} days</div>
-                <div className="text-white/60 text-xs">Target SLA</div>
+                <div className="theme-text-secondary text-sm">{item.target} days</div>
+                <div className="theme-text-muted text-xs">Target SLA</div>
               </div>
               
               <div className="w-6">
@@ -125,24 +125,24 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
       </div>
 
       {/* Summary Stats */}
-      <div className="mt-6 pt-4 border-t border-white/10">
+      <div className="mt-6 pt-4 border-t theme-border">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div>
-            <div className="text-lg font-bold text-white">
+            <div className="text-lg font-bold theme-text">
               {data.totalVulnerabilities || 0}
             </div>
-            <div className="text-white/60 text-sm">Open Issues</div>
+            <div className="theme-text-muted text-sm">Open Issues</div>
           </div>
           <div>
             <div className="text-lg font-bold text-orange-400">
               0
             </div>
-            <div className="text-white/60 text-sm">Fixed This Month</div>
+            <div className="theme-text-muted text-sm">Fixed This Month</div>
           </div>
         </div>
         
         <div className="mt-4 text-center">
-          <div className="text-white/60 text-sm">
+          <div className="theme-text-muted text-sm">
             Industry Avg MTTR: Critical 7d • High 15d • Medium 30d • Low 90d
           </div>
         </div>

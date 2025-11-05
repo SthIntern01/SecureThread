@@ -24,8 +24,8 @@ const NavigationTabs: React.FC<NavigationTabsProps> = ({ selectedView, onViewCha
             onClick={() => onViewChange(tab.key)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               selectedView === tab.key
-                ? 'bg-white/20 text-white border border-white/30'
-                : 'text-white/70 hover:text-white hover:bg-white/10'
+                ? 'bg-white/20 theme-text border border-white/30'
+                : 'text-white/70 hover:theme-text hover:bg-gray-100/80 dark:bg-white/10'
             }`}
           >
             {tab.icon}

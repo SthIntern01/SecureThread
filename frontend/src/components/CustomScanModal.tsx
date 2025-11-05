@@ -214,20 +214,20 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden bg-white/10 backdrop-blur-lg border border-white/20 shadow-2xl">
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 overflow-hidden bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg border border-white/20 shadow-2xl">
         {/* Custom Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 flex items-center justify-center text-white/70 hover:text-white transition-all duration-200 group"
+          className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-gray-100/80 dark:bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 flex items-center justify-center text-white/70 hover:theme-text transition-all duration-200 group"
         >
           <X className="w-4 h-4 group-hover:scale-110 transition-transform" />
         </button>
 
         <div className="flex flex-col h-[90vh]">
           {/* Header */}
-          <div className="px-8 py-6 border-b border-white/10">
+          <div className="px-8 py-6 border-b theme-border">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-white mb-2">
+              <DialogTitle className="text-2xl font-bold theme-text mb-2">
                 Custom Security Scan Configuration
               </DialogTitle>
               <p className="text-white/70">
@@ -241,7 +241,7 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
             {/* Left Panel - Built-in Rules */}
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
                   <Shield className="w-5 h-5 mr-2 text-orange-400" />
                   Built-in Security Rules
                 </h3>
@@ -258,7 +258,7 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                     <Button
                       onClick={fetchBuiltInRules}
                       variant="outline"
-                      className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                      className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
                     >
                       Try Again
                     </Button>
@@ -266,18 +266,18 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                 ) : (
                   <div className="space-y-3">
                     {Object.entries(rulesByCategory).map(([category, rules]) => (
-                      <div key={category} className="bg-white/5 rounded-lg border border-white/10">
+                      <div key={category} className="theme-bg-subtle rounded-lg border theme-border">
                         {/* Category Header */}
                         <button
                           onClick={() => toggleCategory(category)}
-                          className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors rounded-t-lg"
+                          className="w-full flex items-center justify-between p-4 hover:theme-bg-subtle transition-colors rounded-t-lg"
                         >
                           <div className="flex items-center space-x-3">
                             {getCategoryIcon(category)}
-                            <span className="text-white font-medium">
+                            <span className="theme-text font-medium">
                               {getCategoryLabel(category)}
                             </span>
-                            <Badge className="bg-orange-500 text-white text-xs">
+                            <Badge className="bg-orange-500 theme-text text-xs">
                               {rules.length} rules
                             </Badge>
                           </div>
@@ -290,11 +290,11 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
 
                         {/* Category Rules */}
                         {expandedCategories.has(category) && (
-                          <div className="border-t border-white/10">
+                          <div className="border-t theme-border">
                             {rules.map((rule) => (
                               <div
                                 key={rule.id}
-                                className="p-4 border-b border-white/5 last:border-b-0 hover:bg-white/5 transition-colors"
+                                className="p-4 border-b border-white/5 last:border-b-0 hover:theme-bg-subtle transition-colors"
                               >
                                 <div className="flex items-start space-x-3">
                                   <input
@@ -302,13 +302,13 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                                     id={`rule-${rule.id}`}
                                     checked={selectedRules.has(rule.id)}
                                     onChange={() => toggleRule(rule.id)}
-                                    className="mt-1 w-4 h-4 text-orange-500 bg-white/10 border-white/30 rounded focus:ring-orange-500 focus:ring-2"
+                                    className="mt-1 w-4 h-4 text-orange-500 bg-gray-100/80 dark:bg-white/10 border-white/30 rounded focus:ring-orange-500 focus:ring-2"
                                   />
                                   <div className="flex-1">
                                     <div className="flex items-center space-x-2 mb-2">
                                       <label
                                         htmlFor={`rule-${rule.id}`}
-                                        className="text-sm font-medium text-white cursor-pointer"
+                                        className="text-sm font-medium theme-text cursor-pointer"
                                       >
                                         {rule.name}
                                       </label>
@@ -333,8 +333,8 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
             </div>
 
             {/* Right Panel - Custom Rules Upload */}
-            <div className="w-80 p-6 border-l border-white/10 bg-white/5">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <div className="w-80 p-6 border-l theme-border theme-bg-subtle">
+              <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
                 <Upload className="w-5 h-5 mr-2 text-orange-400" />
                 Custom Rules
               </h3>
@@ -360,11 +360,11 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                     />
                   </label>
                 ) : (
-                  <div className="bg-white/10 rounded-lg p-4 border border-white/20">
+                  <div className="bg-gray-100/80 dark:bg-white/10 rounded-lg p-4 border border-white/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
                         <FileText className="w-4 h-4 text-orange-400" />
-                        <span className="text-white text-sm font-medium">
+                        <span className="theme-text text-sm font-medium">
                           {uploadedFile.name}
                         </span>
                       </div>
@@ -386,9 +386,9 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
               </div>
 
               {/* JSON Format Example */}
-              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                <h4 className="text-white text-sm font-medium mb-2">JSON Format:</h4>
-                <pre className="text-white/60 text-xs overflow-x-auto">
+              <div className="theme-bg-subtle rounded-lg p-4 border theme-border">
+                <h4 className="theme-text text-sm font-medium mb-2">JSON Format:</h4>
+                <pre className="theme-text-muted text-xs overflow-x-auto">
 {`[
   {
     "name": "Rule Name",
@@ -410,7 +410,7 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="px-8 py-6 border-t border-white/10 bg-white/5">
+          <div className="px-8 py-6 border-t theme-border theme-bg-subtle">
             <div className="flex items-center justify-between">
               <div className="text-white/70 text-sm">
                 {selectedRules.size} built-in rules selected
@@ -420,14 +420,14 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                 <Button
                   onClick={onClose}
                   variant="ghost"
-                  className="text-white/70 hover:text-white hover:bg-white/10"
+                  className="text-white/70 hover:theme-text hover:bg-gray-100/80 dark:bg-white/10"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleStartScan}
                   disabled={selectedRules.size === 0 && customRules.length === 0}
-                  className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold"
+                  className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 theme-text font-semibold"
                 >
                   <Zap className="w-4 h-4 mr-2" />
                   Start Custom Scan

@@ -42,7 +42,7 @@ const MetricsRow: React.FC<MetricsRowProps> = ({ data }) => {
   const hasScans = hasRepositories && (data.totalVulnerabilities > 0 || data.securityScore !== null);
 
   return (
-    <div className="p-6 border-b border-white/10">
+    <div className="p-6 border-b theme-border">
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {/* Security Score */}
         <div className="text-center">

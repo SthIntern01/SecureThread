@@ -20,7 +20,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   subtitle,
   icon: Icon,
   iconColor = "text-blue-400",
-  valueColor = "text-white",
+  valueColor = "theme-text",
   trend
 }) => {
   return (

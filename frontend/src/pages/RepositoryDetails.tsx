@@ -171,7 +171,7 @@ const RepositoryDetailsPage: React.FC = () => {
           <p className="text-red-500 mb-6">{error || "Project not found"}</p>
           <button
             onClick={handleBack}
-            className="bg-accent hover:bg-accent/90 text-white px-6 py-2 rounded-lg"
+            className="bg-accent hover:bg-accent/90 theme-text px-6 py-2 rounded-lg"
           >
             Back to Projects
           </button>

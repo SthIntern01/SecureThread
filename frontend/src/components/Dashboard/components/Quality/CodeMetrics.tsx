@@ -12,12 +12,12 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
   
   if (!codeMetrics) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <Code className="w-5 h-5 mr-2" />
           Code Quality Metrics
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Code className="w-12 h-12 mx-auto mb-3 text-white/40" />
           <p>No code quality data available</p>
         </div>
@@ -34,8 +34,8 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
   const duplicatedLines = codeMetrics.duplicated_lines || {};
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <Code className="w-5 h-5 mr-2" />
         Code Quality Metrics
       </h3>
@@ -78,7 +78,7 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
         <div>
           <div className="flex items-center mb-3">
             <FileText className="w-4 h-4 text-purple-400 mr-2" />
-            <span className="text-white font-medium">Language Distribution</span>
+            <span className="theme-text font-medium">Language Distribution</span>
           </div>
           
           {languageDistribution.length > 0 ? (
@@ -93,23 +93,23 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
                       index === 3 ? 'bg-purple-400' :
                       index === 4 ? 'bg-pink-400' : 'bg-gray-400'
                     }`}></div>
-                    <span className="text-white capitalize">{lang.language}</span>
+                    <span className="theme-text capitalize">{lang.language}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-white/60 text-sm">{lang.files} files</span>
-                    <span className="text-white font-medium">{lang.percentage}%</span>
+                    <span className="theme-text-muted text-sm">{lang.files} files</span>
+                    <span className="theme-text font-medium">{lang.percentage}%</span>
                   </div>
                 </div>
               ))}
               
               {languageDistribution.length > 6 && (
-                <div className="text-white/60 text-sm text-center pt-2">
+                <div className="theme-text-muted text-sm text-center pt-2">
                   +{languageDistribution.length - 6} more languages
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-4 text-white/60">
+            <div className="text-center py-4 theme-text-muted">
               <FileText className="w-8 h-8 mx-auto mb-2 text-white/40" />
               <p className="text-sm">No language data detected</p>
               <p className="text-xs mt-1">Run scans on repositories with source code</p>
@@ -118,7 +118,7 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
         </div>
 
         {/* Additional Metrics */}
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t theme-border">
           <div className="text-center">
             <div className={`text-xl font-bold mb-1 ${
               complexityScore < 25 ? 'text-green-400' :
@@ -127,7 +127,7 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
             }`}>
               {Math.round(complexityScore)}
             </div>
-            <div className="text-white/60 text-sm">Complexity Score</div>
+            <div className="theme-text-muted text-sm">Complexity Score</div>
           </div>
           
           <div className="text-center">
@@ -138,28 +138,28 @@ const CodeMetrics: React.FC<CodeMetricsProps> = ({ data }) => {
             }`}>
               {(duplicatedLines.percentage || 0).toFixed(1)}%
             </div>
-            <div className="text-white/60 text-sm">Duplicated Code</div>
+            <div className="theme-text-muted text-sm">Duplicated Code</div>
           </div>
         </div>
 
         {/* Quality Indicators */}
-        <div className="pt-4 border-t border-white/10">
+        <div className="pt-4 border-t theme-border">
           <div className="grid grid-cols-1 gap-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-white/60">Code Coverage</span>
+              <span className="theme-text-muted">Code Coverage</span>
               <span className={`font-medium ${
                 (codeMetrics.code_coverage?.average || 0) >= 80 ? 'text-green-400' :
                 (codeMetrics.code_coverage?.average || 0) >= 60 ? 'text-yellow-400' : 'text-red-400'
               }`}>
                 {Math.round(codeMetrics.code_coverage?.average || 0)}% 
-                <span className="text-white/60 ml-1">
+                <span className="theme-text-muted ml-1">
                   (Target: {codeMetrics.code_coverage?.target || 80}%)
                 </span>
               </span>
             </div>
             
             <div className="flex justify-between">
-              <span className="text-white/60">Technical Debt</span>
+              <span className="theme-text-muted">Technical Debt</span>
               <span className={`font-medium ${
                 (codeMetrics.technical_debt?.priority || 'low') === 'high' ? 'text-red-400' :
                 (codeMetrics.technical_debt?.priority || 'low') === 'medium' ? 'text-yellow-400' : 'text-green-400'

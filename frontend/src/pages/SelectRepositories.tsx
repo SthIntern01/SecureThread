@@ -131,10 +131,10 @@ const SelectRepositories = () => {
           <div className="max-w-5xl mx-auto">
             {/* Header */}
             <div className="mb-6">
-              <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+              <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                 Select Repositories
               </h1>
-              <p className="text-white/80">
+              <p className="theme-text-secondary">
                 Choose which repositories to scan in <span className="font-semibold">{workspaceName}</span>
               </p>
             </div>
@@ -144,31 +144,31 @@ const SelectRepositories = () => {
                 <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-semibold text-red-400 mb-1">Error</h4>
-                  <p className="text-white/80 text-sm">{error}</p>
+                  <p className="theme-text-secondary text-sm">{error}</p>
                 </div>
               </div>
             )}
 
             {/* Main Content */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               {/* Search and Stats */}
-              <div className="p-6 border-b border-white/10">
+              <div className="p-6 border-b theme-border">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
                   <div className="flex items-center space-x-4 flex-1 min-w-[300px]">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 theme-text-muted" />
                       <Input
                         placeholder="Search repositories..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                        className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                       />
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-3">
-                    <div className="bg-white/10 rounded-lg px-4 py-2 border border-white/20">
-                      <span className="text-white font-semibold">
+                    <div className="bg-gray-100/80 dark:bg-white/10 rounded-lg px-4 py-2 border border-white/20">
+                      <span className="theme-text font-semibold">
                         {selectedRepos.size} selected
                       </span>
                     </div>
@@ -176,7 +176,7 @@ const SelectRepositories = () => {
                       <Button
                         onClick={toggleAll}
                         variant="outline"
-                        className="border-white/20 text-white hover:bg-white/10"
+                        className="border-white/20 theme-text hover:bg-gray-100/80 dark:bg-white/10"
                       >
                         {selectedRepos.size === filteredRepositories.length ? 'Deselect All' : 'Select All'}
                       </Button>
@@ -193,16 +193,16 @@ const SelectRepositories = () => {
               <div className="p-6">
                 {loading ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <Loader2 className="w-12 h-12 text-white animate-spin mb-4" />
-                    <p className="text-white/80">Loading your repositories...</p>
+                    <Loader2 className="w-12 h-12 theme-text animate-spin mb-4" />
+                    <p className="theme-text-secondary">Loading your repositories...</p>
                   </div>
                 ) : filteredRepositories.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <Github className="w-16 h-16 text-white/40 mb-4" />
-                    <p className="text-white/80 text-lg font-semibold mb-2">
+                    <p className="theme-text-secondary text-lg font-semibold mb-2">
                       {searchQuery ? 'No repositories found' : 'No repositories available'}
                     </p>
-                    <p className="text-white/60 text-sm">
+                    <p className="theme-text-muted text-sm">
                       {searchQuery ? 'Try a different search term' : 'Create some repositories on GitHub first'}
                     </p>
                   </div>
@@ -218,7 +218,7 @@ const SelectRepositories = () => {
                           className={`w-full flex items-start space-x-4 p-4 rounded-xl border-2 transition-all ${
                             isSelected
                               ? 'bg-accent/20 border-accent shadow-lg'
-                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                              : 'theme-bg-subtle theme-border hover:bg-gray-100/80 dark:bg-white/10'
                           }`}
                         >
                           <div className="flex-shrink-0 mt-0.5">
@@ -231,17 +231,17 @@ const SelectRepositories = () => {
                           
                           <div className="flex-1 text-left min-w-0">
                             <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                              <Github className="w-4 h-4 text-white/60 flex-shrink-0" />
-                              <h3 className="text-white font-semibold truncate">
+                              <Github className="w-4 h-4 theme-text-muted flex-shrink-0" />
+                              <h3 className="theme-text font-semibold truncate">
                                 {repo.name}
                               </h3>
                               {repo.private && (
-                                <span className="text-xs bg-white/10 text-white/80 px-2 py-0.5 rounded">
+                                <span className="text-xs bg-gray-100/80 dark:bg-white/10 theme-text-secondary px-2 py-0.5 rounded">
                                   Private
                                 </span>
                               )}
                               {repo.language && (
-                                <span className="text-xs bg-white/10 text-white/80 px-2 py-0.5 rounded">
+                                <span className="text-xs bg-gray-100/80 dark:bg-white/10 theme-text-secondary px-2 py-0.5 rounded">
                                   {repo.language}
                                 </span>
                               )}
@@ -261,7 +261,7 @@ const SelectRepositories = () => {
               </div>
 
               {/* Footer Actions */}
-              <div className="p-6 border-t border-white/10 flex justify-between items-center">
+              <div className="p-6 border-t theme-border flex justify-between items-center">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -269,7 +269,7 @@ const SelectRepositories = () => {
                     navigate('/workspace/create');
                   }}
                   disabled={creating}
-                  className="border-white/20 text-white hover:bg-white/10"
+                  className="border-white/20 theme-text hover:bg-gray-100/80 dark:bg-white/10"
                 >
                   Back
                 </Button>

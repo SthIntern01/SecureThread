@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Clock, GitBranch, ChevronDown } from "lucide-react";
-import { TimeFilter, TimeFilterOptions, Repository } from '../../types/dashboard.types';
+import { TimeFilter, Repository, TimeFilterOptions } from '../../types/dashboard.types';
 
 interface FilterControlsProps {
   timeFilter: TimeFilter;
@@ -29,7 +29,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
   onToggleRepoDropdown
 }) => {
   return (
-    <div className="flex flex-wrap items-center gap-4 mt-4">
+    <div className="flex items-center space-x-3 mt-4">
       {/* Time Filter Dropdown */}
       <div className="relative" data-dropdown="time">
         <Button
@@ -40,14 +40,14 @@ const FilterControls: React.FC<FilterControlsProps> = ({
             e.stopPropagation();
             onToggleTimeDropdown();
           }}
-          className="text-white/70 hover:text-white border border-white/20 hover:bg-white/10"
+          className="text-gray-700 hover:text-gray-900 border border-gray-300 hover:bg-gray-100 dark:text-white/70 dark:hover:text-white dark:border-white/20 dark:hover:bg-white/10"
         >
           <Clock className="w-4 h-4 mr-2" />
           {timeFilterOptions[timeFilter].label}
           <ChevronDown className="w-4 h-4 ml-2" />
         </Button>
         {showTimeDropdown && (
-          <div className="absolute top-full left-0 mt-2 w-48 bg-black/90 backdrop-blur-lg border border-white/20 rounded-lg shadow-xl z-50">
+          <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 dark:bg-black/90 dark:backdrop-blur-lg dark:border-white/20">
             {Object.entries(timeFilterOptions).map(([key, option]) => (
               <button
                 key={key}
@@ -58,8 +58,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                 }}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                   timeFilter === key
-                    ? 'bg-white/20 text-white'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                    ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
                 } first:rounded-t-lg last:rounded-b-lg`}
               >
                 {option.label}
@@ -79,7 +79,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
             e.stopPropagation();
             onToggleRepoDropdown();
           }}
-          className="text-white/70 hover:text-white border border-white/20 hover:bg-white/10"
+          className="text-gray-700 hover:text-gray-900 border border-gray-300 hover:bg-gray-100 dark:text-white/70 dark:hover:text-white dark:border-white/20 dark:hover:bg-white/10"
         >
           <GitBranch className="w-4 h-4 mr-2" />
           {selectedRepository === 'all' 
@@ -89,7 +89,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
           <ChevronDown className="w-4 h-4 ml-2" />
         </Button>
         {showRepoDropdown && (
-          <div className="absolute top-full left-0 mt-2 w-64 bg-black/90 backdrop-blur-lg border border-white/20 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+          <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto dark:bg-black/90 dark:backdrop-blur-lg dark:border-white/20">
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -98,8 +98,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
               }}
               className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                 selectedRepository === 'all'
-                  ? 'bg-white/20 text-white'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
               } rounded-t-lg`}
             >
               All Repositories ({repositories.length})
@@ -114,12 +114,12 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                 }}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                   selectedRepository === repo.id
-                    ? 'bg-white/20 text-white'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                    ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
                 } last:rounded-b-lg`}
               >
-                <div className="truncate">{repo.name}</div>
-                <div className="text-xs text-white/50 truncate">{repo.full_name}</div>
+                <div className="truncate font-medium">{repo.name}</div>
+                <div className="text-xs text-gray-500 dark:text-white/50 truncate">{repo.full_name}</div>
               </button>
             ))}
           </div>

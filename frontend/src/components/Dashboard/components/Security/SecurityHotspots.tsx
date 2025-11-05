@@ -12,12 +12,12 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
   
   if (!hotspots || hotspots.length === 0) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <AlertTriangle className="w-5 h-5 mr-2" />
           Security Hotspots
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Shield className="w-12 h-12 mx-auto mb-3 text-green-400/60" />
           <p className="text-green-400">No security hotspots detected</p>
           <p className="text-sm mt-2">Your most vulnerable files will appear here</p>
@@ -52,8 +52,8 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
   };
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <AlertTriangle className="w-5 h-5 mr-2" />
         Security Hotspots
       </h3>
@@ -71,12 +71,12 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-2">
-                    <FileCode className="w-4 h-4 text-white/60" />
-                    <span className="text-white font-medium truncate" title={hotspot.file_path}>
+                    <FileCode className="w-4 h-4 theme-text-muted" />
+                    <span className="theme-text font-medium truncate" title={hotspot.file_path}>
                       {hotspot.file_path.split('/').pop() || hotspot.file_path}
                     </span>
                   </div>
-                  <div className="text-white/60 text-xs truncate mb-2" title={hotspot.file_path}>
+                  <div className="theme-text-muted text-xs truncate mb-2" title={hotspot.file_path}>
                     {hotspot.file_path}
                   </div>
                   <div className="flex items-center space-x-2">
@@ -98,8 +98,8 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
               </div>
               
               <div className="text-right ml-3">
-                <div className="text-white font-bold text-lg">{hotspot.count}</div>
-                <div className="text-white/60 text-xs">vulnerabilities</div>
+                <div className="theme-text font-bold text-lg">{hotspot.count}</div>
+                <div className="theme-text-muted text-xs">vulnerabilities</div>
               </div>
             </div>
           </div>
@@ -107,30 +107,30 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
       </div>
 
       {/* Summary */}
-      <div className="mt-6 pt-4 border-t border-white/10">
+      <div className="mt-6 pt-4 border-t theme-border">
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <div className="text-lg font-bold text-white">
+            <div className="text-lg font-bold theme-text">
               {hotspots.length}
             </div>
-            <div className="text-white/60 text-sm">Files at Risk</div>
+            <div className="theme-text-muted text-sm">Files at Risk</div>
           </div>
           <div>
             <div className="text-lg font-bold text-red-400">
               {hotspots.reduce((sum, h) => sum + h.critical, 0)}
             </div>
-            <div className="text-white/60 text-sm">Critical Issues</div>
+            <div className="theme-text-muted text-sm">Critical Issues</div>
           </div>
           <div>
             <div className="text-lg font-bold text-orange-400">
               {hotspots.reduce((sum, h) => sum + h.high, 0)}
             </div>
-            <div className="text-white/60 text-sm">High Risk Issues</div>
+            <div className="theme-text-muted text-sm">High Risk Issues</div>
           </div>
         </div>
         
         <div className="mt-4 text-center">
-          <div className="text-white/60 text-sm">
+          <div className="theme-text-muted text-sm">
             Focus on top {Math.min(3, hotspots.length)} files for maximum security impact
           </div>
         </div>
