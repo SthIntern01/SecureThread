@@ -41,12 +41,12 @@ const SettingsCard = ({ title, description, children, icon: Icon }: {
   icon?: React.ComponentType<any>;
 }) => {
   return (
-    <div className="bg-white/10 backdrop-blur-lg rounded-lg border border-white/20 shadow-sm">
-      <div className="p-6 border-b border-white/10">
+    <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-lg border border-white/20 shadow-sm">
+      <div className="p-6 border-b theme-border">
         <div className="flex items-center space-x-3">
           {Icon && <Icon className="w-5 h-5 text-accent" />}
           <div>
-            <h3 className="text-lg font-semibold text-white">{title}</h3>
+            <h3 className="text-lg font-semibold theme-text">{title}</h3>
             {description && <p className="text-sm text-white/70 mt-1">{description}</p>}
           </div>
         </div>
@@ -105,23 +105,23 @@ const Settings = () => {
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
             {/* Single unified container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 {/* Breadcrumb */}
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Settings</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Settings</span>
                 </div>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                       Settings
                     </h1>
-                    <p className="text-white/80">
+                    <p className="theme-text-secondary">
                       Manage your account and security preferences
                     </p>
                   </div>
@@ -132,34 +132,34 @@ const Settings = () => {
               <div className="p-8">
                 {/* Settings Tabs */}
                 <Tabs defaultValue="account" className="w-full">
-                  <TabsList className="bg-white/10 backdrop-blur-lg border border-white/20 mb-8">
+                  <TabsList className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg border border-white/20 mb-8">
                     <TabsTrigger 
                       value="account" 
-                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:text-white"
+                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:theme-text"
                     >
                       Account
                     </TabsTrigger>
                     <TabsTrigger 
                       value="security" 
-                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:text-white"
+                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:theme-text"
                     >
                       Security
                     </TabsTrigger>
                     <TabsTrigger 
                       value="notifications" 
-                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:text-white"
+                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:theme-text"
                     >
                       Notifications
                     </TabsTrigger>
                     <TabsTrigger 
                       value="organization" 
-                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:text-white"
+                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:theme-text"
                     >
                       Organization
                     </TabsTrigger>
                     <TabsTrigger 
                       value="billing" 
-                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:text-white"
+                      className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-white/70 data-[state=active]:theme-text"
                     >
                       Billing
                     </TabsTrigger>
@@ -174,28 +174,28 @@ const Settings = () => {
                     >
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">First Name</label>
+                          <label className="block text-sm font-medium theme-text mb-2">First Name</label>
                           <Input 
                             value={settings.firstName}
                             onChange={(e) => handleSettingChange('firstName', e.target.value)}
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Last Name</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Last Name</label>
                           <Input 
                             value={settings.lastName}
                             onChange={(e) => handleSettingChange('lastName', e.target.value)}
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                           />
                         </div>
                       </div>
                       <div className="mt-4">
-                        <label className="block text-sm font-medium text-white mb-2">Email Address</label>
+                        <label className="block text-sm font-medium theme-text mb-2">Email Address</label>
                         <Input 
                           value={settings.email}
                           onChange={(e) => handleSettingChange('email', e.target.value)}
-                          className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                          className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                         />
                       </div>
                       <div className="mt-6 flex justify-end">
@@ -213,24 +213,24 @@ const Settings = () => {
                     >
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Current Password</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Current Password</label>
                           <Input 
                             type="password" 
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50" 
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50" 
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">New Password</label>
+                          <label className="block text-sm font-medium theme-text mb-2">New Password</label>
                           <Input 
                             type="password" 
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50" 
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50" 
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Confirm New Password</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Confirm New Password</label>
                           <Input 
                             type="password" 
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50" 
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50" 
                           />
                         </div>
                       </div>
@@ -251,7 +251,7 @@ const Settings = () => {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-white">Two-Factor Authentication</p>
+                          <p className="font-medium theme-text">Two-Factor Authentication</p>
                           <p className="text-sm text-white/70">
                             {settings.twoFactorEnabled ? 'Enabled' : 'Disabled'} - Protect your account with 2FA
                           </p>
@@ -279,18 +279,18 @@ const Settings = () => {
                     >
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Production API Key</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Production API Key</label>
                           <div className="flex items-center space-x-2">
                             <Input 
                               value={showApiKey ? apiKey : '•'.repeat(apiKey.length)}
                               readOnly
-                              className="bg-white/10 border-white/20 text-white font-mono text-sm"
+                              className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text font-mono text-sm"
                             />
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setShowApiKey(!showApiKey)}
-                              className="bg-white/10 border-white/20 text-white/70"
+                              className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70"
                             >
                               {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </Button>
@@ -298,18 +298,18 @@ const Settings = () => {
                               variant="outline"
                               size="sm"
                               onClick={() => navigator.clipboard.writeText(apiKey)}
-                              className="bg-white/10 border-white/20 text-white/70"
+                              className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70"
                             >
                               <Copy className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Button variant="outline" className="bg-white/10 border-white/20 text-white/70">
+                          <Button variant="outline" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70">
                             <Plus className="w-4 h-4 mr-2" />
                             Generate New Key
                           </Button>
-                          <Button variant="outline" className="bg-white/10 border-white/20 text-red-400 hover:text-red-300">
+                          <Button variant="outline" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-red-400 hover:text-red-300">
                             <Trash2 className="w-4 h-4 mr-2" />
                             Revoke Key
                           </Button>
@@ -324,15 +324,15 @@ const Settings = () => {
                     >
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Session Timeout (hours)</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Session Timeout (hours)</label>
                           <Input 
                             type="number"
                             value={settings.sessionTimeout}
                             onChange={(e) => handleSettingChange('sessionTimeout', e.target.value)}
-                            className="bg-white/10 border-white/20 text-white w-32"
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text w-32"
                           />
                         </div>
-                        <Button variant="outline" className="bg-white/10 border-white/20 text-red-400 hover:text-red-300">
+                        <Button variant="outline" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-red-400 hover:text-red-300">
                           Sign Out All Devices
                         </Button>
                       </div>
@@ -349,7 +349,7 @@ const Settings = () => {
                       <div className="space-y-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-white">Security Alerts</p>
+                            <p className="font-medium theme-text">Security Alerts</p>
                             <p className="text-sm text-white/70">Get notified about security issues</p>
                           </div>
                           <Switch
@@ -361,7 +361,7 @@ const Settings = () => {
                         
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-white">Critical Issues Only</p>
+                            <p className="font-medium theme-text">Critical Issues Only</p>
                             <p className="text-sm text-white/70">Only receive alerts for critical vulnerabilities</p>
                           </div>
                           <Switch
@@ -373,7 +373,7 @@ const Settings = () => {
 
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-white">Weekly Reports</p>
+                            <p className="font-medium theme-text">Weekly Reports</p>
                             <p className="text-sm text-white/70">Receive weekly security summary reports</p>
                           </div>
                           <Switch
@@ -392,7 +392,7 @@ const Settings = () => {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-white">Slack Notifications</p>
+                          <p className="font-medium theme-text">Slack Notifications</p>
                           <p className="text-sm text-white/70">Send alerts to your Slack workspace</p>
                         </div>
                         <Switch
@@ -413,23 +413,23 @@ const Settings = () => {
                     >
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Organization Name</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Organization Name</label>
                           <Input 
                             value={settings.orgName}
                             onChange={(e) => handleSettingChange('orgName', e.target.value)}
-                            className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                            className="bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-white mb-2">Default Member Role</label>
+                          <label className="block text-sm font-medium theme-text mb-2">Default Member Role</label>
                           <select 
                             value={settings.defaultRole}
                             onChange={(e) => handleSettingChange('defaultRole', e.target.value)}
-                            className="w-full p-2 border border-white/20 rounded-md bg-white/10 text-white"
+                            className="w-full p-2 border border-white/20 rounded-md bg-gray-100/80 dark:bg-white/10 theme-text"
                           >
-                            <option value="viewer" className="bg-gray-800 text-white">Viewer</option>
-                            <option value="developer" className="bg-gray-800 text-white">Developer</option>
-                            <option value="admin" className="bg-gray-800 text-white">Admin</option>
+                            <option value="viewer" className="bg-gray-800 theme-text">Viewer</option>
+                            <option value="developer" className="bg-gray-800 theme-text">Developer</option>
+                            <option value="admin" className="bg-gray-800 theme-text">Admin</option>
                           </select>
                         </div>
                       </div>
@@ -442,7 +442,7 @@ const Settings = () => {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-white">Auto-accept Invitations</p>
+                          <p className="font-medium theme-text">Auto-accept Invitations</p>
                           <p className="text-sm text-white/70">Automatically accept members from your domain</p>
                         </div>
                         <Switch
@@ -464,19 +464,19 @@ const Settings = () => {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-semibold text-white">Professional Plan</h4>
+                            <h4 className="font-semibold theme-text">Professional Plan</h4>
                             <p className="text-sm text-white/70">$99/month • Up to 50 projects</p>
                           </div>
                           <Badge className="bg-accent text-accent-foreground">Active</Badge>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 py-4 border-t border-white/10">
+                        <div className="grid grid-cols-2 gap-4 py-4 border-t theme-border">
                           <div>
-                            <p className="text-sm font-medium text-white">Projects Used</p>
-                            <p className="text-2xl font-bold text-white">12 <span className="text-sm font-normal text-white/70">/ 50</span></p>
+                            <p className="text-sm font-medium theme-text">Projects Used</p>
+                            <p className="text-2xl font-bold theme-text">12 <span className="text-sm font-normal text-white/70">/ 50</span></p>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-white">Next Billing</p>
+                            <p className="text-sm font-medium theme-text">Next Billing</p>
                             <p className="text-sm text-white/70">August 28, 2025</p>
                           </div>
                         </div>
@@ -485,7 +485,7 @@ const Settings = () => {
                           <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                             Upgrade Plan
                           </Button>
-                          <Button variant="outline" className="bg-white/10 border-white/20 text-white/70">
+                          <Button variant="outline" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70">
                             View Usage
                           </Button>
                         </div>
@@ -500,20 +500,20 @@ const Settings = () => {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-white">Payment Method</p>
+                            <p className="font-medium theme-text">Payment Method</p>
                             <p className="text-sm text-white/70">•••• •••• •••• 4242 (Expires 12/26)</p>
                           </div>
-                          <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white/70">
+                          <Button variant="outline" size="sm" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70">
                             Update
                           </Button>
                         </div>
                         
-                        <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                        <div className="flex items-center justify-between pt-4 border-t theme-border">
                           <div>
-                            <p className="font-medium text-white">Billing Email</p>
+                            <p className="font-medium theme-text">Billing Email</p>
                             <p className="text-sm text-white/70">billing@securthread.com</p>
                           </div>
-                          <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white/70">
+                          <Button variant="outline" size="sm" className="bg-gray-100/80 dark:bg-white/10 border-white/20 text-white/70">
                             Change
                           </Button>
                         </div>
@@ -524,11 +524,11 @@ const Settings = () => {
               </div>
 
               {/* Bottom Section */}
-              <div className="p-8 bg-white/5 text-center">
+              <div className="p-8 theme-bg-subtle text-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full mx-auto mb-4 flex items-center justify-center">
                   <IconSettings className="w-8 h-8 text-accent" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">
+                <h3 className="text-xl font-bold theme-text mb-2">
                   Secure Configuration
                 </h3>
                 <p className="text-white/70 mb-6 max-w-md mx-auto">

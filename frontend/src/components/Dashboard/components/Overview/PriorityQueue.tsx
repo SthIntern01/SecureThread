@@ -11,19 +11,19 @@ interface PriorityQueueProps {
 const PriorityQueue: React.FC<PriorityQueueProps> = ({ data, selectedRepository, repositories }) => {
   return (
     <div className="flex-1">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <TrendingUp className="w-5 h-5 mr-2 text-accent" />
         Priority Actions
       </h3>
       
-      <div className="bg-black/20 rounded-lg p-4 space-y-4">
+      <div className="theme-card rounded-lg p-4 space-y-4">
         {data.criticalIssues > 0 && (
           <div className="border-l-4 border-red-400 pl-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-red-300 font-medium text-sm">Critical Security Issues</span>
               <span className="text-white/50 text-xs">Immediate</span>
             </div>
-            <p className="text-white/60 text-xs">
+            <p className="theme-text-muted text-xs">
               {data.criticalIssues} critical vulnerabilities require immediate attention
               {data.customScanStats.customScanCritical > 0 && (
                 <span className="text-purple-300 ml-1">
@@ -40,7 +40,7 @@ const PriorityQueue: React.FC<PriorityQueueProps> = ({ data, selectedRepository,
               <span className="text-yellow-300 font-medium text-sm">High Technical Debt</span>
               <span className="text-white/50 text-xs">This Week</span>
             </div>
-            <p className="text-white/60 text-xs">
+            <p className="theme-text-muted text-xs">
               ${Math.round(data.advancedMetrics.technicalDebtDetailed.totalDebtCost / 1000)}k in technical debt detected
               • {Math.round(data.advancedMetrics.technicalDebtDetailed.estimatedSprintImpact)} sprint impact
             </p>
@@ -53,7 +53,7 @@ const PriorityQueue: React.FC<PriorityQueueProps> = ({ data, selectedRepository,
               <span className="text-orange-300 font-medium text-sm">Compliance Gaps</span>
               <span className="text-white/50 text-xs">Review</span>
             </div>
-            <p className="text-white/60 text-xs">
+            <p className="theme-text-muted text-xs">
               Multiple compliance standards need attention
             </p>
           </div>
@@ -65,7 +65,7 @@ const PriorityQueue: React.FC<PriorityQueueProps> = ({ data, selectedRepository,
               <span className="text-blue-300 font-medium text-sm">Active Scans</span>
               <span className="text-white/50 text-xs">Running</span>
             </div>
-            <p className="text-white/60 text-xs">
+            <p className="theme-text-muted text-xs">
               {data.activeScanningProjects} scan{data.activeScanningProjects !== 1 ? 's' : ''} in progress
               {data.customScanStats.activeCustomScans > 0 && (
                 <span className="text-purple-300 ml-1">
@@ -81,7 +81,7 @@ const PriorityQueue: React.FC<PriorityQueueProps> = ({ data, selectedRepository,
             <span className="text-green-300 font-medium text-sm">Security Monitoring</span>
             <span className="text-white/50 text-xs">Active</span>
           </div>
-          <p className="text-white/60 text-xs">
+          <p className="theme-text-muted text-xs">
             {data.totalProjects === 0 
               ? 'Ready to monitor your repositories'
               : `Monitoring ${data.totalProjects} repositories continuously`

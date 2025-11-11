@@ -12,7 +12,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({ message, onRetry }) => {
     <div className="flex items-center justify-center py-12">
       <div className="text-center">
         <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-4" />
-        <p className="text-white mb-4">{message}</p>
+        <p className="theme-text mb-4">{message}</p>
         {onRetry && (
           <Button onClick={onRetry} variant="outline">
             Try Again

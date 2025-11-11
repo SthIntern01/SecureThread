@@ -14,12 +14,12 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
   
   if (!teamMetrics) {
     return (
-      <div className="bg-black/20 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+      <div className="theme-card rounded-lg p-6">
+        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
           <Users className="w-5 h-5 mr-2" />
           Team Security Performance
         </h3>
-        <div className="text-center py-8 text-white/60">
+        <div className="text-center py-8 theme-text-muted">
           <Users className="w-12 h-12 mx-auto mb-3 text-white/40" />
           <p>No team performance data available</p>
         </div>
@@ -95,8 +95,8 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
   }, 0) / metrics.length;
 
   return (
-    <div className="bg-black/20 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className="theme-card rounded-lg p-6">
+      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
         <Users className="w-5 h-5 mr-2" />
         Team Security Performance
       </h3>
@@ -105,7 +105,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
         {/* Performance Metrics Grid */}
         <div className="grid grid-cols-2 gap-4">
           {metrics.map((metric) => (
-            <div key={metric.key} className="bg-white/5 rounded-lg p-4">
+            <div key={metric.key} className="theme-bg-subtle rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
                   <div className={getPerformanceColor(metric.value, metric.thresholds)}>
@@ -128,7 +128,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
                     {typeof metric.value === 'number' ? Math.round(metric.value) : metric.value}
                     <span className="text-lg">{metric.unit}</span>
                   </div>
-                  <div className="text-white/60 text-xs">{metric.description}</div>
+                  <div className="theme-text-muted text-xs">{metric.description}</div>
                 </div>
               </div>
             </div>
@@ -137,28 +137,28 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
 
         {/* Additional Metrics */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white/5 rounded-lg p-3 text-center">
+          <div className="theme-bg-subtle rounded-lg p-3 text-center">
             <div className="text-xl font-bold text-blue-400">{repositoriesManaged}</div>
-            <div className="text-white/60 text-sm">Repositories</div>
+            <div className="theme-text-muted text-sm">Repositories</div>
           </div>
           
-          <div className="bg-white/5 rounded-lg p-3 text-center">
+          <div className="theme-bg-subtle rounded-lg p-3 text-center">
             <div className={`text-xl font-bold ${getPerformanceColor(trainingCompletion, {good: 80, fair: 60})}`}>
               {Math.round(trainingCompletion)}%
             </div>
-            <div className="text-white/60 text-sm">Training Complete</div>
+            <div className="theme-text-muted text-sm">Training Complete</div>
           </div>
           
-          <div className="bg-white/5 rounded-lg p-3 text-center">
+          <div className="theme-bg-subtle rounded-lg p-3 text-center">
             <div className="text-xl font-bold text-purple-400">{incidentResponseTime}</div>
-            <div className="text-white/60 text-sm">Response Time</div>
+            <div className="theme-text-muted text-sm">Response Time</div>
           </div>
         </div>
 
         {/* Overall Performance Summary */}
-        <div className="pt-4 border-t border-white/10">
+        <div className="pt-4 border-t theme-border">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-white font-medium">Overall Team Performance</span>
+            <span className="theme-text font-medium">Overall Team Performance</span>
             <Badge className={`${
               overallPerformance >= 80 ? 'bg-green-500/20 text-green-300' :
               overallPerformance >= 60 ? 'bg-yellow-500/20 text-yellow-300' :
@@ -169,7 +169,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
             </Badge>
           </div>
           
-          <div className="w-full bg-white/10 rounded-full h-2 mb-2">
+          <div className="w-full bg-gray-100/80 dark:bg-white/10 rounded-full h-2 mb-2">
             <div 
               className={`h-2 rounded-full transition-all duration-300 ${
                 overallPerformance >= 80 ? 'bg-green-500' :
@@ -179,7 +179,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
             ></div>
           </div>
           
-          <div className="flex justify-between text-sm text-white/60">
+          <div className="flex justify-between text-sm theme-text-muted">
             <span>{Math.round(overallPerformance)}% Performance Score</span>
             <span>Target: 80%+</span>
           </div>
@@ -188,7 +188,7 @@ const TeamMetrics: React.FC<TeamMetricsProps> = ({ data }) => {
         {/* Performance Insights */}
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
           <div className="text-blue-300 text-sm font-medium mb-1">💡 Performance Insight</div>
-          <div className="text-white/80 text-sm">
+          <div className="theme-text-secondary text-sm">
             {overallPerformance >= 80 ? 
               "Excellent security posture! Your team is performing above industry standards." :
             overallPerformance >= 60 ?

@@ -145,7 +145,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
   return (
     <div className="grid lg:grid-cols-3 gap-0">
       {/* Left Side - Security Overview */}
-      <div className="lg:col-span-2 p-6 border-r border-white/10">
+      <div className="lg:col-span-2 p-6 border-r theme-border">
         <SecurityOverview 
           data={data}
           userInfo={userInfo}

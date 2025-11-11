@@ -47,14 +47,14 @@ const FeatureCard = ({ icon, title, description, features }: {
   description: string;
   features: string[];
 }) => (
-  <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300">
+  <div className="theme-bg-subtle backdrop-blur-sm rounded-2xl border theme-border p-6 hover:bg-gray-100/80 dark:bg-white/10 transition-all duration-300">
     <div className="flex items-center space-x-3 mb-4">
       <div className="p-3 bg-accent/20 rounded-xl">
         {icon}
       </div>
-      <h3 className="text-xl font-semibold text-white">{title}</h3>
+      <h3 className="text-xl font-semibold theme-text">{title}</h3>
     </div>
-    <p className="text-white/80 mb-4">{description}</p>
+    <p className="theme-text-secondary mb-4">{description}</p>
     <ul className="space-y-2">
       {features.map((feature, idx) => (
         <li key={idx} className="flex items-center space-x-2 text-sm text-white/70">
@@ -72,9 +72,9 @@ const QuickStartCard = ({ title, description, steps, codeExample }: {
   steps: string[];
   codeExample?: string;
 }) => (
-  <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-    <h3 className="text-xl font-semibold text-white mb-2">{title}</h3>
-    <p className="text-white/80 mb-4">{description}</p>
+  <div className="theme-bg-subtle backdrop-blur-sm rounded-2xl border theme-border p-6">
+    <h3 className="text-xl font-semibold theme-text mb-2">{title}</h3>
+    <p className="theme-text-secondary mb-4">{description}</p>
     
     <div className="space-y-3 mb-6">
       {steps.map((step, idx) => (
@@ -88,16 +88,16 @@ const QuickStartCard = ({ title, description, steps, codeExample }: {
     </div>
 
     {codeExample && (
-      <div className="bg-black/30 rounded-lg p-4 border border-white/10">
+      <div className="bg-black/30 rounded-lg p-4 border theme-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            <Terminal className="w-4 h-4 text-white/60" />
-            <span className="text-xs text-white/60">Terminal</span>
+            <Terminal className="w-4 h-4 theme-text-muted" />
+            <span className="text-xs theme-text-muted">Terminal</span>
           </div>
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 px-2 text-white/60 hover:text-white"
+            className="h-6 px-2 theme-text-muted hover:theme-text"
           >
             <Copy className="w-3 h-3" />
           </Button>
@@ -234,29 +234,29 @@ const Docs = () => {
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
             {/* Header Container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
               {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 {/* Breadcrumb */}
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Documentation</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Documentation</span>
                 </div>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                       Documentation
                     </h1>
-                    <p className="text-white/80">
+                    <p className="theme-text-secondary">
                       Everything you need to secure your applications with SecureThread
                     </p>
                   </div>
                   <div className="mt-6 lg:mt-0 flex space-x-3">
                     <Button
                       variant="outline"
-                      className="border-white/20 text-white hover:bg-white/10"
+                      className="border-white/20 theme-text hover:bg-gray-100/80 dark:bg-white/10"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       API Reference
@@ -277,21 +277,21 @@ const Docs = () => {
                     placeholder="Search documentation..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-12 h-12 bg-white/10 border-white/20 text-white placeholder:text-white/50 text-lg"
+                    className="pl-12 h-12 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50 text-lg"
                   />
                 </div>
               </div>
             </div>
 
             {/* What is SecureThread */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
               <div className="p-8">
                 <div className="text-center mb-8">
                   <div className="w-20 h-20 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full mx-auto mb-6 flex items-center justify-center">
                     <Shield className="w-10 h-10 text-accent" />
                   </div>
-                  <h2 className="text-3xl font-bold text-white mb-4">What is SecureThread?</h2>
-                  <p className="text-xl text-white/80 max-w-4xl mx-auto leading-relaxed">
+                  <h2 className="text-3xl font-bold theme-text mb-4">What is SecureThread?</h2>
+                  <p className="text-xl theme-text-secondary max-w-4xl mx-auto leading-relaxed">
                     SecureThread is a comprehensive vulnerability management platform that helps development teams 
                     identify, prioritize, and remediate security vulnerabilities in their applications and infrastructure. 
                     Similar to industry leaders like Snyk and Aikido, we provide continuous security monitoring, 
@@ -300,25 +300,25 @@ const Docs = () => {
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-6 mb-8">
-                  <div className="text-center p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center p-6 theme-bg-subtle rounded-2xl border theme-border">
                     <div className="w-12 h-12 bg-blue-500/20 rounded-xl mx-auto mb-4 flex items-center justify-center">
                       <Eye className="w-6 h-6 text-blue-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Continuous Monitoring</h3>
+                    <h3 className="text-lg font-semibold theme-text mb-2">Continuous Monitoring</h3>
                     <p className="text-white/70 text-sm">24/7 security monitoring across your entire application stack</p>
                   </div>
-                  <div className="text-center p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center p-6 theme-bg-subtle rounded-2xl border theme-border">
                     <div className="w-12 h-12 bg-red-500/20 rounded-xl mx-auto mb-4 flex items-center justify-center">
                       <Zap className="w-6 h-6 text-red-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Rapid Response</h3>
+                    <h3 className="text-lg font-semibold theme-text mb-2">Rapid Response</h3>
                     <p className="text-white/70 text-sm">Instant alerts and automated remediation for critical vulnerabilities</p>
                   </div>
-                  <div className="text-center p-6 bg-white/5 rounded-2xl border border-white/10">
+                  <div className="text-center p-6 theme-bg-subtle rounded-2xl border theme-border">
                     <div className="w-12 h-12 bg-green-500/20 rounded-xl mx-auto mb-4 flex items-center justify-center">
                       <Lock className="w-6 h-6 text-green-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">Zero Trust Security</h3>
+                    <h3 className="text-lg font-semibold theme-text mb-2">Zero Trust Security</h3>
                     <p className="text-white/70 text-sm">Comprehensive security coverage from code to cloud</p>
                   </div>
                 </div>
@@ -326,10 +326,10 @@ const Docs = () => {
             </div>
 
             {/* Features Grid */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
-              <div className="p-8 border-b border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-2">Core Features</h2>
-                <p className="text-white/80">Comprehensive security tools for modern development teams</p>
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+              <div className="p-8 border-b theme-border">
+                <h2 className="text-2xl font-bold theme-text mb-2">Core Features</h2>
+                <p className="theme-text-secondary">Comprehensive security tools for modern development teams</p>
               </div>
               <div className="p-8">
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -341,10 +341,10 @@ const Docs = () => {
             </div>
 
             {/* Quick Start Guides */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
-              <div className="p-8 border-b border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-2">Quick Start Guides</h2>
-                <p className="text-white/80">Get up and running with SecureThread in minutes</p>
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+              <div className="p-8 border-b theme-border">
+                <h2 className="text-2xl font-bold theme-text mb-2">Quick Start Guides</h2>
+                <p className="theme-text-secondary">Get up and running with SecureThread in minutes</p>
               </div>
               <div className="p-8">
                 <div className="grid md:grid-cols-3 gap-6">
@@ -356,10 +356,10 @@ const Docs = () => {
             </div>
 
             {/* Security Standards */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
-              <div className="p-8 border-b border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-2">Security Standards & Compliance</h2>
-                <p className="text-white/80">Built with industry-leading security frameworks</p>
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+              <div className="p-8 border-b theme-border">
+                <h2 className="text-2xl font-bold theme-text mb-2">Security Standards & Compliance</h2>
+                <p className="theme-text-secondary">Built with industry-leading security frameworks</p>
               </div>
               <div className="p-8">
                 <div className="grid md:grid-cols-4 gap-6">
@@ -369,9 +369,9 @@ const Docs = () => {
                     { name: "SOC 2 Type II", icon: <CheckCircle className="w-8 h-8 text-green-400" /> },
                     { name: "ISO 27001", icon: <Globe className="w-8 h-8 text-purple-400" /> },
                   ].map((standard, idx) => (
-                    <div key={idx} className="text-center p-6 bg-white/5 rounded-2xl border border-white/10">
+                    <div key={idx} className="text-center p-6 theme-bg-subtle rounded-2xl border theme-border">
                       <div className="mb-4">{standard.icon}</div>
-                      <h3 className="font-semibold text-white">{standard.name}</h3>
+                      <h3 className="font-semibold theme-text">{standard.name}</h3>
                     </div>
                   ))}
                 </div>
@@ -379,10 +379,10 @@ const Docs = () => {
             </div>
 
             {/* Integration Examples */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
-              <div className="p-8 border-b border-white/10">
-                <h2 className="text-2xl font-bold text-white mb-2">Popular Integrations</h2>
-                <p className="text-white/80">Connect SecureThread with your existing development tools</p>
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden mb-6">
+              <div className="p-8 border-b theme-border">
+                <h2 className="text-2xl font-bold theme-text mb-2">Popular Integrations</h2>
+                <p className="theme-text-secondary">Connect SecureThread with your existing development tools</p>
               </div>
               <div className="p-8">
                 <div className="grid md:grid-cols-6 gap-4">
@@ -394,9 +394,9 @@ const Docs = () => {
                     { name: "Kubernetes", icon: "⚓" },
                     { name: "AWS", icon: "☁️" },
                   ].map((integration, idx) => (
-                    <div key={idx} className="text-center p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer">
+                    <div key={idx} className="text-center p-4 theme-bg-subtle rounded-xl border theme-border hover:bg-gray-100/80 dark:bg-white/10 transition-colors cursor-pointer">
                       <div className="text-2xl mb-2">{integration.icon}</div>
-                      <p className="text-sm font-medium text-white">{integration.name}</p>
+                      <p className="text-sm font-medium theme-text">{integration.name}</p>
                     </div>
                   ))}
                 </div>
@@ -409,8 +409,8 @@ const Docs = () => {
                 <div className="w-16 h-16 bg-accent/30 rounded-full mx-auto mb-6 flex items-center justify-center">
                   <ArrowRight className="w-8 h-8 text-accent" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-4">Ready to Secure Your Code?</h2>
-                <p className="text-white/80 mb-6 max-w-2xl mx-auto">
+                <h2 className="text-2xl font-bold theme-text mb-4">Ready to Secure Your Code?</h2>
+                <p className="theme-text-secondary mb-6 max-w-2xl mx-auto">
                   Start your free trial today and experience enterprise-grade security 
                   that scales with your development team.
                 </p>
@@ -419,7 +419,7 @@ const Docs = () => {
                     <Play className="w-4 h-4 mr-2" />
                     Start Free Trial
                   </Button>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button variant="outline" className="border-white/20 theme-text hover:bg-gray-100/80 dark:bg-white/10">
                     <BookOpen className="w-4 h-4 mr-2" />
                     View API Docs
                   </Button>

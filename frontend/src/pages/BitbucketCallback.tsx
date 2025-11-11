@@ -76,7 +76,7 @@ const BitbucketCallback = () => {
         noise={{ opacity: 0.8, scale: 1.2 }}
         sizing="fill"
       />
-      <div className="relative z-10 text-center text-white">
+      <div className="relative z-10 text-center theme-text">
         {error ? (
           <>
             <h2 className="text-xl font-semibold text-red-400 mb-2">

@@ -547,7 +547,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
           {/* Custom Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 flex items-center justify-center text-white/70 hover:text-white transition-all duration-200 group"
+            className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-gray-100/80 dark:bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 flex items-center justify-center text-white/70 hover:theme-text transition-all duration-200 group"
           >
             <X className="w-4 h-4 group-hover:scale-110 transition-transform" />
           </button>

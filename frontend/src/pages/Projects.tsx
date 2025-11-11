@@ -787,14 +787,14 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
     project.latest_scan?.status === "pending";
 
   return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
+    <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-accent/20 rounded-lg flex items-center justify-center">
             {getSourceIcon(project.source)}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold theme-text">
               {project.name}
             </h3>
             <p className="text-sm text-white/70">{project.owner}</p>
@@ -810,7 +810,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-white/70 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10">
+              <button className="text-white/70 hover:theme-text transition-colors p-1 rounded-md hover:bg-gray-100/80 dark:bg-white/10">
                 <MoreHorizontal className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
@@ -880,7 +880,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
           {hasScanned ? (
             <>
-              <div className="text-lg font-semibold text-white">
+              <div className="text-lg font-semibold theme-text">
                 {totalVulnerabilities}
               </div>
               {totalVulnerabilities && totalVulnerabilities > 0 && (
@@ -911,7 +911,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           <div className="text-xs text-white/70 mb-1">Coverage</div>
           {hasScanned ? (
             <>
-              <div className="text-lg font-semibold text-white">
+              <div className="text-lg font-semibold theme-text">
                 {project.coverage}%
               </div>
               <div className="w-full bg-white/20 rounded-full h-1 mt-1">
@@ -950,7 +950,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
         <Button
           size="sm"
           variant="outline"
-          className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+          className="w-full bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
           onClick={() => onViewDetails(project)}
         >
           <Eye className="w-4 h-4 mr-2" />
@@ -963,7 +963,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20"
+              className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
               onClick={() => onViewFileScanStatus(project)}
             >
               <FileText className="w-4 h-4 mr-1" />
@@ -972,7 +972,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20"
+              className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
               onClick={() => onViewScanDetails(project)}
             >
               <Activity className="w-4 h-4 mr-1" />
@@ -986,7 +986,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           <Button
             size="sm"
             variant="outline"
-            className="w-full text-red-400 hover:text-red-300 border-red-300 hover:border-red-400 bg-white/10 hover:bg-white/20"
+            className="w-full text-red-400 hover:text-red-300 border-red-300 hover:border-red-400 bg-gray-100/80 dark:bg-white/10 hover:bg-white/20"
             onClick={() => onStopScan(project.id)}
           >
             <StopCircle className="w-4 h-4 mr-2" />
@@ -1767,23 +1767,23 @@ const handleStopScan = async (projectId: number) => {
       <div className="p-4 lg:p-6">
         <div className="max-w-7xl mx-auto">
           {/* Single unified container */}
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+          <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
             
             {/* Header Section */}
-            <div className="p-8 border-b border-white/10">
+            <div className="p-8 border-b theme-border">
               {/* Breadcrumb */}
               <div className="flex items-center space-x-2 text-sm mb-4">
-                <span className="font-medium text-white">SecureThread</span>
-                <ChevronRight size={16} className="text-white/60" />
-                <span className="font-medium text-white">Projects</span>
+                <span className="font-medium theme-text">SecureThread</span>
+                <ChevronRight size={16} className="theme-text-muted" />
+                <span className="font-medium theme-text">Projects</span>
               </div>
 
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                  <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                     Projects
                   </h1>
-                  <p className="text-white/80">
+                  <p className="theme-text-secondary">
                     Manage and monitor your security projects
                   </p>
                 </div>
@@ -1831,10 +1831,10 @@ const handleStopScan = async (projectId: number) => {
             </div>
 
             {/* Stats Section */}
-            <div className="p-8 border-b border-white/10">
+            <div className="p-8 border-b theme-border">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-1">
+                  <div className="text-3xl font-bold theme-text mb-1">
                     {stats.total}
                   </div>
                   <div className="text-white/70 font-medium">
@@ -1869,7 +1869,7 @@ const handleStopScan = async (projectId: number) => {
             </div>
 
             {/* Filters Section */}
-            <div className="p-8 border-b border-white/10">
+            <div className="p-8 border-b theme-border">
               <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
@@ -1877,11 +1877,11 @@ const handleStopScan = async (projectId: number) => {
                     placeholder="Search projects..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                    className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                  <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1894,7 +1894,7 @@ const handleStopScan = async (projectId: number) => {
                   </SelectContent>
                 </Select>
                 <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                  <SelectTrigger className="w-full lg:w-48 bg-white/10 border-white/20 text-white">
+                  <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
                     <SelectValue placeholder="Filter by source" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1912,12 +1912,12 @@ const handleStopScan = async (projectId: number) => {
               {loading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                  <p className="text-white">Loading projects...</p>
+                  <p className="theme-text">Loading projects...</p>
                 </div>
               ) : error ? (
                 <div className="text-center py-12">
                   <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-2">
+                  <h3 className="text-xl font-semibold theme-text mb-2">
                     Error Loading Projects
                   </h3>
                   <p className="text-red-400 mb-6">{error}</p>
@@ -1931,7 +1931,7 @@ const handleStopScan = async (projectId: number) => {
               ) : filteredProjects.length === 0 ? (
                 <div className="text-center py-12">
                   <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-2">
+                  <h3 className="text-xl font-semibold theme-text mb-2">
                     {projects.length === 0
                       ? "No Projects Yet"
                       : "No Projects Found"}

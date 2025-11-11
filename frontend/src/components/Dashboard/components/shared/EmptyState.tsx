@@ -15,7 +15,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   iconClassName = "w-12 h-12 mx-auto mb-3 text-white/40" 
 }) => {
   return (
-    <div className="text-center py-8 text-white/60">
+    <div className="text-center py-8 theme-text-muted">
       <Icon className={iconClassName} />
       <p>{title}</p>
       <p className="text-sm text-white/40 mt-1">{description}</p>

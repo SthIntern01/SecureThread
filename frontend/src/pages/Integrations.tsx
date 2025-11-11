@@ -47,7 +47,7 @@ const IntegrationCard = ({ integration, onToggle }: { integration: Integration; 
   };
 
   return (
-    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm hover:bg-white/15 transition-all group">
+    <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20 shadow-sm hover:bg-white/15 transition-all group">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center group-hover:bg-white/30 transition-colors">
@@ -55,7 +55,7 @@ const IntegrationCard = ({ integration, onToggle }: { integration: Integration; 
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="font-semibold text-white">{integration.name}</h3>
+              <h3 className="font-semibold theme-text">{integration.name}</h3>
               {integration.isPopular && (
                 <Badge className="bg-accent text-accent-foreground text-xs">Popular</Badge>
               )}
@@ -66,7 +66,7 @@ const IntegrationCard = ({ integration, onToggle }: { integration: Integration; 
         
         <div className="flex items-center space-x-2">
           {integration.status === 'connected' && (
-            <Button variant="outline" size="sm" className="bg-white/20 border-white/30 text-white hover:bg-white/30">
+            <Button variant="outline" size="sm" className="bg-white/20 border-white/30 theme-text hover:bg-white/30">
               <Settings className="w-3 h-3 mr-1" />
               Configure
             </Button>
@@ -83,11 +83,11 @@ const IntegrationCard = ({ integration, onToggle }: { integration: Integration; 
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/70">Connected Projects:</span>
-            <span className="font-medium text-white">{integration.connectedProjects || 0}</span>
+            <span className="font-medium theme-text">{integration.connectedProjects || 0}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-white/70">Last Synced:</span>
-            <span className="font-medium text-white">{integration.lastSynced || 'Never'}</span>
+            <span className="font-medium theme-text">{integration.lastSynced || 'Never'}</span>
           </div>
           <div className="flex items-center space-x-2 pt-2">
             <Check className="w-4 h-4 text-green-400" />
@@ -122,7 +122,7 @@ const IntegrationCategory = ({ title, integrations, onToggle }: {
 }) => {
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-semibold text-white mb-4">{title}</h2>
+      <h2 className="text-xl font-semibold theme-text mb-4">{title}</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {integrations.map((integration) => (
           <IntegrationCard 
@@ -147,7 +147,7 @@ const Integrations = () => {
       id: 'github',
       name: 'GitHub',
       description: 'Connect your GitHub repositories for automated security scanning',
-      icon: <IconBrandGithub className="w-6 h-6 text-white" />,
+      icon: <IconBrandGithub className="w-6 h-6 theme-text" />,
       category: 'source-control',
       status: 'connected',
       isPopular: true,
@@ -158,7 +158,7 @@ const Integrations = () => {
       id: 'gitlab',
       name: 'GitLab',
       description: 'Integrate with GitLab for comprehensive code analysis',
-      icon: <IconBrandGitlab className="w-6 h-6 text-white" />,
+      icon: <IconBrandGitlab className="w-6 h-6 theme-text" />,
       category: 'source-control',
       status: 'configured',
       isPopular: true
@@ -167,7 +167,7 @@ const Integrations = () => {
       id: 'bitbucket',
       name: 'Bitbucket',
       description: 'Scan Bitbucket repositories for security vulnerabilities',
-      icon: <IconCode className="w-6 h-6 text-white" />,
+      icon: <IconCode className="w-6 h-6 theme-text" />,
       category: 'source-control',
       status: 'available'
     },
@@ -177,7 +177,7 @@ const Integrations = () => {
       id: 'github-actions',
       name: 'GitHub Actions',
       description: 'Integrate security scans into your GitHub Actions workflows',
-      icon: <IconActivity className="w-6 h-6 text-white" />,
+      icon: <IconActivity className="w-6 h-6 theme-text" />,
       category: 'cicd',
       status: 'connected',
       connectedProjects: 8,
@@ -187,7 +187,7 @@ const Integrations = () => {
       id: 'jenkins',
       name: 'Jenkins',
       description: 'Add security scanning to your Jenkins CI/CD pipelines',
-      icon: <IconSettings className="w-6 h-6 text-white" />,
+      icon: <IconSettings className="w-6 h-6 theme-text" />,
       category: 'cicd',
       status: 'available'
     },
@@ -195,7 +195,7 @@ const Integrations = () => {
       id: 'azure-devops',
       name: 'Azure DevOps',
       description: 'Integrate with Azure DevOps for continuous security',
-      icon: <IconBrandAzure className="w-6 h-6 text-white" />,
+      icon: <IconBrandAzure className="w-6 h-6 theme-text" />,
       category: 'cicd',
       status: 'available'
     },
@@ -205,7 +205,7 @@ const Integrations = () => {
       id: 'slack',
       name: 'Slack',
       description: 'Get security alerts and notifications in Slack',
-      icon: <IconBrandSlack className="w-6 h-6 text-white" />,
+      icon: <IconBrandSlack className="w-6 h-6 theme-text" />,
       category: 'communication',
       status: 'connected',
       isPopular: true,
@@ -216,7 +216,7 @@ const Integrations = () => {
       id: 'teams',
       name: 'Microsoft Teams',
       description: 'Receive security updates in Microsoft Teams channels',
-      icon: <IconMessageCircle className="w-6 h-6 text-white" />,
+      icon: <IconMessageCircle className="w-6 h-6 theme-text" />,
       category: 'communication',
       status: 'available'
     },
@@ -224,7 +224,7 @@ const Integrations = () => {
       id: 'discord',
       name: 'Discord',
       description: 'Get notified about security issues in Discord',
-      icon: <IconBell className="w-6 h-6 text-white" />,
+      icon: <IconBell className="w-6 h-6 theme-text" />,
       category: 'communication',
       status: 'available'
     },
@@ -234,7 +234,7 @@ const Integrations = () => {
       id: 'aws',
       name: 'Amazon Web Services',
       description: 'Scan AWS infrastructure and services for security issues',
-      icon: <IconBrandAws className="w-6 h-6 text-white" />,
+      icon: <IconBrandAws className="w-6 h-6 theme-text" />,
       category: 'cloud',
       status: 'connected',
       connectedProjects: 3,
@@ -244,7 +244,7 @@ const Integrations = () => {
       id: 'azure',
       name: 'Microsoft Azure',
       description: 'Monitor Azure resources for security vulnerabilities',
-      icon: <IconBrandAzure className="w-6 h-6 text-white" />,
+      icon: <IconBrandAzure className="w-6 h-6 theme-text" />,
       category: 'cloud',
       status: 'available'
     },
@@ -252,7 +252,7 @@ const Integrations = () => {
       id: 'gcp',
       name: 'Google Cloud Platform',
       description: 'Secure your Google Cloud infrastructure',
-      icon: <IconCloud className="w-6 h-6 text-white" />,
+      icon: <IconCloud className="w-6 h-6 theme-text" />,
       category: 'cloud',
       status: 'available'
     },
@@ -262,7 +262,7 @@ const Integrations = () => {
       id: 'docker-hub',
       name: 'Docker Hub',
       description: 'Scan container images for vulnerabilities',
-      icon: <IconBrandDocker className="w-6 h-6 text-white" />,
+      icon: <IconBrandDocker className="w-6 h-6 theme-text" />,
       category: 'containers',
       status: 'available',
       isPopular: true
@@ -271,7 +271,7 @@ const Integrations = () => {
       id: 'snyk',
       name: 'Snyk',
       description: 'Enhanced vulnerability scanning with Snyk',
-      icon: <IconShield className="w-6 h-6 text-white" />,
+      icon: <IconShield className="w-6 h-6 theme-text" />,
       category: 'security-tools',
       status: 'available'
     },
@@ -279,7 +279,7 @@ const Integrations = () => {
       id: 'sonarqube',
       name: 'SonarQube',
       description: 'Integrate with SonarQube for code quality analysis',
-      icon: <IconBug className="w-6 h-6 text-white" />,
+      icon: <IconBug className="w-6 h-6 theme-text" />,
       category: 'security-tools',
       status: 'available'
     }
@@ -328,23 +328,23 @@ const Integrations = () => {
         <div className="p-6 lg:p-10">
           <div className="max-w-7xl mx-auto">
             {/* Single unified container */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 {/* Breadcrumb */}
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium text-white">SecureThread</span>
-                  <ChevronRight size={16} className="text-white/60" />
-                  <span className="font-medium text-white">Integrations</span>
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Integrations</span>
                 </div>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                       Integrations
                     </h1>
-                    <p className="text-white/80">
+                    <p className="theme-text-secondary">
                       Connect your tools and services to SecureThread
                     </p>
                   </div>
@@ -352,7 +352,7 @@ const Integrations = () => {
               </div>
 
               {/* Stats Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-3xl font-bold text-green-400 mb-1">
@@ -382,7 +382,7 @@ const Integrations = () => {
               </div>
 
               {/* Search and Filters Section */}
-              <div className="p-8 border-b border-white/10">
+              <div className="p-8 border-b theme-border">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
@@ -390,7 +390,7 @@ const Integrations = () => {
                       placeholder="Search integrations..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/50"
+                      className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                     />
                   </div>
                   
@@ -403,7 +403,7 @@ const Integrations = () => {
                         onClick={() => setSelectedCategory(category.id)}
                         className={selectedCategory === category.id ? 
                           "bg-accent text-accent-foreground" : 
-                          "bg-white/10 border-white/20 text-white hover:bg-white/20"
+                          "bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
                         }
                       >
                         {category.name} ({category.count})
@@ -460,7 +460,7 @@ const Integrations = () => {
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Search className="w-8 h-8 text-white/70" />
                     </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">No integrations found</h3>
+                    <h3 className="text-lg font-semibold theme-text mb-2">No integrations found</h3>
                     <p className="text-white/70">Try adjusting your search or filter criteria</p>
                   </div>
                 )}

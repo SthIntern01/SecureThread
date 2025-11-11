@@ -2,6 +2,7 @@
 
 import React, { useRef, useId, useEffect, CSSProperties } from 'react';
 import { animate, useMotionValue, AnimationPlaybackControls } from 'framer-motion';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Type definitions
 interface AnimationConfig {
@@ -57,6 +58,9 @@ export function EtherealBackground({
     const feColorMatrixRef = useRef<SVGFEColorMatrixElement>(null);
     const hueRotateMotionValue = useMotionValue(180);
     const hueRotateAnimation = useRef<AnimationPlaybackControls | null>(null);
+    
+    // GET THEME - This is the key change!
+    const { actualTheme } = useTheme();
 
     const displacementScale = animation ? mapRange(animation.scale, 1, 100, 20, 100) : 0;
     const animationDuration = animation ? mapRange(animation.speed, 1, 100, 1000, 50) : 1;
@@ -89,6 +93,9 @@ export function EtherealBackground({
         }
     }, [animationEnabled, animationDuration, hueRotateMotionValue]);
 
+    // THEME-AWARE BACKGROUND COLOR
+    const backgroundColor = actualTheme === 'dark' ? '#0a0a0a' : '#ffffff';
+
     return (
         <div
             className={`fixed inset-0 pointer-events-none z-0 ${className}`}
@@ -96,7 +103,7 @@ export function EtherealBackground({
                 overflow: "hidden",
                 width: "100%",
                 height: "100%",
-                backgroundColor: "#0a0a0a", // Black base background
+                backgroundColor, // Use theme-aware background
                 ...style
             }}
         >
