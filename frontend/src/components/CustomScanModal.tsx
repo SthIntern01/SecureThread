@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Zap,
   CheckCircle2,
-  X
+  X,
+  Code
 } from "lucide-react";
 
 interface Rule {
@@ -45,10 +46,11 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
   const [builtInRules, setBuiltInRules] = useState<Rule[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [jsonInput, setJsonInput] = useState<string>("");
   const [customRules, setCustomRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [jsonValid, setJsonValid] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -142,61 +144,86 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
     setSelectedRules(newSelected);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/json') {
-        setError("Please upload a JSON file");
-        return;
-      }
+  const handleJsonInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = event.target.value;
+    setJsonInput(value);
+    
+    // Clear previous errors
+    setError("");
+    
+    // If input is empty, clear everything
+    if (!value.trim()) {
+      setCustomRules([]);
+      setJsonValid(false);
+      return;
+    }
+
+    try {
+      const jsonData = JSON.parse(value);
       
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setError("File size must be less than 5MB");
+      // Validate JSON structure
+      if (!Array.isArray(jsonData)) {
+        setError("JSON must be an array of rule objects");
+        setJsonValid(false);
+        setCustomRules([]);
         return;
       }
 
-      setUploadedFile(file);
-      setError("");
-      
-      // Parse JSON file
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const content = e.target?.result as string;
-          const jsonData = JSON.parse(content);
-          
-          // Validate JSON structure
-          if (Array.isArray(jsonData) && jsonData.length > 0) {
-            // Validate each rule has required fields
-            const validRules = jsonData.filter(rule => 
-              rule.name && rule.description && rule.rule_content
-            );
-            setCustomRules(validRules);
-            
-            if (validRules.length !== jsonData.length) {
-              setError(`${jsonData.length - validRules.length} invalid rules were skipped`);
-            }
-          } else {
-            setError("JSON must contain an array of rule objects");
-          }
-        } catch (err) {
-          setError("Invalid JSON format");
-          setUploadedFile(null);
+      if (jsonData.length === 0) {
+        setError("JSON array cannot be empty");
+        setJsonValid(false);
+        setCustomRules([]);
+        return;
+      }
+
+      // Validate each rule has required fields
+      const validRules = [];
+      const invalidRules = [];
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const rule = jsonData[i];
+        if (rule && 
+            typeof rule === 'object' && 
+            rule.name && 
+            rule.description && 
+            rule.rule_content) {
+          validRules.push(rule);
+        } else {
+          invalidRules.push(i + 1);
         }
-      };
-      reader.readAsText(file);
+      }
+
+      if (validRules.length === 0) {
+        setError("No valid rules found. Each rule must have 'name', 'description', and 'rule_content' fields");
+        setJsonValid(false);
+        setCustomRules([]);
+        return;
+      }
+
+      setCustomRules(validRules);
+      setJsonValid(true);
+      
+      if (invalidRules.length > 0) {
+        setError(`${invalidRules.length} invalid rules were skipped (rules at positions: ${invalidRules.join(', ')})`);
+      }
+
+    } catch (err) {
+      setError("Invalid JSON format. Please check your syntax.");
+      setJsonValid(false);
+      setCustomRules([]);
     }
   };
 
-  const removeUploadedFile = () => {
-    setUploadedFile(null);
+  const clearJsonInput = () => {
+    setJsonInput("");
     setCustomRules([]);
     setError("");
+    setJsonValid(false);
   };
 
   const handleStartScan = () => {
     if (selectedRules.size === 0 && customRules.length === 0) {
-      setError("Please select at least one rule or upload custom rules");
+      setError("Please select at least one rule or add custom rules");
       return;
     }
 
@@ -231,7 +258,7 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
                 Custom Security Scan Configuration
               </DialogTitle>
               <p className="text-white/70">
-                Select security rules and upload custom rules for {projectName}
+                Select security rules and add custom rules for {projectName}
               </p>
             </DialogHeader>
           </div>
@@ -332,55 +359,50 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
               </div>
             </div>
 
-            {/* Right Panel - Custom Rules Upload */}
+            {/* Right Panel - Custom Rules Input */}
             <div className="w-80 p-6 border-l border-white/10 bg-white/5">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                <Upload className="w-5 h-5 mr-2 text-orange-400" />
+                <Code className="w-5 h-5 mr-2 text-orange-400" />
                 Custom Rules
               </h3>
 
-              {/* File Upload Area */}
+              {/* JSON Input Area */}
               <div className="mb-4">
-                {!uploadedFile ? (
-                  <label className="block cursor-pointer">
-                    <div className="border-2 border-dashed border-white/30 rounded-lg p-6 text-center hover:border-orange-400 transition-colors">
-                      <Upload className="w-8 h-8 text-white/50 mx-auto mb-3" />
-                      <p className="text-white/70 text-sm mb-2">
-                        Upload JSON Rules File
-                      </p>
-                      <p className="text-white/50 text-xs">
-                        Max 5MB, JSON format only
-                      </p>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </label>
-                ) : (
-                  <div className="bg-white/10 rounded-lg p-4 border border-white/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <FileText className="w-4 h-4 text-orange-400" />
-                        <span className="text-white text-sm font-medium">
-                          {uploadedFile.name}
+                <div className="relative">
+                  <textarea
+                    value={jsonInput}
+                    onChange={handleJsonInputChange}
+                    placeholder="Enter JSON rules here..."
+                    className="w-full h-48 p-3 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none font-mono"
+                  />
+                  {jsonInput && (
+                    <button
+                      onClick={clearJsonInput}
+                      className="absolute top-2 right-2 text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Status indicator */}
+                {jsonInput && (
+                  <div className="mt-2 flex items-center space-x-2">
+                    {jsonValid ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        <span className="text-white/70 text-xs">
+                          {customRules.length} custom rules loaded
                         </span>
-                      </div>
-                      <button
-                        onClick={removeUploadedFile}
-                        className="text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
-                      <span className="text-white/70 text-xs">
-                        {customRules.length} custom rules loaded
-                      </span>
-                    </div>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                        <span className="text-white/70 text-xs">
+                          Invalid JSON format
+                        </span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -414,7 +436,7 @@ const CustomScanModal: React.FC<CustomScanModalProps> = ({
             <div className="flex items-center justify-between">
               <div className="text-white/70 text-sm">
                 {selectedRules.size} built-in rules selected
-                {customRules.length > 0 && `, ${customRules.length} custom rules uploaded`}
+                {customRules.length > 0 && `, ${customRules.length} custom rules added`}
               </div>
               <div className="flex space-x-3">
                 <Button

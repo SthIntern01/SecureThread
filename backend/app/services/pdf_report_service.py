@@ -513,8 +513,6 @@ class PDFReportService:
     def _get_report_css(self) -> str:
         """Enhanced CSS for professional report styling"""
 
-        logo_path = str(self.static_path / "images" / "sandboxlogo.png")
-        
         return """
         /* Sandbox Security Professional Report Styles */
         
@@ -581,8 +579,9 @@ class PDFReportService:
             text-rendering: optimizeLegibility;
         }
         
-        /* Brand Colors - Sandbox Security Orange Theme */
+        /* Brand Colors */
         :root {
+            --major-orange: #CA450C;
             --primary-orange: #EA580C;
             --secondary-orange: #FB923C;
             --light-orange: #FED7AA;
@@ -595,314 +594,126 @@ class PDFReportService:
             --medium-yellow: #D97706;
             --low-blue: #2563EB;
             --white: #FFFFFF;
+            --teal: #2D9D8F;
         }
         
         /* ============================================ */
-        /* PROFESSIONAL COVER PAGE DESIGN */
+        /* CLEAN MINIMAL COVER PAGE DESIGN */
         /* ============================================ */
         
         .cover-page {
             page: cover;
+            /* Use fixed A4 height (WeasyPrint-safe), not vh */
             height: 297mm;
             width: 210mm;
-            background: linear-gradient(135deg, var(--primary-orange) 0%, var(--secondary-orange) 50%, var(--accent-orange) 100%);
-            color: var(--white);
+            background: var(--major-orange);
+            color:#fff;
+            display:grid;
+            grid-template-rows:auto 1fr auto; /* header | main | footer */
+            margin:0;
+            padding:0;
+            page-break-after:always;
+            font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+        }
+
+        /* Header */
+        .cover-header {
+            padding: 16mm 0 0 0;              
+            display: flex;
+            justify-content: center;          
+            align-items: center;              
+        }
+
+        .header-logo{ display:flex; align-items:center; gap:3mm; }
+        .header-logo-img{ width:10mm; height:10mm; /* avoid CSS filter for PDF engines */ }
+        .header-logo-text {
+            font-size: 6mm;                   /* bigger text (~17px) */
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-align: center;
+        }
+
+        /* Main Content - SIMPLE CENTERING */
+        .cover-main-content {
+            flex: 1;
             display: flex;
             flex-direction: column;
-            position: relative;
-            overflow: hidden;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 60px;
+            box-sizing: border-box;
+        }
+
+        .cover-title {
+            margin-bottom: 60px;
+        }
+
+        .cover-title h1 {
+            font-size: 48px;
+            font-weight: 400;
+            line-height: 1.1;
+            margin: 8px 0;
+            color: #FFFFFF;
+            letter-spacing: -0.5px;
+        }
+
+        .cover-repository-info { 
+            text-align:center; 
+        }
+        .repo-name {
+            font-size:8mm;
+            font-weight:700;
+            margin-bottom:4mm;
+        }
+        .repo-details {
+            font-size:4.5mm;
+            opacity:.95;
+            margin-bottom:1.5mm;
+        }
+        .repo-url {
+            font-size:4mm;
+            opacity:.85;
+        }
+
+        /* Footer - PROPER SIZE AND ALIGNMENT */
+        .cover-footer{
+            padding: 0 20mm 16mm 20mm;
+            display: grid;
+            grid-template-columns: 1fr auto;  /* left text | right logo */
+            align-items: end;                  /* bottom edges aligned */
+        }
+
+        .footer-left{
+            margin: 0;
+            padding: 0;
+            line-height: 1.25;
+        }
+        .confidential-text,
+        .scan-date{
             margin: 0;
             padding: 0;
         }
-        
-        /* Subtle background pattern */
-        .cover-page::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background-image: 
-                radial-gradient(circle at 25% 25%, rgba(255,255,255,0.08) 0%, transparent 50%),
-                radial-gradient(circle at 75% 75%, rgba(255,255,255,0.05) 0%, transparent 50%),
-                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 70%);
-            animation: subtle-float 20s ease-in-out infinite;
-        }
-        
-        @keyframes subtle-float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-10px) rotate(1deg); }
-        }
-        
-        /* Cover Header */
-        .cover-header {
+
+        .footer-right {
+            height: 24mm;                /* a bit taller container */
             display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 40px 50px 20px 50px;
-            position: relative;
-            z-index: 2;
+            align-items: flex-end;       /* stick logo to bottom */
+            justify-content: flex-end;
+            overflow: hidden;
+            padding-bottom: 1.5mm;       /* pushes logo slightly downward */
         }
-        
-        .cover-header-left .company-name {
-            font-size: 14px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            opacity: 0.9;
-            text-transform: uppercase;
-        }
-        
-        .cover-header-right .report-type {
-            font-size: 14px;
-            font-weight: 500;
-            opacity: 0.9;
-            text-align: right;
-        }
-        
-        /* Cover Main Content */
-        .cover-main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 0 50px;
-            position: relative;
-            z-index: 2;
-        }
-        
-        /* Logo Section */
-        .cover-logo-section {
-            margin-bottom: 50px;
-        }
-        
-        .logo-container {
-            width: 140px;
-            height: 140px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto;
-            border: 3px solid rgba(255, 255, 255, 0.25);
-            position: relative;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-        }
-        
-        .logo-container::after {
-            content: '';
-            position: absolute;
-            inset: -3px;
-            border-radius: 31px;
-            padding: 3px;
-            background: linear-gradient(45deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
-            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            mask-composite: subtract;
-            -webkit-mask-composite: subtract;
-        }
-        
-        .company-logo {
-            width: 80px;
-            height: 80px;
-            filter: brightness(0) invert(1);
-            opacity: 0.95;
-        }
-        
-        /* Fallback if logo doesn't load */
-        .logo-container::before {
-            content: '🛡️';
-            font-size: 64px;
-            position: absolute;
-            opacity: 0.9;
-        }
-        
-        .company-logo[src*=".svg"]:not([src=""]) + .logo-container::before,
-        .company-logo[src*=".png"]:not([src=""]) + .logo-container::before {
-            display: none;
-        }
-        
-        /* Title Section */
-        .cover-title-section {
-            margin-bottom: 60px;
-            max-width: 600px;
-        }
-        
-        .main-title {
-            font-size: 56px;
-            font-weight: 900;
-            line-height: 0.9;
-            margin-bottom: 8px;
-            letter-spacing: -2px;
-            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.9) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .repository-name {
-            font-size: 28px;
-            font-weight: 300;
-            margin-top: 30px;
-            opacity: 0.95;
-            letter-spacing: -0.5px;
-            color: rgba(255, 255, 255, 0.95);
-        }
-        
-        /* Information Grid */
-        .cover-info-section {
-            margin-bottom: 50px;
-            max-width: 650px;
-            width: 100%;
-        }
-        
-        .info-grid {
-            background: rgba(255, 255, 255, 0.12);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 24px;
-            padding: 40px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-        }
-        
-        .info-row:last-child {
-            margin-bottom: 0;
-        }
-        
-        .info-item {
-            flex: 1;
-            text-align: left;
-            padding: 0 20px;
-        }
-        
-        .info-item:first-child {
-            padding-left: 0;
-            border-right: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .info-item:last-child {
-            padding-right: 0;
-        }
-        
-        .info-label {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            opacity: 0.8;
-            margin-bottom: 8px;
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .info-value {
-            font-size: 18px;
-            font-weight: 600;
-            line-height: 1.3;
-            color: var(--white);
-        }
-        
-        /* Risk Level Styling */
-        .risk-critical { 
-            color: #FEE2E2 !important; 
-            background: rgba(220, 38, 38, 0.2);
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(220, 38, 38, 0.3);
-        }
-        
-        .risk-high { 
-            color: #FED7AA !important; 
-            background: rgba(234, 88, 12, 0.2);
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(234, 88, 12, 0.3);
-        }
-        
-        .risk-medium { 
-            color: #FEF3C7 !important; 
-            background: rgba(217, 119, 6, 0.2);
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(217, 119, 6, 0.3);
-        }
-        
-        .risk-low { 
-            color: #DBEAFE !important; 
-            background: rgba(37, 99, 235, 0.2);
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(37, 99, 235, 0.3);
-        }
-        
-        .risk-minimal { 
-            color: #D1FAE5 !important; 
-            background: rgba(16, 185, 129, 0.2);
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-        
-        /* Cover Footer */
-        .cover-footer-section {
-            padding: 30px 50px 40px 50px;
-            text-align: center;
-            position: relative;
-            z-index: 2;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            margin-top: auto;
-        }
-        
-        .company-info {
-            margin-bottom: 25px;
-        }
-        
-        .company-title {
-            font-size: 22px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            color: var(--white);
-        }
-        
-        .company-tagline {
-            font-size: 16px;
-            font-weight: 400;
-            opacity: 0.9;
-            color: rgba(255, 255, 255, 0.9);
-        }
-        
-        .confidentiality-notice {
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            padding-top: 20px;
-        }
-        
-        .confidential-label {
-            font-size: 14px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #FEE2E2;
-            margin-bottom: 6px;
-        }
-        
-        .confidential-text {
-            font-size: 12px;
-            font-weight: 400;
-            opacity: 0.8;
-            color: rgba(255, 255, 255, 0.8);
+
+        /* Logo image */
+        .footer-logo-img {
+            height: 28mm;                /* bigger logo */
+            width: auto;
+            object-fit: contain;
+            display: block;
         }
         
         /* ============================================ */
-        /* REST OF YOUR EXISTING CSS CONTINUES HERE... */
+        /* REST OF REPORT STYLES */
         /* ============================================ */
         
         /* Typography */
@@ -1534,8 +1345,33 @@ class PDFReportService:
         .page-break-avoid { page-break-inside: avoid; }
         .page-break-auto { page-break-inside: auto; }
         
-        /* Print Optimizations */
+        /* Responsive adjustments */
         @media print {
+            .cover-page{ size: A4; height:297mm; width:210mm; }
+
+            .cover-main-content {
+                display:flex;
+                flex-direction:column;
+                justify-content:center;
+                align-items:center;
+                text-align:center;
+                padding:0 25mm;           /* breathing room left/right */
+            }
+            
+            .cover-title{ margin-bottom:12mm; }
+            .cover-title h1 {
+                font-size:12mm;           /* ~34px on A4 */
+                font-weight:700;
+                line-height:1.1;
+                margin:2mm 0;
+                letter-spacing:-0.2mm;
+                color:#fff;
+            }
+            
+            .repo-name {
+                font-size: 28px;
+            }
+            
             body { 
                 font-size: 10px;
                 line-height: 1.4;
@@ -1554,6 +1390,11 @@ class PDFReportService:
             .code-block {
                 font-size: 9px;
                 padding: 12px;
+            }
+
+            .footer-logo-img {
+                width: 90px;
+                height: 90px;
             }
         }
         """

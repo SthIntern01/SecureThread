@@ -6,71 +6,39 @@
     <title>Security Assessment Report - {{ repository.name }}</title>
 </head>
 <body>
-    <!-- Professional Cover Page -->
     <div class="cover-page">
+        <!-- Header with logo -->
         <div class="cover-header">
-            <div class="cover-header-left">
-                <div class="company-name">Sandbox Security</div>
-            </div>
-            <div class="cover-header-right">
-                <div class="report-type">Security Assessment Report</div>
+            <div class="header-logo">
+                <span class="header-logo-text">SANDBOX SECURITY</span>
             </div>
         </div>
         
-        <div class="cover-main">
-            <!-- Logo Section -->
-            <div class="cover-logo-section">
-                <div class="logo-container">
-                    <img src="images/sandboxlogo.png" alt="Sandbox Security Logo" class="brand-logo">
-                </div>
+        <!-- Main content centered -->
+        <div class="cover-main-content">
+            <div class="cover-title">
+                <h1>Vulnerability Assessment</h1>
+                <h1>Report</h1>
             </div>
             
-            <!-- Title Section -->
-            <div class="cover-title-section">
-                <h1 class="main-title">Security</h1>
-                <h1 class="main-title">Assessment</h1>
-                <h1 class="main-title">Report</h1>
-                <div class="repository-name">{{ repository.name }}</div>
-            </div>
-            
-            <!-- Information Grid -->
-            <div class="cover-info-section">
-                <div class="info-grid">
-                    <div class="info-row">
-                        <div class="info-item">
-                            <div class="info-label">REPORT ID</div>
-                            <div class="info-value">{{ metadata.report_id }}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">REPOSITORY</div>
-                            <div class="info-value">{{ repository.full_name }}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="info-row">
-                        <div class="info-item">
-                            <div class="info-label">ASSESSMENT DATE</div>
-                            <div class="info-value">{{ scan.completed_at|datetime_format('date') if scan.completed_at else scan.started_at|datetime_format('date') }}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">RISK LEVEL</div>
-                            <div class="info-value risk-{{ security.risk_level|lower }}">{{ security.risk_level }}</div>
-                        </div>
-                    </div>
-                </div>
+            <div class="cover-repository-info">
+                <div class="repo-name">{{ repository.name }}</div>
+                <div class="repo-details">{{ metadata.report_id }}</div>
+                <div class="repo-url">{{ repository.html_url or repository.full_name }}</div>
             </div>
         </div>
         
-        <!-- Cover Footer -->
-        <div class="cover-footer-section">
-            <div class="company-info">
-                <div class="company-title">Sandbox Security</div>
-                <div class="company-tagline">Enterprise Security Assessment Platform</div>
+        <!-- Footer -->
+        <div class="cover-footer">
+            <div class="footer-left">
+                <div class="confidential-text">Confidential</div>
+                <div class="scan-date">Scan Date: {{ scan.completed_at|datetime_format('short') if scan.completed_at else scan.started_at|datetime_format('short') }}</div>
             </div>
             
-            <div class="confidentiality-notice">
-                <div class="confidential-label">CONFIDENTIAL</div>
-                <div class="confidential-text">This report contains proprietary and confidential information</div>
+            <div class="footer-right">
+                <div class="footer-logo">
+                    <img src="images/sandboxlogo.png" alt="Sandbox Security" class="footer-logo-img">
+                </div>
             </div>
         </div>
     </div>
