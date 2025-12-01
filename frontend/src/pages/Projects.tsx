@@ -6,8 +6,8 @@ import AppSidebar from "../components/AppSidebar";
 import RepositoryDetails from "../components/RepositoryDetails";
 import ScanDetailsModal from "../components/SimpleScanDetailsModal";
 import ScanMethodModal from "../components/ScanMethodModal"; 
-import { useAuth } from "../contexts/AuthContext"; // Keep this
-import FileScanStatus from "../components/FileScanStatus"; // New component
+import { useAuth } from "../contexts/AuthContext";
+import FileScanStatus from "../components/FileScanStatus";
 import {
   Select,
   SelectContent,
@@ -49,7 +49,6 @@ import {
   StopCircle,
 } from "lucide-react";
 
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +74,7 @@ interface Repository {
   is_imported?: boolean;
   created_at?: string;
   updated_at?: string;
+  owner?: string;
 }
 
 interface Project {
@@ -119,11 +119,6 @@ interface Project {
   code_coverage?: number | null;
 }
 
-
-
-
-
-
 const ImportRepositoriesModal = ({
   isOpen,
   onClose,
@@ -131,7 +126,7 @@ const ImportRepositoriesModal = ({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (repoIds: number[]) => void;
+  onImport: (repos: Repository[]) => void;  // ✅ Changed to accept Repository[]
 }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
@@ -139,7 +134,8 @@ const ImportRepositoriesModal = ({
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -182,6 +178,53 @@ const ImportRepositoriesModal = ({
     }
   };
 
+  const searchPublicRepositories = async (query: string) => {
+    if (!query || query.trim().length < 2) return;
+    
+    setLoading(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/search?query=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setRepositories(data.repositories || []);
+        setIsSearchMode(true);
+      } else {
+        const errorData = await response.text();
+        setError(`Failed to search repositories: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error("Error searching repositories:", error);
+      setError("Network error occurred while searching repositories");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      searchPublicRepositories(searchQuery);
+    }
+  };
+
+  const handleBackToMyRepos = () => {
+    setIsSearchMode(false);
+    setSearchQuery("");
+    setSearchTerm("");
+    fetchAvailableRepositories();
+  };
+
   const handleRepoToggle = (repoId: number) => {
     setSelectedRepos((prev) => {
       const newSelection = prev.includes(repoId)
@@ -196,7 +239,14 @@ const ImportRepositoriesModal = ({
 
     setImporting(true);
     try {
-      await onImport(selectedRepos);
+      // ✅ Get full repository objects for selected IDs
+      const selectedRepoData = repositories.filter(repo => 
+        selectedRepos.includes(repo.id)
+      );
+      
+      console.log("Selected repositories for import:", selectedRepoData);
+      
+      await onImport(selectedRepoData);  // ✅ Pass full repository objects
       setSelectedRepos([]);
       onClose();
     } catch (error) {
@@ -237,26 +287,67 @@ const ImportRepositoriesModal = ({
               <div>
                 <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-4" />
                 <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={fetchAvailableRepositories} variant="outline">
+                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline">
                   Try Again
                 </Button>
               </div>
             </div>
           ) : (
             <>
-              <div className="flex items-center space-x-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search repositories..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <div className="text-sm text-brand-gray">
-                  {selectedRepos.length} selected
-                </div>
+              <div className="space-y-3">
+                {!isSearchMode ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search your repositories..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsSearchMode(true)}
+                      className="whitespace-nowrap"
+                    >
+                      Search Public Repos
+                    </Button>
+                    <div className="text-sm text-brand-gray whitespace-nowrap">
+                      {selectedRepos.length} selected
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleBackToMyRepos}
+                        className="whitespace-nowrap"
+                      >
+                        ← My Repos
+                      </Button>
+                      <form onSubmit={handleSearchSubmit} className="flex-1 flex space-x-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                          <Input
+                            placeholder="Search public repositories (e.g., 'react authentication')"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <Button type="submit" disabled={!searchQuery.trim()}>
+                          Search
+                        </Button>
+                      </form>
+                    </div>
+                    <div className="text-xs text-brand-gray">
+                      Searching public GitHub repositories. Results sorted by stars.
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto border rounded-lg">
@@ -306,8 +397,13 @@ const ImportRepositoriesModal = ({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2 mb-1">
                               <h3 className="text-sm font-medium text-brand-black truncate">
-                                {repo.full_name}
+                                {repo.name}
                               </h3>
+                              {isSearchMode && repo.owner && (
+                                <span className="text-xs text-gray-500">
+                                  by {repo.owner}
+                                </span>
+                              )}
                               {repo.is_private && (
                                 <Badge variant="secondary" className="text-xs">
                                   Private
@@ -385,7 +481,6 @@ const ImportRepositoriesModal = ({
   );
 };
 
-// Helper function to get scan type display label
 const getScanTypeLabel = (scanType: string | null | undefined): string => {
   switch (scanType) {
     case 'custom':
@@ -397,7 +492,6 @@ const getScanTypeLabel = (scanType: string | null | undefined): string => {
   }
 };
 
-// Helper function to get scan type icon
 const getScanTypeIcon = (scanType: string | null | undefined): string => {
   switch (scanType) {
     case 'custom':
@@ -409,7 +503,6 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
   }
 };
 
-// Helper function to get scan type badge color
 const getScanTypeBadgeColor = (scanType: string | null | undefined): string => {
   switch (scanType) {
     case 'custom':
@@ -681,45 +774,22 @@ const ProjectCard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const getScanTypeLabel = (scanType: string | null | undefined): string => {
-  switch (scanType) {
-    case 'custom':
-      return 'Custom Scan';
-    case 'ai':
-      return 'Gen AI Scan';
-    default:
-      return 'Security Scan';
-  }
-};
-
-// Helper function to get scan type icon
-const getScanTypeIcon = (scanType: string | null | undefined): string => {
-  switch (scanType) {
-    case 'custom':
-      return '⚙️';
-    case 'ai':
-      return '🤖';
-    default:
-      return '🔍';
-  }
-};
-
   const getStatusIcon = (status: string, scanType?: string) => {
-  switch (status) {
-    case "active":
-    case "completed":
-      return <CheckCircle className="w-4 h-4 text-green-500" />;
-    case "scanning":
-      return (
-        <span className="text-base">{getScanTypeIcon(scanType)}</span>
-      );
-    case "failed":
-      return <XCircle className="w-4 h-4 text-red-500" />;
-    case "pending":
-    default:
-      return <Clock className="w-4 h-4 text-gray-500" />;
-  }
-};
+    switch (status) {
+      case "active":
+      case "completed":
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "scanning":
+        return (
+          <span className="text-base">{getScanTypeIcon(scanType)}</span>
+        );
+      case "failed":
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case "pending":
+      default:
+        return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -737,23 +807,23 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
   };
 
   const getSourceIcon = (source: string) => {
-  switch (source) {
-    case "github":
-      return <IconBrandGithub className="w-4 h-4" />;
-    case "gitlab":
-      return <IconBrandGitlab className="w-4 h-4" />;
-    case "bitbucket":
-      return (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-        </svg>
-      );
-    case "docker":
-      return <IconBrandDocker className="w-4 h-4" />;
-    default:
-      return <IconFolder className="w-4 h-4" />;
-  }
-};
+    switch (source) {
+      case "github":
+        return <IconBrandGithub className="w-4 h-4" />;
+      case "gitlab":
+        return <IconBrandGitlab className="w-4 h-4" />;
+      case "bitbucket":
+        return (
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+          </svg>
+        );
+      case "docker":
+        return <IconBrandDocker className="w-4 h-4" />;
+      default:
+        return <IconFolder className="w-4 h-4" />;
+    }
+  };
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -841,40 +911,40 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
       <p className="text-sm text-white/70 mb-4 line-clamp-2">
         {project.description}
       </p>
-     <div className="flex items-center space-x-4 mb-4">
-    <div className="flex items-center space-x-2 flex-shrink-0">
-      {getStatusIcon(project.status, project.latest_scan?.scan_type)}
-      <Badge className={`text-xs ${getStatusColor(project.status)}`}>
-        {project.status === "completed" && (
-          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Completed</span>
+      <div className="flex items-center space-x-4 mb-4">
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          {getStatusIcon(project.status, project.latest_scan?.scan_type)}
+          <Badge className={`text-xs ${getStatusColor(project.status)}`}>
+            {project.status === "completed" && (
+              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Completed</span>
+            )}
+            {project.status === "scanning" && (
+              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Running...</span>
+            )}
+            {project.status === "failed" && (
+              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Failed</span>
+            )}
+            {project.status === "pending" && (
+              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Pending</span>
+            )}
+            {!["completed", "scanning", "failed", "pending"].includes(project.status) && (
+              <span>{project.status}</span>
+            )}
+          </Badge>
+        </div>
+        <div className="flex items-center space-x-2 text-sm text-white/70 min-w-0 flex-1">
+          <GitBranch className="w-4 h-4 flex-shrink-0" />
+          <span className="truncate">{project.branch}</span>
+        </div>
+        {project.language && (
+          <Badge
+            variant="secondary"
+            className="text-xs bg-blue-100 text-blue-800 flex-shrink-0"
+          >
+            {project.language}
+          </Badge>
         )}
-        {project.status === "scanning" && (
-          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Running...</span>
-        )}
-        {project.status === "failed" && (
-          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Failed</span>
-        )}
-        {project.status === "pending" && (
-          <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Pending</span>
-        )}
-        {!["completed", "scanning", "failed", "pending"].includes(project.status) && (
-          <span>{project.status}</span>
-        )}
-      </Badge>
-    </div>
-    <div className="flex items-center space-x-2 text-sm text-white/70 min-w-0 flex-1">
-      <GitBranch className="w-4 h-4 flex-shrink-0" />
-      <span className="truncate">{project.branch}</span>
-    </div>
-    {project.language && (
-      <Badge
-        variant="secondary"
-        className="text-xs bg-blue-100 text-blue-800 flex-shrink-0"
-      >
-        {project.language}
-      </Badge>
-    )}
-  </div>
+      </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
@@ -946,7 +1016,6 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
         )}
       </div>
       <div className="flex flex-col space-y-2 pt-4 border-t border-white/20">
-        {/* Top row - View Details always shown */}
         <Button
           size="sm"
           variant="outline"
@@ -957,7 +1026,6 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           View Details
         </Button>
 
-        {/* Show File Status button if scan is completed */}
         {project.latest_scan?.status === "completed" && (
           <div className="flex space-x-2">
             <Button
@@ -981,7 +1049,6 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
           </div>
         )}
 
-        {/* Show different buttons based on scan status */}
         {isScanning ? (
           <Button
             size="sm"
@@ -1030,32 +1097,30 @@ const Projects = () => {
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
- const { user } = useAuth();
-const [authProvider, setAuthProvider] = useState<'github' | 'bitbucket' | null>(null);
+  const { user } = useAuth();
+  const [authProvider, setAuthProvider] = useState<'github' | 'bitbucket' | null>(null);
 
-// Add this useEffect to update authProvider when user changes
-useEffect(() => {
-  if (user) {
-    if (user.bitbucket_username) {
-      setAuthProvider('bitbucket');
-    } else if (user.github_username) {
-      setAuthProvider('github');
-    } else {
-      setAuthProvider(null);
+  useEffect(() => {
+    if (user) {
+      if (user.bitbucket_username) {
+        setAuthProvider('bitbucket');
+      } else if (user.github_username) {
+        setAuthProvider('github');
+      } else {
+        setAuthProvider(null);
+      }
     }
-  }
-}, [user]);
+  }, [user]);
+
   const navigate = useNavigate();
 
-  // Polling management
   const [pollIntervals, setPollIntervals] = useState<
     Map<number, NodeJS.Timeout>
   >(new Map());
 
-const getAuthProvider = (): 'github' | 'bitbucket' | null => {
-  return authProvider;  // ← Just return the state directly
-};
-  
+  const getAuthProvider = (): 'github' | 'bitbucket' | null => {
+    return authProvider;
+  };
 
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
     switch (provider) {
@@ -1080,41 +1145,26 @@ const getAuthProvider = (): 'github' | 'bitbucket' | null => {
     }
   };
 
-const handleImportClick = () => {
-  console.log('=== IMPORT CLICK DEBUG ===');
-  console.log('User:', user);
-  console.log('bitbucket_username:', user?.bitbucket_username);
-  console.log('github_username:', user?.github_username);
-  
-  const provider = getAuthProvider();
-  console.log('Detected provider:', provider);
-  
-  if (provider) {
+  const handleImportClick = () => {
+    const provider = getAuthProvider();
+    if (provider) {
+      setImportProvider(provider);
+    } else {
+      setShowImportDropdown(true);
+    }
+  };
+
+  const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
+    setShowImportDropdown(false);
     setImportProvider(provider);
-  } else {
-    // Fallback: if no provider detected, show dropdown
-    setShowImportDropdown(true);
-  }
-};
-
-const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
-  console.log('Selected provider:', provider);
-  setShowImportDropdown(false);
-  setImportProvider(provider);
-};
-
-
+  };
 
   useEffect(() => {
     fetchProjects();
-
-    // Cleanup function to clear all polling intervals
     return () => {
       pollIntervals.forEach((interval) => clearInterval(interval));
     };
   }, []);
-
-  
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -1185,13 +1235,12 @@ const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
             } : undefined,                                
             security_score: repo.security_score,
             code_coverage: repo.code_coverage,
-                      })
-                    );
+          })
+        );
 
         setProjects(transformedProjects);
         setFilteredProjects(transformedProjects);
 
-        // Start polling for any projects that are currently scanning
         transformedProjects.forEach((project) => {
           if (
             project.latest_scan?.status === "running" ||
@@ -1212,114 +1261,111 @@ const handleProviderSelection = (provider: 'github' | 'bitbucket') => {
   };
 
   const clearScanPolling = useCallback(
-  (scanId: number) => {
-    setPollIntervals((prev) => {
-      const interval = prev.get(scanId);
-      if (interval) {
-        console.log(`🛑 Clearing interval for scan ${scanId}`);
-        clearInterval(interval);
-        const newMap = new Map(prev);
-        newMap.delete(scanId);
-        return newMap;
-      }
-      return prev;
-    });
-  },
-  [] 
-);
+    (scanId: number) => {
+      setPollIntervals((prev) => {
+        const interval = prev.get(scanId);
+        if (interval) {
+          clearInterval(interval);
+          const newMap = new Map(prev);
+          newMap.delete(scanId);
+          return newMap;
+        }
+        return prev;
+      });
+    },
+    [] 
+  );
 
-const startScanPolling = useCallback(
-  (scanId: number, projectId: number) => {
-    console.log(`🚀 Starting polling for scan ${scanId}`);
-    
-    // Clear any existing polling for this scan
-    clearScanPolling(scanId);
+  const startScanPolling = useCallback(
+    (scanId: number, projectId: number) => {
+      clearScanPolling(scanId);
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/scans/${scanId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (response.ok) {
-          const scanData = await response.json();
-          
-          console.log(`📊 Scan ${scanId} status: ${scanData.status}`);
-
-          setProjects((prevProjects) =>
-            prevProjects.map((project) =>
-              project.id === projectId
-                ? {
-                    ...project,
-                    latest_scan: {
-                      id: scanData.id,
-                      status: scanData.status,
-                      scan_type: scanData.scan_type,
-                      started_at: scanData.started_at,
-                      completed_at: scanData.completed_at,
-                      scan_duration: scanData.scan_duration,
-                    },
-                    status:
-                      scanData.status === "completed"
-                        ? ("completed" as const)
-                        : scanData.status === "failed"
-                        ? ("failed" as const)
-                        : ("scanning" as const),
-                    vulnerabilities:
-                      scanData.total_vulnerabilities !== undefined
-                        ? {
-                            total: scanData.total_vulnerabilities,
-                            critical: scanData.critical_count,
-                            high: scanData.high_count,
-                            medium: scanData.medium_count,
-                            low: scanData.low_count,
-                          }
-                        : project.vulnerabilities,
-                    security_score: scanData.security_score,
-                    code_coverage: scanData.code_coverage,
-                    coverage: scanData.code_coverage,
-                    scanDuration: scanData.scan_duration,
-                    lastScan: scanData.completed_at
-                      ? new Date(scanData.completed_at).toLocaleDateString()
-                      : null,
-                  }
-                : project
-            )
+      const pollInterval = setInterval(async () => {
+        try {
+          const token = localStorage.getItem("access_token");
+          const response = await fetch(
+            `${
+              import.meta.env.VITE_API_URL || "http://localhost:8000"
+            }/api/v1/scans/${scanId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
           );
 
-          // ✅ CRITICAL FIX: Stop polling if scan is completed, failed, or stopped
-          if (["completed", "failed", "stopped"].includes(scanData.status)) {
-            console.log(`✅ Scan ${scanId} completed with status: ${scanData.status}, stopping polling`);
-            
-            // ✅ Clear interval IMMEDIATELY with direct reference
+          if (response.ok) {
+            const scanData = await response.json();
+
+            setProjects((prevProjects) =>
+              prevProjects.map((project) =>
+                project.id === projectId
+                  ? {
+                      ...project,
+                      latest_scan: {
+                        id: scanData.id,
+                        status: scanData.status,
+                        scan_type: scanData.scan_type,
+                        started_at: scanData.started_at,
+                        completed_at: scanData.completed_at,
+                        scan_duration: scanData.scan_duration,
+                      },
+                      status:
+                        scanData.status === "completed"
+                          ? ("completed" as const)
+                          : scanData.status === "failed"
+                          ? ("failed" as const)
+                          : ("scanning" as const),
+                      vulnerabilities:
+                        scanData.total_vulnerabilities !== undefined
+                          ? {
+                              total: scanData.total_vulnerabilities,
+                              critical: scanData.critical_count,
+                              high: scanData.high_count,
+                              medium: scanData.medium_count,
+                              low: scanData.low_count,
+                            }
+                          : project.vulnerabilities,
+                      security_score: scanData.security_score,
+                      code_coverage: scanData.code_coverage,
+                      coverage: scanData.code_coverage,
+                      scanDuration: scanData.scan_duration,
+                      lastScan: scanData.completed_at
+                        ? new Date(scanData.completed_at).toLocaleDateString()
+                        : null,
+                    }
+                  : project
+              )
+            );
+
+            if (["completed", "failed", "stopped"].includes(scanData.status)) {
+              clearInterval(pollInterval);
+              setPollIntervals((prev) => {
+                const newMap = new Map(prev);
+                newMap.delete(scanId);
+                return newMap;
+              });
+              setScanningProjects((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(projectId);
+                return newSet;
+              });
+            }
+          } else {
             clearInterval(pollInterval);
-            
-            // ✅ Remove from state
             setPollIntervals((prev) => {
               const newMap = new Map(prev);
               newMap.delete(scanId);
               return newMap;
             });
-            
-            // ✅ Remove from scanning projects
             setScanningProjects((prev) => {
               const newSet = new Set(prev);
               newSet.delete(projectId);
               return newSet;
             });
           }
-        } else {
-          console.error("Failed to fetch scan status:", response.status);
-          // Stop polling on error
+        } catch (error) {
           clearInterval(pollInterval);
           setPollIntervals((prev) => {
             const newMap = new Map(prev);
@@ -1332,9 +1378,15 @@ const startScanPolling = useCallback(
             return newSet;
           });
         }
-      } catch (error) {
-        console.error("Error polling scan status:", error);
-        // Stop polling on error
+      }, 5000);
+
+      setPollIntervals((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(scanId, pollInterval);
+        return newMap;
+      });
+
+      setTimeout(() => {
         clearInterval(pollInterval);
         setPollIntervals((prev) => {
           const newMap = new Map(prev);
@@ -1346,193 +1398,151 @@ const startScanPolling = useCallback(
           newSet.delete(projectId);
           return newSet;
         });
-      }
-    }, 5000); // Poll every 5 seconds
-
-    // Store the interval
-    setPollIntervals((prev) => {
-      const newMap = new Map(prev);
-      newMap.set(scanId, pollInterval);
-      console.log(`📝 Stored interval for scan ${scanId}`);
-      return newMap;
-    });
-
-    // Auto-stop polling after 30 minutes to prevent infinite polling
-    setTimeout(() => {
-      console.log(`⏰ Auto-stopping polling for scan ${scanId} after 30 minutes`);
-      clearInterval(pollInterval);
-      setPollIntervals((prev) => {
-        const newMap = new Map(prev);
-        newMap.delete(scanId);
-        return newMap;
-      });
-      setScanningProjects((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(projectId);
-        return newSet;
-      });
-    }, 30 * 60 * 1000);
-  },
-  [clearScanPolling]
-);
+      }, 30 * 60 * 1000);
+    },
+    [clearScanPolling]
+  );
 
   const handleStartScan = async (projectId: number) => {
-  const project = projects.find(p => p.id === projectId);
-  if (!project) return;
-  
-  setSelectedProjectForScan(project);
-  setShowScanMethodModal(true);
-};
-
-const handleUnifiedScan = async (scanConfig: any) => {
-  if (!selectedProjectForScan) return;
-  
-  setShowScanMethodModal(false);
-  
-  const projectId = selectedProjectForScan.id;
-  
-  if (scanningProjects.has(projectId)) {
-    console.log("Scan already in progress for project", projectId);
-    return;
-  }
-
-  try {
-    setScanningProjects((prev) => new Set(prev).add(projectId));
-
-    const token = localStorage.getItem("access_token");
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
     
-    // Prepare request body based on scan config
-    const requestBody = {
-      repository_id: projectId,
-      selected_rules: scanConfig.selectedRules || [1, 2, 3, 4, 5], // Default rules
-      custom_rules: scanConfig.customRules || null,
-      enable_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
-      max_files_to_scan: scanConfig.maxFilesToScan || 100,
-      scan_priority: scanConfig.scanPriority || 'comprehensive',
-      scan_config: {
-        scan_type: 'unified_llm_rules',
-        ...scanConfig
-      }
-    };
+    setSelectedProjectForScan(project);
+    setShowScanMethodModal(true);
+  };
 
-    console.log("Starting unified scan with:", requestBody);
+  const handleUnifiedScan = async (scanConfig: any) => {
+    if (!selectedProjectForScan) return;
     
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/unified/start`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
+    setShowScanMethodModal(false);
+    
+    const projectId = selectedProjectForScan.id;
+    
+    if (scanningProjects.has(projectId)) {
+      return;
+    }
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Unified scan started:", data);
+    try {
+      setScanningProjects((prev) => new Set(prev).add(projectId));
 
-      // Update the project status immediately
-      setProjects((prevProjects) =>
-        prevProjects.map((project) =>
-          project.id === projectId
-            ? {
-                ...project,
-                latest_scan: {
-                  id: data.id,
-                  status: "pending",
-                  scan_type: "unified_llm_rules",
-                  started_at: data.started_at,
-                },
-                status: "scanning" as const,
-              }
-            : project
-        )
+      const token = localStorage.getItem("access_token");
+      
+      const requestBody = {
+        repository_id: projectId,
+        selected_rules: scanConfig.selectedRules || [1, 2, 3, 4, 5],
+        custom_rules: scanConfig.customRules || null,
+        enable_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
+        max_files_to_scan: scanConfig.maxFilesToScan || 100,
+        scan_priority: scanConfig.scanPriority || 'comprehensive',
+        scan_config: {
+          scan_type: 'unified_llm_rules',
+          ...scanConfig
+        }
+      };
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/unified/start`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
       );
 
-      // Start polling for scan status
-      startScanPolling(data.id, projectId);
-    } else {
-      const errorData = await response.json();
-      console.error("Unified scan failed:", errorData);
-      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start unified scan');
+      if (response.ok) {
+        const data = await response.json();
+
+        setProjects((prevProjects) =>
+          prevProjects.map((project) =>
+            project.id === projectId
+              ? {
+                  ...project,
+                  latest_scan: {
+                    id: data.id,
+                    status: "pending",
+                    scan_type: "unified_llm_rules",
+                    started_at: data.started_at,
+                  },
+                  status: "scanning" as const,
+                }
+              : project
+          )
+        );
+
+        startScanPolling(data.id, projectId);
+      } else {
+        const errorData = await response.json();
+        setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start unified scan');
+        setScanningProjects((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(projectId);
+          return newSet;
+        });
+      }
+    } catch (error) {
+      setError("Network error occurred while starting scan");
       setScanningProjects((prev) => {
         const newSet = new Set(prev);
         newSet.delete(projectId);
         return newSet;
       });
+    } finally {
+      setSelectedProjectForScan(null);
     }
-  } catch (error) {
-    console.error("Error starting unified scan:", error);
-    setError("Network error occurred while starting scan");
-    setScanningProjects((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(projectId);
-      return newSet;
-    });
-  } finally {
-    setSelectedProjectForScan(null);
-  }
-};
+  };
 
-const handleStopScan = async (projectId: number) => {
-  try {
-    const project = projects.find((p) => p.id === projectId);
-    if (!project?.latest_scan?.id) return;
+  const handleStopScan = async (projectId: number) => {
+    try {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project?.latest_scan?.id) return;
 
-    const token = localStorage.getItem("access_token");
-    const response = await fetch(
-      `${
-        import.meta.env.VITE_API_URL || "http://localhost:8000"
-      }/api/v1/scans/${project.latest_scan.id}/stop`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    if (response.ok) {
-      // Stop polling
-      clearScanPolling(project.latest_scan.id);
-      setScanningProjects((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(projectId);
-        return newSet;
-      });
-
-      // Update project status
-      setProjects((prevProjects) =>
-        prevProjects.map((p) =>
-          p.id === projectId
-            ? {
-                ...p,
-                status: "failed" as const,
-                latest_scan: {
-                  ...p.latest_scan!,
-                  status: "stopped",
-                },
-              }
-            : p
-        )
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/${project.latest_scan.id}/stop`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
       );
-    } else {
-      console.error("Failed to stop scan");
+
+      if (response.ok) {
+        clearScanPolling(project.latest_scan.id);
+        setScanningProjects((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(projectId);
+          return newSet;
+        });
+
+        setProjects((prevProjects) =>
+          prevProjects.map((p) =>
+            p.id === projectId
+              ? {
+                  ...p,
+                  status: "failed" as const,
+                  latest_scan: {
+                    ...p.latest_scan!,
+                    status: "stopped",
+                  },
+                }
+              : p
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error stopping scan:", error);
     }
-  } catch (error) {
-    console.error("Error stopping scan:", error);
-  }
-};
-
-
-
+  };
 
   const handleDeleteProject = async (projectId: number) => {
     try {
-      // Stop any ongoing scan polling
       const project = projects.find((p) => p.id === projectId);
       if (project?.latest_scan?.id) {
         clearScanPolling(project.latest_scan.id);
@@ -1561,8 +1571,6 @@ const handleStopScan = async (projectId: number) => {
         setProjects((prevProjects) =>
           prevProjects.filter((project) => project.id !== projectId)
         );
-      } else {
-        console.error("Failed to delete project");
       }
     } catch (error) {
       console.error("Error deleting project:", error);
@@ -1630,7 +1638,6 @@ const handleStopScan = async (projectId: number) => {
     navigate(`/projects/${project.id}`);
   };
 
-  // Filter projects effect
   useEffect(() => {
     let filtered = projects;
 
@@ -1656,55 +1663,56 @@ const handleStopScan = async (projectId: number) => {
     setFilteredProjects(filtered);
   }, [searchTerm, statusFilter, sourceFilter, projects]);
   
-  // Add this useEffect after your other useEffects
   useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    if (showImportDropdown) {
-      const target = event.target as Element;
-      if (!target.closest('.relative')) {
-        setShowImportDropdown(false);
-      }
-    }
-  };
-
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => {
-    document.removeEventListener('mousedown', handleClickOutside);
-  };
-}, [showImportDropdown]);
-  const handleImportRepositories = async (repoIds: number[]) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/repositories/import`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            repository_ids: repoIds,
-          }),
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showImportDropdown) {
+        const target = event.target as Element;
+        if (!target.closest('.relative')) {
+          setShowImportDropdown(false);
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error("Import error:", errorData);
-        throw new Error(`Failed to import repositories: ${response.status}`);
       }
+    };
 
-      const result = await response.json();
-      console.log("Import successful:", result);
-      await fetchProjects();
-    } catch (error) {
-      console.error("Error importing repositories:", error);
-      throw error;
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showImportDropdown]);
+
+  const handleImportRepositories = async (repos: Repository[]) => {  // ✅ Changed parameter type
+  try {
+    const token = localStorage.getItem("access_token");
+    
+    console.log("Importing repositories:", repos);
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/import`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repositories: repos  // ✅ Use the passed repository objects directly
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Import error:", errorData);
+      throw new Error(`Failed to import repositories: ${response.status}`);
     }
-  };
+
+    const result = await response.json();
+    console.log("Import successful:", result);
+    await fetchProjects();
+  } catch (error) {
+    console.error("Error importing repositories:", error);
+    throw error;
+  }
+};
 
   const handleImportBitbucketRepositories = async (repoIds: string[]) => {
     try {
@@ -1750,213 +1758,50 @@ const handleStopScan = async (projectId: number) => {
   };
 
   return (
-  <div className="w-full h-screen font-sans relative flex overflow-hidden">
-    <EtherealBackground
-      color="rgba(255, 255, 255, 0.6)"
-      animation={{ scale: 100, speed: 90 }}
-      noise={{ opacity: 0.8, scale: 1.2 }}
-      sizing="fill"
-    />
+    <div className="w-full h-screen font-sans relative flex overflow-hidden">
+      <EtherealBackground
+        color="rgba(255, 255, 255, 0.6)"
+        animation={{ scale: 100, speed: 90 }}
+        noise={{ opacity: 0.8, scale: 1.2 }}
+        sizing="fill"
+      />
 
-    <AppSidebar
-      sidebarOpen={sidebarOpen}
-      setSidebarOpen={setSidebarOpen}
-    />
+      <AppSidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+      />
 
-    <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
-      <div className="p-4 lg:p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Single unified container */}
-          <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-            
-            {/* Header Section */}
-            <div className="p-8 border-b theme-border">
-              {/* Breadcrumb */}
-              <div className="flex items-center space-x-2 text-sm mb-4">
-                <span className="font-medium theme-text">SecureThread</span>
-                <ChevronRight size={16} className="theme-text-muted" />
-                <span className="font-medium theme-text">Projects</span>
-              </div>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
+        <div className="p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+              
+              {/* Header Section */}
+              <div className="p-8 border-b theme-border">
+                <div className="flex items-center space-x-2 text-sm mb-4">
+                  <span className="font-medium theme-text">SecureThread</span>
+                  <ChevronRight size={16} className="theme-text-muted" />
+                  <span className="font-medium theme-text">Projects</span>
+                </div>
 
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
-                    Projects
-                  </h1>
-                  <p className="theme-text-secondary">
-                    Manage and monitor your security projects
-                  </p>
-                </div>
-                <div className="mt-6 lg:mt-0 relative">
-                  <Button
-                    onClick={handleImportClick}
-                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    {getAuthProvider() ? (
-                      <>
-                        {getProviderIcon(getAuthProvider())}
-                        Import from {getProviderName(getAuthProvider())}
-                      </>
-                    ) : (
-                      <>
-                        <Github className="w-4 h-4 mr-2" />
-                        Import Repository
-                      </>
-                    )}
-                  </Button>
-                  
-                  {/* Import Provider Dropdown */}
-                  {showImportDropdown && (
-                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                      <button
-                        onClick={() => handleProviderSelection('github')}
-                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Github className="w-4 h-4" />
-                        <span>Import from GitHub</span>
-                      </button>
-                      <button
-                        onClick={() => handleProviderSelection('bitbucket')}
-                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-                        </svg>
-                        <span>Import from Bitbucket</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Stats Section */}
-            <div className="p-8 border-b theme-border">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold theme-text mb-1">
-                    {stats.total}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
+                      Projects
+                    </h1>
+                    <p className="theme-text-secondary">
+                      Manage and monitor your security projects
+                    </p>
                   </div>
-                  <div className="text-white/70 font-medium">
-                    Total Projects
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-400 mb-1">
-                    {stats.active}
-                  </div>
-                  <div className="text-white/70 font-medium">
-                    Active
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-blue-400 mb-1">
-                    {stats.scanning}
-                  </div>
-                  <div className="text-white/70 font-medium">
-                    Scanning
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-red-400 mb-1">
-                    {stats.failed}
-                  </div>
-                  <div className="text-white/70 font-medium">
-                    Failed
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Filters Section */}
-            <div className="p-8 border-b theme-border">
-              <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
-                  <Input
-                    placeholder="Search projects..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="scanning">Scanning</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                  <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
-                    <SelectValue placeholder="Filter by source" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sources</SelectItem>
-                    <SelectItem value="github">GitHub</SelectItem>
-                    <SelectItem value="gitlab">GitLab</SelectItem>
-                    <SelectItem value="bitbucket">Bitbucket</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Projects Content Section */}
-            <div className="p-8">
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                  <p className="theme-text">Loading projects...</p>
-                </div>
-              ) : error ? (
-                <div className="text-center py-12">
-                  <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold theme-text mb-2">
-                    Error Loading Projects
-                  </h3>
-                  <p className="text-red-400 mb-6">{error}</p>
-                  <Button
-                    onClick={fetchProjects}
-                    className="bg-accent hover:bg-accent/90 text-accent-foreground"
-                  >
-                    Try Again
-                  </Button>
-                </div>
-              ) : filteredProjects.length === 0 ? (
-                <div className="text-center py-12">
-                  <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold theme-text mb-2">
-                    {projects.length === 0
-                      ? "No Projects Yet"
-                      : "No Projects Found"}
-                  </h3>
-                  <p className="text-white/70 mb-6">
-                    {projects.length === 0
-                      ? "Get started by importing your first repository."
-                      : "Try adjusting your search or filter criteria."}
-                  </p>
-                  {projects.length === 0 && (
+                  <div className="mt-6 lg:mt-0 relative">
                     <Button
                       onClick={handleImportClick}
                       className="bg-accent hover:bg-accent/90 text-accent-foreground"
                     >
-                      {authProvider === 'bitbucket' ? (
+                      {getAuthProvider() ? (
                         <>
-                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-                          </svg>
-                          Import Repository
-                        </>
-                      ) : authProvider === 'github' ? (
-                        <>
-                          <Github className="w-4 h-4 mr-2" />
-                          Import Repository
+                          {getProviderIcon(getAuthProvider())}
+                          Import from {getProviderName(getAuthProvider())}
                         </>
                       ) : (
                         <>
@@ -1965,78 +1810,238 @@ const handleStopScan = async (projectId: number) => {
                         </>
                       )}
                     </Button>
-                  )}
+                    
+                    {showImportDropdown && (
+                      <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                        <button
+                          onClick={() => handleProviderSelection('github')}
+                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Github className="w-4 h-4" />
+                          <span>Import from GitHub</span>
+                        </button>
+                        <button
+                          onClick={() => handleProviderSelection('bitbucket')}
+                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                          </svg>
+                          <span>Import from Bitbucket</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredProjects.map((project) => (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onDelete={handleDeleteProject}
-                      onSync={handleSyncProject}
-                      onViewDetails={handleViewDetails}
-                      onStartScan={handleStartScan}
-                      onStopScan={handleStopScan}
-                      onViewFileScanStatus={handleViewFileScanStatus}
-                      onViewScanDetails={handleViewScanDetails}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+              </div>
 
+              {/* Stats Section */}
+              <div className="p-8 border-b theme-border">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold theme-text mb-1">
+                      {stats.total}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Total Projects
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-green-400 mb-1">
+                      {stats.active}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Active
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-400 mb-1">
+                      {stats.scanning}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Scanning
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-red-400 mb-1">
+                      {stats.failed}
+                    </div>
+                    <div className="text-white/70 font-medium">
+                      Failed
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Section */}
+              <div className="p-8 border-b theme-border">
+                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                    <Input
+                      placeholder="Search projects..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="scanning">Scanning</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                    <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
+                      <SelectValue placeholder="Filter by source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="github">GitHub</SelectItem>
+                      <SelectItem value="gitlab">GitLab</SelectItem>
+                      <SelectItem value="bitbucket">Bitbucket</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Projects Content Section */}
+              <div className="p-8">
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                    <p className="theme-text">Loading projects...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-12">
+                    <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold theme-text mb-2">
+                      Error Loading Projects
+                    </h3>
+                    <p className="text-red-400 mb-6">{error}</p>
+                    <Button
+                      onClick={fetchProjects}
+                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredProjects.length === 0 ? (
+                  <div className="text-center py-12">
+                    <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold theme-text mb-2">
+                      {projects.length === 0
+                        ? "No Projects Yet"
+                        : "No Projects Found"}
+                    </h3>
+                    <p className="text-white/70 mb-6">
+                      {projects.length === 0
+                        ? "Get started by importing your first repository."
+                        : "Try adjusting your search or filter criteria."}
+                    </p>
+                    {projects.length === 0 && (
+                      <Button
+                        onClick={handleImportClick}
+                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                      >
+                        {authProvider === 'bitbucket' ? (
+                          <>
+                            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                            </svg>
+                            Import Repository
+                          </>
+                        ) : authProvider === 'github' ? (
+                          <>
+                            <Github className="w-4 h-4 mr-2" />
+                            Import Repository
+                          </>
+                        ) : (
+                          <>
+                            <Github className="w-4 h-4 mr-2" />
+                            Import Repository
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredProjects.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        onDelete={handleDeleteProject}
+                        onSync={handleSyncProject}
+                        onViewDetails={handleViewDetails}
+                        onStartScan={handleStartScan}
+                        onStopScan={handleStopScan}
+                        onViewFileScanStatus={handleViewFileScanStatus}
+                        onViewScanDetails={handleViewScanDetails}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Dynamic Import Modals */}
+      {importProvider === 'github' && (
+        <ImportRepositoriesModal
+          isOpen={true}
+          onClose={() => setImportProvider(null)}
+          onImport={handleImportRepositories}
+        />
+      )}
+
+      {importProvider === 'bitbucket' && (
+        <ImportBitbucketRepositoriesModal
+          isOpen={true}
+          onClose={() => setImportProvider(null)}
+          onImport={handleImportBitbucketRepositories}
+        />
+      )}
+
+      {/* Scan Details Modal */}
+      <ScanDetailsModal
+        isOpen={showScanModal}
+        onClose={() => setShowScanModal(false)}
+        scanId={selectedScanId}
+        repositoryName={selectedRepoName}
+      />
+
+      {/* File Scan Status Modal */}
+      <FileScanStatus
+        isOpen={showFileScanModal}
+        onClose={() => setShowFileScanModal(false)}
+        scanId={selectedScanId}
+        repositoryName={selectedRepoName}
+      />
+
+      {/* Scan Method Modal */}
+      <ScanMethodModal
+        isOpen={showScanMethodModal}
+        onClose={() => {
+          setShowScanMethodModal(false);
+          setSelectedProjectForScan(null);
+        }}
+        onSelectUnifiedScan={handleUnifiedScan}
+        projectName={selectedProjectForScan?.name}
+      />
+
     </div>
-
-    {/* Dynamic Import Modals */}
-    {importProvider === 'github' && (
-      <ImportRepositoriesModal
-        isOpen={true}
-        onClose={() => setImportProvider(null)}
-        onImport={handleImportRepositories}
-      />
-    )}
-
-    {importProvider === 'bitbucket' && (
-      <ImportBitbucketRepositoriesModal
-        isOpen={true}
-        onClose={() => setImportProvider(null)}
-        onImport={handleImportBitbucketRepositories}
-      />
-    )}
-
-    {/* Scan Details Modal */}
-    <ScanDetailsModal
-      isOpen={showScanModal}
-      onClose={() => setShowScanModal(false)}
-      scanId={selectedScanId}
-      repositoryName={selectedRepoName}
-    />
-
-    {/* File Scan Status Modal */}
-    <FileScanStatus
-      isOpen={showFileScanModal}
-      onClose={() => setShowFileScanModal(false)}
-      scanId={selectedScanId}
-      repositoryName={selectedRepoName}
-    />
-
-    {/* Scan Method Modal */}
-<ScanMethodModal
-  isOpen={showScanMethodModal}
-  onClose={() => {
-    setShowScanMethodModal(false);
-    setSelectedProjectForScan(null);
-  }}
-  onSelectUnifiedScan={handleUnifiedScan}
-  projectName={selectedProjectForScan?.name}
-/>
-
-  </div>
-);
+  );
 };
 
 export default Projects;
