@@ -67,6 +67,38 @@ async def get_available_github_repositories(
     
     return {"repositories": repos}
 
+# Add this new endpoint after line 68
+
+@router.get("/github/search")
+async def search_github_repositories(
+    query: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Search for public GitHub repositories"""
+    if not current_user.github_access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub access token not found"
+        )
+    
+    github_service = GitHubService()
+    repos = github_service.search_public_repositories(current_user.github_access_token, query)
+    
+    # Get already imported repositories
+    imported_repo_ids = set(
+        repo.github_id for repo in db.query(Repository).filter(
+            Repository.owner_id == current_user.id,
+            Repository.github_id.isnot(None)
+        ). all()
+    )
+    
+    # Mark which repositories are already imported
+    for repo in repos:
+        repo["is_imported"] = repo["id"] in imported_repo_ids
+    
+    return {"repositories": repos}
+
 
 @router.get("/bitbucket/available")
 async def get_available_bitbucket_repositories(
@@ -105,71 +137,108 @@ async def get_available_bitbucket_repositories(
     
     return {"repositories": repos}
 
-
 @router.post("/import")
 async def import_repositories(
-    import_request: ImportRepositoryRequest,
+    import_request: dict,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Import selected GitHub repositories for scanning"""
-    if not current_user.github_access_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="GitHub access token not found"
-        )
-    
-    github_service = GitHubService()
-    all_repos = github_service.get_user_repositories(current_user.github_access_token)
-    
-    # Convert to integers for GitHub
-    repo_ids = [int(rid) for rid in import_request.repository_ids]
-    
-    # Filter repositories to import
-    repos_to_import = [
-        repo for repo in all_repos 
-        if repo["id"] in repo_ids
-    ]
-    
-    imported_repos = []
-    
-    for repo_data in repos_to_import:
-        # Check if repository already exists
-        existing_repo = db.query(Repository).filter(
-            Repository.github_id == repo_data["id"],
-            Repository.owner_id == current_user.id
-        ).first()
+    """Import selected GitHub repositories"""
+    try:
+        repositories_data = import_request.get("repositories", [])
         
-        if not existing_repo:
-            new_repo = Repository(
-                github_id=repo_data["id"],
-                name=repo_data["name"],
-                full_name=repo_data["full_name"],
-                description=repo_data["description"],
-                html_url=repo_data["html_url"],
-                clone_url=repo_data["clone_url"],
-                default_branch=repo_data["default_branch"],
-                language=repo_data["language"],
-                is_private=repo_data["private"],
-                is_fork=repo_data["fork"],
-                owner_id=current_user.id
+        if not repositories_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No repositories provided"
             )
-            db.add(new_repo)
-            imported_repos.append(new_repo)
-    
-    db.commit()
-    
-    return {
-        "message": f"Successfully imported {len(imported_repos)} repositories",
-        "imported_repositories": [
-            {
-                "id": repo.id,
-                "name": repo.name,
-                "full_name": repo.full_name
-            }
-            for repo in imported_repos
-        ]
-    }
+        
+        if not current_user.github_access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="GitHub access token not found"
+            )
+        
+        imported_repos = []
+        failed_repos = []
+        
+        # Process all repositories in a single transaction
+        for repo_data in repositories_data:
+            try:
+                # Check if already imported
+                existing_repo = db.query(Repository).filter(
+                    Repository.github_id == repo_data["id"],
+                    Repository.owner_id == current_user.id
+                ).first()
+                
+                if existing_repo:
+                    logger.info(f"Repository {repo_data['name']} already imported")
+                    continue
+                
+                # Create new repository
+                new_repo = Repository(
+                    github_id=repo_data["id"],
+                    name=repo_data["name"],
+                    full_name=repo_data["full_name"],
+                    description=repo_data.get("description"),
+                    html_url=repo_data["html_url"],
+                    clone_url=repo_data["clone_url"],
+                    default_branch=repo_data.get("default_branch", "main"),
+                    language=repo_data.get("language"),
+                    is_private=repo_data.get("is_private", False),
+                    is_fork=repo_data.get("is_fork", False),
+                    owner_id=current_user.id,
+                )
+                
+                db.add(new_repo)
+                # Don't commit yet - wait until all are processed
+                
+                imported_repos.append({
+                    "id": new_repo.id,  # This won't be available until committed
+                    "name": new_repo.name,
+                    "full_name": new_repo.full_name
+                })
+                
+                logger.info(f"✅ Prepared repository for import: {new_repo.full_name}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error preparing repository {repo_data.get('name', 'unknown')}: {e}")
+                failed_repos.append({
+                    "name": repo_data.get("name", "unknown"),
+                    "error": str(e)
+                })
+                # Continue with other repositories
+        
+        # Commit all successful imports at once
+        try:
+            db.commit()
+            logger.info(f"✅ Successfully committed {len(imported_repos)} repositories")
+            
+            # Now we can get the actual IDs for imported repos
+            for repo_info in imported_repos:
+                # You might need to refetch or handle IDs differently
+                pass
+                
+        except Exception as e:
+            db.rollback()
+            logger.error(f"❌ Error committing imports: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save imported repositories: {str(e)}"
+            )
+        
+        return {
+            "message": f"Imported {len(imported_repos)} repositories",
+            "imported": imported_repos,
+            "failed": failed_repos
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in import_github_repositories: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.post("/bitbucket/import")

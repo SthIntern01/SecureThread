@@ -15,22 +15,58 @@ class GitHubService:
         self.redirect_uri = settings.GITHUB_REDIRECT_URI
 
     async def exchange_code_for_token(self, code: str) -> Optional[str]:
-        """Exchange authorization code for access token"""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://github.com/login/oauth/access_token",
-                data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "code": code,
-                    "redirect_uri": self.redirect_uri,
-                },
-                headers={"Accept": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("access_token")
+        """Exchange authorization code for access token with enhanced error handling"""
+        logger.info(f"Attempting to exchange OAuth code: {code[:10]}...")
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://github.com/login/oauth/access_token",
+                    data={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "code": code,
+                        "redirect_uri": self.redirect_uri,
+                    },
+                    headers={"Accept": "application/json"}
+                )
+                
+                logger.info(f"GitHub OAuth response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # Check for error in response
+                    if "error" in data:
+                        error_description = data.get("error_description", "Unknown error")
+                        logger.error(f"GitHub OAuth error: {data['error']} - {error_description}")
+                        
+                        # Handle specific OAuth errors
+                        if data["error"] == "bad_verification_code":
+                            logger.warning("OAuth code already used or invalid")
+                            return None
+                        
+                        return None
+                    
+                    access_token = data.get("access_token")
+                    if access_token:
+                        logger.info("Successfully exchanged OAuth code for access token")
+                        return access_token
+                    else:
+                        logger.error("No access token in successful response")
+                        return None
+                else:
+                    logger.error(f"GitHub OAuth request failed: {response.status_code} - {response.text}")
+                    return None
+                    
+        except httpx.TimeoutException:
+            logger.error("Timeout while exchanging OAuth code")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"Request error while exchanging OAuth code: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error while exchanging OAuth code: {e}")
             return None
 
     async def get_user_info(self, access_token: str) -> Optional[Dict[str, Any]]:
@@ -82,10 +118,10 @@ class GitHubService:
             page = 1
             per_page = 100
             
-            logger.info(f"Starting to fetch repositories for user")
+            logger.info("Starting to fetch repositories for user")
             
             while True:
-                url = f"https://api.github.com/user/repos"
+                url = "https://api.github.com/user/repos"
                 params = {
                     "page": page,
                     "per_page": per_page,
@@ -196,11 +232,11 @@ class GitHubService:
             page = 1
             per_page = 100
             
-            logger.info(f"Starting to fetch repositories for user (async)")
+            logger.info("Starting to fetch repositories for user (async)")
             
             async with httpx.AsyncClient(timeout=30.0) as client:
                 while True:
-                    url = f"https://api.github.com/user/repos"
+                    url = "https://api.github.com/user/repos"
                     params = {
                         "page": page,
                         "per_page": per_page,
@@ -220,7 +256,7 @@ class GitHubService:
                             raise Exception("Invalid GitHub token")
                         
                         if response.status_code == 403:
-                            logger.error(f"GitHub API rate limit exceeded")
+                            logger.error("GitHub API rate limit exceeded")
                             raise Exception("GitHub API rate limit exceeded")
                         
                         if response.status_code != 200:
@@ -293,62 +329,118 @@ class GitHubService:
             logger.error(f"Error fetching repositories (async): {e}")
             return []
 
-    # backend/app/services/github_service.py - Add this method to your existing GitHubService class
-
-    async def exchange_code_for_token(self, code: str) -> Optional[str]:
-        """Exchange authorization code for access token with enhanced error handling"""
-        logger.info(f"Attempting to exchange OAuth code: {code[:10]}...")
-        
+    def search_public_repositories(self, access_token: str, query: str) -> List[Dict[str, Any]]:
+        """Search for public GitHub repositories"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    "https://github.com/login/oauth/access_token",
-                    data={
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "code": code,
-                        "redirect_uri": self.redirect_uri,
-                    },
-                    headers={"Accept": "application/json"}
-                )
+            headers = {
+                "Authorization": f"token {access_token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "SecureThread-App/1.0"
+            }
+            
+            repos = []
+            page = 1
+            per_page = 30  # GitHub search API has lower limits
+            
+            logger.info(f"Searching for repositories with query: {query}")
+            
+            # Limit to 3 pages to avoid overwhelming results
+            while page <= 3:
+                url = "https://api.github.com/search/repositories"
+                params = {
+                    "q": query,
+                    "page": page,
+                    "per_page": per_page,
+                    "sort": "stars",
+                    "order": "desc"
+                }
                 
-                logger.info(f"GitHub OAuth response status: {response.status_code}")
+                logger.info(f"Searching repositories from: {url} with params: {params}")
                 
-                if response.status_code == 200:
-                    data = response.json()
+                try:
+                    response = requests.get(
+                        url, 
+                        headers=headers, 
+                        params=params,
+                        timeout=30
+                    )
                     
-                    # Check for error in response
-                    if "error" in data:
-                        error_description = data.get("error_description", "Unknown error")
-                        logger.error(f"GitHub OAuth error: {data['error']} - {error_description}")
+                    logger.info(f"GitHub Search API response status: {response.status_code}")
+                    
+                    if response.status_code == 401:
+                        logger.error("GitHub API authentication failed - invalid token")
+                        raise Exception("Invalid GitHub token")
+                    
+                    if response.status_code == 403:
+                        logger.error("GitHub API rate limit exceeded")
+                        raise Exception("GitHub API rate limit exceeded")
+                    
+                    if response.status_code != 200:
+                        logger.error(f"GitHub API error: {response.status_code} - {response.text}")
+                        break
+                    
+                    search_results = response.json()
+                    page_repos = search_results.get("items", [])
+                    
+                    if not page_repos:
+                        logger.info("No more repositories found, breaking search loop")
+                        break
+                    
+                    logger.info(f"Found {len(page_repos)} repositories on page {page}")
+                    
+                    for repo in page_repos:
+                        try:
+                            repo_data = {
+                                "id": repo["id"],
+                                "name": repo["name"],
+                                "full_name": repo["full_name"],
+                                "description": repo.get("description"),
+                                "html_url": repo["html_url"],
+                                "clone_url": repo["clone_url"],
+                                "default_branch": repo.get("default_branch", "main"),
+                                "language": repo.get("language"),
+                                "private": repo["private"],
+                                "fork": repo["fork"],
+                                "created_at": repo.get("created_at"),
+                                "updated_at": repo.get("updated_at"),
+                                "size": repo.get("size", 0),
+                                "stargazers_count": repo.get("stargazers_count", 0),
+                                "forks_count": repo.get("forks_count", 0),
+                                "open_issues_count": repo.get("open_issues_count", 0),
+                                "topics": repo.get("topics", []),
+                                "visibility": repo.get("visibility", "private" if repo["private"] else "public"),
+                                "archived": repo.get("archived", False),
+                                "disabled": repo.get("disabled", False),
+                                "owner": repo.get("owner", {}).get("login", ""),
+                            }
+                            repos.append(repo_data)
+                        except KeyError as e:
+                            logger.warning(f"Missing key in repository data: {e}, skipping repository {repo.get('name', 'unknown')}")
+                            continue
+                    
+                    # Check if we have more results
+                    if len(page_repos) < per_page:
+                        logger.info(f"Received {len(page_repos)} repositories, less than {per_page}, search complete")
+                        break
+                    
+                    page += 1
                         
-                        # Handle specific OAuth errors
-                        if data["error"] == "bad_verification_code":
-                            logger.warning("OAuth code already used or invalid")
-                            return None
-                        
-                        return None
-                    
-                    access_token = data.get("access_token")
-                    if access_token:
-                        logger.info("Successfully exchanged OAuth code for access token")
-                        return access_token
-                    else:
-                        logger.error("No access token in successful response")
-                        return None
-                else:
-                    logger.error(f"GitHub OAuth request failed: {response.status_code} - {response.text}")
-                    return None
-                    
-        except httpx.TimeoutException:
-            logger.error("Timeout while exchanging OAuth code")
-            return None
-        except httpx.RequestError as e:
-            logger.error(f"Request error while exchanging OAuth code: {e}")
-            return None
+                except requests.exceptions.Timeout:
+                    logger.error("Request to GitHub API timed out")
+                    break
+                except requests.exceptions.ConnectionError:
+                    logger.error("Connection error while searching GitHub API")
+                    break
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Request exception: {e}")
+                    break
+            
+            logger.info(f"Successfully found {len(repos)} repositories total")
+            return repos
+            
         except Exception as e:
-            logger.error(f"Unexpected error while exchanging OAuth code: {e}")
-            return None
+            logger.error(f"Error searching repositories: {e}")
+            return []
 
     def get_repository_content(self, access_token: str, repo_full_name: str, path: str = "") -> Optional[List[Dict[str, Any]]]:
         """Get repository content for scanning"""
@@ -556,8 +648,6 @@ class GitHubService:
         except Exception as e:
             logger.error(f"Error fetching rate limit info: {e}")
             return None
-        
-    
 
     @staticmethod
     def get_authorization_url() -> str:
@@ -569,4 +659,3 @@ class GitHubService:
             f"&scope=repo,user:email"
             f"&state=random_state_string"  # Add CSRF protection
         )
-        
