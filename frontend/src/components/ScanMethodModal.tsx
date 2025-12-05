@@ -314,7 +314,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
     }
   }, [isOpen]);
 
-  const fetchBuiltInRules = async () => {
+    const fetchBuiltInRules = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("access_token");
@@ -330,15 +330,26 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        setBuiltInRules(data.rules || []);
+        
+        // ✅ FIX: Backend returns array directly, not {rules: [...]}
+        const rulesArray = Array.isArray(data) ? data : (data.rules || []);
+        
+        console.log('✅ Fetched rules:', rulesArray. length); // Debug log
+        
+        setBuiltInRules(rulesArray);
+        
         // Select all rules by default
-        const allRuleIds = new Set((data.rules || []).map((rule: Rule) => rule.id));
+        const allRuleIds = new Set(rulesArray.map((rule) => rule.id));
         setSelectedRules(allRuleIds);
+        
+        console.log('✅ Selected rules:', allRuleIds.size); // Debug log
       } else {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
         setError("Failed to fetch scan rules");
       }
     } catch (err) {
-      console.error("Error fetching rules:", err);
+      console.error("❌ Error fetching rules:", err);
       setError("Network error occurred while fetching rules");
     } finally {
       setLoading(false);
@@ -490,7 +501,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
 
     const config = {
       selectedRules: Array.from(selectedRules),
-      customRules: customRules.length > 0 ? customRules : null,
+      customRules: customRules. length > 0 ? customRules : null,
       enableLLMEnhancement: scanConfig.enableLLMEnhancement,
       maxFilesToScan: scanConfig.maxFilesToScan,
       scanPriority: scanConfig.scanPriority,

@@ -129,10 +129,45 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [selectedVuln, setSelectedVuln] = useState<number | null>(null);
+  const [processedContent, setProcessedContent] = useState<string>("");
+
+  // ✅ FIX: Process content safely on mount
+  useEffect(() => {
+    let contentString: string;
+
+    try {
+      if (!content) {
+        contentString = "// No content available";
+      } else if (typeof content === 'string') {
+        contentString = content;
+      } else if (typeof content === 'object') {
+        // Handle GitHub API response format
+        if ('content' in content && typeof content.content === 'string') {
+          // Decode base64 content
+          try {
+            contentString = atob(content.content.replace(/\n/g, ''));
+          } catch (e) {
+            console.error('Failed to decode base64:', e);
+            contentString = content.content;
+          }
+        } else {
+          // Fallback to JSON stringify
+          contentString = JSON.stringify(content, null, 2);
+        }
+      } else {
+        contentString = String(content);
+      }
+
+      setProcessedContent(contentString);
+    } catch (error) {
+      console.error('Error processing content:', error);
+      setProcessedContent("// Error: Unable to display content");
+    }
+  }, [content]);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(content);
+      await navigator.clipboard.writeText(processedContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -194,7 +229,8 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
     }
   };
 
-  const lines = content.split("\n");
+  // ✅ FIX: Use processedContent instead of content
+  const lines = processedContent.split("\n");
 
   // Create a map of line numbers to vulnerabilities
   const vulnsByLine = new Map<number, Array<(typeof vulnerabilities)[0]>>();
@@ -205,6 +241,20 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
       vulnsByLine.set(vuln.line_number, lineVulns);
     }
   });
+
+  // ✅ Show loading state while processing
+  if (!processedContent) {
+    return (
+      <Dialog open={true} onOpenChange={onClose}>
+        <DialogContent className="max-w-7xl h-[95vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading file content...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
@@ -421,7 +471,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                     className="border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer"
                     onClick={() => {
                       if (vuln.line_number) {
-                        // Scroll to line (simplified)
                         setSelectedVuln(vuln.line_number);
                       }
                     }}

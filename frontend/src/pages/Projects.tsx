@@ -1429,19 +1429,15 @@ const Projects = () => {
       
       const requestBody = {
         repository_id: projectId,
-        selected_rules: scanConfig.selectedRules || [1, 2, 3, 4, 5],
-        custom_rules: scanConfig.customRules || null,
-        enable_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
-        max_files_to_scan: scanConfig.maxFilesToScan || 100,
-        scan_priority: scanConfig.scanPriority || 'comprehensive',
-        scan_config: {
-          scan_type: 'unified_llm_rules',
-          ...scanConfig
-        }
+        use_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
+        include_user_rules: true
       };
       
+      console.log('🚀 Starting scan with config:', requestBody);
+      
+      // ✅ FIX: Removed /unified from endpoint
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/unified/start`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/start`,
         {
           method: "POST",
           headers: {
@@ -1454,6 +1450,8 @@ const Projects = () => {
 
       if (response.ok) {
         const data = await response.json();
+        
+        console.log('✅ Scan started successfully:', data);
 
         setProjects((prevProjects) =>
           prevProjects.map((project) =>
@@ -1461,10 +1459,10 @@ const Projects = () => {
               ? {
                   ...project,
                   latest_scan: {
-                    id: data.id,
+                    id: data.scan_id,
                     status: "pending",
-                    scan_type: "unified_llm_rules",
-                    started_at: data.started_at,
+                    scan_type: "custom",
+                    started_at: new Date().toISOString(),
                   },
                   status: "scanning" as const,
                 }
@@ -1472,10 +1470,11 @@ const Projects = () => {
           )
         );
 
-        startScanPolling(data.id, projectId);
+        startScanPolling(data.scan_id, projectId);
       } else {
         const errorData = await response.json();
-        setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start unified scan');
+        console.error('❌ Scan failed:', errorData);
+        setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start scan');
         setScanningProjects((prev) => {
           const newSet = new Set(prev);
           newSet.delete(projectId);
@@ -1483,6 +1482,7 @@ const Projects = () => {
         });
       }
     } catch (error) {
+      console.error('❌ Network error:', error);
       setError("Network error occurred while starting scan");
       setScanningProjects((prev) => {
         const newSet = new Set(prev);

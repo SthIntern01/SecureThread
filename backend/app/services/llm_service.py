@@ -20,7 +20,105 @@ class LLMService:
             logger.error("❌ DEEPSEEK_API_KEY is not set!")
         else:
             logger.info(f"✅ DEEPSEEK_API_KEY loaded: {self.api_key[:10]}...")
+    
+    # ✅ ADD THIS NEW METHOD HERE (around line 25)
+    def _clean_ai_response(self, raw_response: str) -> str:
+        """
+        Clean up AI response to remove JSON artifacts and formatting issues. 
         
+        Args:
+            raw_response: Raw text from AI model
+            
+        Returns:
+            Cleaned, human-readable text
+        """
+        try:
+            # Remove common JSON artifacts
+            cleaned = raw_response
+            
+            # Remove JSON prefixes like "json |", "{", "}"
+            cleaned = re.sub(r'^[\s\{]*["\']? json[\s\|:]+["\']?', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'^[\s\{]*["\']?explanation["\']?[\s:]+', '', cleaned, flags=re.IGNORECASE)
+            
+            # Remove markdown code blocks
+            cleaned = re.sub(r'^```[\w]*\n? ', '', cleaned, flags=re.MULTILINE)
+            cleaned = re.sub(r'\n? ```$', '', cleaned, flags=re.MULTILINE)
+            
+            # Remove leading/trailing quotes and braces
+            cleaned = cleaned.strip('{}"\' \n\r')
+            
+            # Replace escaped newlines with actual newlines
+            cleaned = cleaned.replace('\\n', '\n')
+            
+            # Remove multiple consecutive newlines
+            cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+            
+            # Remove "Recommendation:" or "Fix:" prefixes if they're redundant
+            cleaned = re.sub(r'^(Recommendation|Fix|Solution):\s*', '', cleaned, flags=re.IGNORECASE)
+            
+            return cleaned.strip()
+            
+        except Exception as e:
+            logger.error(f"Error cleaning AI response: {e}")
+            return raw_response
+        
+    
+    async def _call_deepseek_api(self, prompt: str, max_tokens: int = 2000) -> Optional[str]:
+        """
+        Internal method to call DeepSeek API with given prompt
+        """
+        try:
+            if not self.api_key:
+                logger.error("❌ Cannot call API: DEEPSEEK_API_KEY not configured")
+                return None
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a cybersecurity expert specializing in vulnerability analysis and remediation. Provide detailed, actionable security guidance."
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.1,
+                "max_tokens": max_tokens,
+                "stream": False
+            }
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    logger.error(f"❌ LLM API error: {response.status_code} - {error_text}")
+                    return None
+                
+                data = response.json()
+                return data["choices"][0]["message"]["content"].strip()
+                
+        except httpx.TimeoutException:
+            logger.error("⏰ LLM API request timed out")
+            return None
+        except httpx.RequestError as e:
+            logger.error(f"🌐 LLM API request error: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"💥 Error in API call: {e}", exc_info=True)
+            return None
+    
     async def enhance_vulnerabilities(
         self, 
         context: Dict[str, Any]
@@ -48,72 +146,109 @@ class LLMService:
             
             logger.info(f"🚀 Sending request to DeepSeek API...")
             
-            # Make API request
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+            # Make API request using internal method
+            ai_response = await self._call_deepseek_api(prompt, max_tokens=4000)
             
-            payload = {
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a cybersecurity expert specializing in vulnerability analysis and remediation. Provide detailed, actionable security guidance."
-                    },
-                    {
-                        "role": "user", 
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.1,
-                "max_tokens": 4000,
-                "stream": False
-            }
+            if not ai_response:
+                logger.error("❌ No response from DeepSeek API")
+                return []
             
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload
-                )
+            logger.info(f"✅ Received LLM response: {len(ai_response)} characters")
+            logger.debug(f"🔍 LLM Response Preview: {ai_response[:200]}...")
+            
+            # Parse enhancement response
+            enhancements = self._parse_vulnerability_enhancements(ai_response, vulnerabilities)
+            
+            logger.info(f"🎯 Enhanced {len(enhancements)} vulnerabilities with LLM analysis")
+            return enhancements
                 
-                logger.info(f"📡 DeepSeek API Response Status: {response.status_code}")
-                
-                if response.status_code != 200:
-                    error_text = response.text
-                    logger.error(f"❌ LLM API error: {response.status_code} - {error_text}")
-                    
-                    # Try to parse error details
-                    try:
-                        error_data = response.json()
-                        logger.error(f"❌ API Error Details: {error_data}")
-                    except:
-                        pass
-                    
-                    return []
-                
-                data = response.json()
-                ai_response = data["choices"][0]["message"]["content"].strip()
-                
-                logger.info(f"✅ Received LLM response: {len(ai_response)} characters")
-                logger.debug(f"🔍 LLM Response Preview: {ai_response[:200]}...")
-                
-                # Parse enhancement response
-                enhancements = self._parse_vulnerability_enhancements(ai_response, vulnerabilities)
-                
-                logger.info(f"🎯 Enhanced {len(enhancements)} vulnerabilities with LLM analysis")
-                return enhancements
-                
-        except httpx.TimeoutException:
-            logger.error("⏰ LLM API request timed out")
-            return []
-        except httpx.RequestError as e:
-            logger.error(f"🌐 LLM API request error: {e}")
-            return []
         except Exception as e:
             logger.error(f"💥 Error in vulnerability enhancement: {e}", exc_info=True)
             return []
+    
+    async def enhance_vulnerability_explanation(
+        self,
+        file_content: str,
+        file_path: str,
+        vulnerabilities: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Use AI to enhance vulnerability explanations with context-aware details
+        """
+        try:
+            # Limit file content to avoid token exhaustion
+            if len(file_content) > 10000:
+                file_content = file_content[:10000] + "\n...  (truncated)"
+            
+            # Create vulnerability summary
+            vuln_summary = "\n".join([
+                f"- {v['severity'].upper()}: {v['title']} at line {v.get('line_number', '?')}"
+                for v in vulnerabilities[:5]  # Limit to 5 vulnerabilities
+            ])
+            
+            prompt = f"""You are a security expert. Analyze this code and provide detailed explanations for the detected vulnerabilities.
+
+File: {file_path}
+
+Detected Issues:
+{vuln_summary}
+
+Code:
+{file_content}
+
+For each vulnerability, provide:
+1. A clear explanation of why it's dangerous
+2. Specific fix recommendations with code examples
+3. Best practices to prevent similar issues
+
+Format your response as JSON:
+{{
+    "explanation": "Detailed explanation of the security issues...",
+    "fix_suggestion": "Specific steps to fix with code examples...",
+    "best_practices": ["Practice 1", "Practice 2", ...]
+}}"""
+
+            logger.info(f"🚀 Sending explanation enhancement request for {file_path}")
+            response = await self._call_deepseek_api(prompt, max_tokens=2000)
+            
+            if response:
+                logger.info(f"✅ Received explanation enhancement: {len(response)} characters")
+                # Try to parse JSON response
+                try:
+                    result = json.loads(response)
+                    
+                    # Validate the response structure
+                    validated_result = {
+                        'explanation': result.get('explanation', '')[:2000],
+                        'fix_suggestion': result.get('fix_suggestion', '')[:2000],
+                        'best_practices': result.get('best_practices', [])
+                    }
+                    
+                    # Ensure best_practices is a list
+                    if not isinstance(validated_result['best_practices'], list):
+                        validated_result['best_practices'] = []
+                    else:
+                        # Limit each practice to reasonable length
+                        validated_result['best_practices'] = [
+                            str(practice)[:500] for practice in validated_result['best_practices'][:10]
+                        ]
+                    
+                    return validated_result
+                    
+                except json.JSONDecodeError:
+                    logger.warning("❌ Could not parse JSON from enhancement response, returning as plain text")
+                    # If not JSON, return as plain text
+                    return {
+                        'explanation': response[:500],
+                        'fix_suggestion': response[500:1000] if len(response) > 500 else response,
+                        'best_practices': []
+                    }
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"💥 Error enhancing vulnerability explanation: {e}", exc_info=True)
+            return None
     
     def _create_vulnerability_enhancement_prompt(
         self, 

@@ -49,10 +49,10 @@ class User(Base):
     ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete-orphan")
     ai_usage_metrics = relationship("AIUsageMetrics", back_populates="user", cascade="all, delete-orphan")
     ai_feedback = relationship("AIFeedback", back_populates="user", cascade="all, delete-orphan")
+    custom_scan_rules = relationship("ScanRule", back_populates="user", cascade="all, delete-orphan")
     feedback_submissions = relationship("Feedback", back_populates="user", cascade="all, delete-orphan")
     team_memberships = relationship("TeamMember", foreign_keys="TeamMember.user_id", back_populates="user", cascade="all, delete-orphan")
     created_teams = relationship("Team", foreign_keys="Team.created_by", back_populates="creator", cascade="all, delete-orphan", overlaps="active_team")
-    custom_rules = relationship("UserCustomRule", back_populates="uploader", cascade="all, delete-orphan")
     active_team = relationship("Team", foreign_keys=[active_team_id], overlaps="created_teams")
 
     def __repr__(self):

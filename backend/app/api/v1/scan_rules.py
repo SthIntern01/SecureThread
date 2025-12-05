@@ -1,353 +1,349 @@
-# Create: backend/app/api/v1/scan_rules.py
-
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+"""
+Scan Rules API - Manage global and user custom security scanning rules
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
+import logging
+
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.user import User
-from app.models.scan_rule import ScanRule, UserCustomRule
-from pydantic import BaseModel
-import json
-import logging
+from app.models.scan_rule import ScanRule
+from app.schemas.scan_rules import (
+    ScanRuleCreate, ScanRuleUpdate, ScanRuleResponse,
+    ScanRuleValidationRequest, ScanRuleValidationResponse
+)
+from app.services.rule_parser import rule_parser
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# NEW FUNCTION - ADD THIS ENTIRE BLOCK
-async def run_custom_scan_background(
-    repository_id: int,
-    access_token: str,
-    provider_type: str,
-    rules: List[Dict[str, Any]],
-    scan_config: Optional[Dict[str, Any]]
-):
-    """Background task to run custom rule scan"""
-    from app.core.database import SessionLocal
-    db = SessionLocal()
-    
-    try:
-        from app.services.custom_scanner_service import CustomScannerService
-        from datetime import datetime
-        
-        logger.info(f"Starting custom scan background task for repository {repository_id}")
-        scanner_service = CustomScannerService(db)
-        
-        await scanner_service.scan_with_custom_rules(
-            repository_id,
-            access_token,
-            provider_type,
-            rules,
-            scan_config
-        )
-        logger.info(f"Custom scan background task completed for repository {repository_id}")
-        
-    except Exception as e:
-        logger.error(f"Custom scan background task failed: {e}", exc_info=True)
-        # Update scan status to failed
-        from app.models.vulnerability import Scan
-        scan = db.query(Scan).filter(
-            Scan.repository_id == repository_id,
-            Scan.status == "running"
-        ).first()
-        if scan:
-            from datetime import datetime, timezone
-            scan.status = "failed"
-            scan.error_message = str(e)
-            scan.completed_at = datetime.now(timezone.utc)
-            db.commit()
-    
-    finally:
-        db.close()
-
-class ScanRuleResponse(BaseModel):
-    id: int
-    name: str
-    description: str
-    category: str
-    severity: str
-    rule_content: str
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
-
-class CustomRuleUpload(BaseModel):
-    name: str
-    description: Optional[str] = None
-    category: Optional[str] = "custom"
-    severity: Optional[str] = "medium"
-    rule_content: str
-
-
-class CustomScanRequest(BaseModel):
-    repository_id: int
-    selected_rule_ids: List[int]
-    custom_rules: Optional[List[Dict[str, Any]]] = None
-    scan_config: Optional[Dict[str, Any]] = None
-
-
-@router.get("/", response_model=Dict[str, List[ScanRuleResponse]])
+@router.get("/", response_model=List[ScanRuleResponse])
 async def get_scan_rules(
+    include_user_rules: bool = True,
     category: Optional[str] = None,
+    severity: Optional[str] = None,
+    is_active: bool = True,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all active built-in scan rules grouped by category"""
-    query = db.query(ScanRule).filter(ScanRule.is_active == True)
-    
-    if category:
-        query = query.filter(ScanRule.category == category)
-    
-    rules = query.order_by(ScanRule.category, ScanRule.name).all()
-    
-    # Group rules by category
-    rules_by_category = {}
-    for rule in rules:
-        if rule.category not in rules_by_category:
-            rules_by_category[rule.category] = []
-        rules_by_category[rule.category].append(ScanRuleResponse(
-            id=rule.id,
-            name=rule.name,
-            description=rule.description,
-            category=rule.category,
-            severity=rule.severity,
-            rule_content=rule.rule_content,
-            is_active=rule.is_active
-        ))
-    
-    # ✅ FIXED: Properly flatten the rules list
-    all_rules = []
-    for category_rules in rules_by_category.values():
-        all_rules.extend(category_rules)
+    """
+    Get all available scan rules (global + user custom rules)
+    """
+    try:
+        query = db.query(ScanRule)
+        
+        # Filter by active status
+        if is_active:
+            query = query.filter(ScanRule.is_active == True)
+        
+        # Include global rules and optionally user rules
+        if include_user_rules:
+            query = query.filter(
+                (ScanRule.user_id == None) | (ScanRule.user_id == current_user.id)
+            )
+        else:
+            query = query.filter(ScanRule.user_id == None)
+        
+        # Filter by category
+        if category:
+            query = query.filter(ScanRule.category == category)
+        
+        # Filter by severity
+        if severity:
+            query = query.filter(ScanRule.severity == severity)
+        
+        rules = query.order_by(ScanRule.execution_priority.desc()).all()
+        
+        logger.info(f"Retrieved {len(rules)} scan rules for user {current_user.id}")
+        return rules
+        
+    except Exception as e:
+        logger.error(f"Error fetching scan rules: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch scan rules"
+        )
 
-    logger.info(f"✅ Returning {len(all_rules)} rules to frontend")
-    return {"rules": all_rules}
+
+@router.get("/{rule_id}", response_model=ScanRuleResponse)
+async def get_scan_rule(
+    rule_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific scan rule by ID
+    """
+    rule = db.query(ScanRule).filter(ScanRule.id == rule_id).first()
+    
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan rule not found"
+        )
+    
+    # Check access: global rules are accessible to all, user rules only to owner
+    if rule.user_id is not None and rule.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this rule"
+        )
+    
+    return rule
 
 
-@router.get("/categories")
+@router.post("/", response_model=ScanRuleResponse, status_code=status.HTTP_201_CREATED)
+async def create_custom_rule(
+    rule_data: ScanRuleCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new custom scan rule (user-specific)
+    """
+    try:
+        # Validate rule content
+        validation_result = rule_parser.validate_custom_rule(rule_data.rule_content)
+        
+        if not validation_result['valid']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Invalid rule content",
+                    "errors": validation_result['errors']
+                }
+            )
+        
+        # Extract metadata from rule
+        metadata = rule_parser.extract_metadata(rule_data.rule_content)
+        
+        # Create new rule
+        new_rule = ScanRule(
+            user_id=current_user.id,  # Mark as user custom rule
+            name=rule_data.name,
+            description=rule_data.description or metadata.get('description', ''),
+            category=rule_data.category or metadata.get('category', 'custom'),
+            severity=rule_data.severity or metadata.get('severity', 'medium'),
+            rule_content=rule_data.rule_content,
+            is_active=True,
+            cwe_id=rule_data.cwe_id or metadata.get('cwe_id'),
+            owasp_category=rule_data.owasp_category or metadata.get('owasp_category'),
+            language=rule_data.language or 'multi',
+            confidence_level=rule_data.confidence_level or 'medium',
+            tags=rule_data.tags or ['custom'],
+            execution_priority=rule_data.execution_priority or 50
+        )
+        
+        db.add(new_rule)
+        db.commit()
+        db.refresh(new_rule)
+        
+        logger.info(f"User {current_user.id} created custom rule: {new_rule.name} (ID: {new_rule.id})")
+        
+        return new_rule
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating custom rule: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create custom rule"
+        )
+
+
+@router.put("/{rule_id}", response_model=ScanRuleResponse)
+async def update_custom_rule(
+    rule_id: int,
+    rule_data: ScanRuleUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing custom rule (only rule owner can update)
+    """
+    rule = db.query(ScanRule).filter(ScanRule.id == rule_id).first()
+    
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan rule not found"
+        )
+    
+    # Only allow updating user's own custom rules
+    if rule.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own custom rules"
+        )
+    
+    try:
+        # Validate new rule content if provided
+        if rule_data.rule_content:
+            validation_result = rule_parser.validate_custom_rule(rule_data.rule_content)
+            
+            if not validation_result['valid']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "Invalid rule content",
+                        "errors": validation_result['errors']
+                    }
+                )
+            
+            rule.rule_content = rule_data.rule_content
+        
+        # Update other fields
+        if rule_data.name is not None:
+            rule.name = rule_data.name
+        if rule_data.description is not None:
+            rule.description = rule_data.description
+        if rule_data.category is not None:
+            rule.category = rule_data.category
+        if rule_data.severity is not None:
+            rule.severity = rule_data.severity
+        if rule_data.is_active is not None:
+            rule.is_active = rule_data.is_active
+        if rule_data.tags is not None:
+            rule.tags = rule_data.tags
+        
+        db.commit()
+        db.refresh(rule)
+        
+        logger.info(f"User {current_user.id} updated custom rule {rule_id}")
+        
+        return rule
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating custom rule: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update custom rule"
+        )
+
+
+@router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_custom_rule(
+    rule_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a custom rule (only rule owner can delete)
+    """
+    rule = db.query(ScanRule).filter(ScanRule.id == rule_id).first()
+    
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scan rule not found"
+        )
+    
+    # Only allow deleting user's own custom rules
+    if rule.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own custom rules"
+        )
+    
+    try:
+        db.delete(rule)
+        db.commit()
+        
+        logger.info(f"User {current_user.id} deleted custom rule {rule_id}")
+        
+    except Exception as e:
+        logger.error(f"Error deleting custom rule: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete custom rule"
+        )
+
+
+@router.post("/validate", response_model=ScanRuleValidationResponse)
+async def validate_rule_content(
+    validation_request: ScanRuleValidationRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Validate rule content before creating/updating
+    """
+    try:
+        validation_result = rule_parser.validate_custom_rule(validation_request.rule_content)
+        
+        return ScanRuleValidationResponse(
+            valid=validation_result['valid'],
+            errors=validation_result['errors'],
+            patterns_count=validation_result['patterns_count'],
+            message="Rule is valid" if validation_result['valid'] else "Rule has errors"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error validating rule: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to validate rule"
+        )
+
+
+@router.get("/categories/list")
 async def get_rule_categories(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all available rule categories with counts"""
-    categories = db.query(
-        ScanRule.category,
-        db.func.count(ScanRule.id).label('count')
-    ).filter(ScanRule.is_active == True).group_by(ScanRule.category).all()
-    
-    return {
-        "categories": [
-            {
-                "name": cat.category,
-                "count": cat.count,
-                "display_name": cat.category.replace('_', ' ').title()
-            }
-            for cat in categories
-        ]
-    }
+    """
+    Get list of available rule categories
+    """
+    categories = db.query(ScanRule.category).distinct().all()
+    return {"categories": [cat[0] for cat in categories if cat[0]]}
 
 
-@router.post("/custom/upload")
-async def upload_custom_rules(
-    rules_data: List[CustomRuleUpload],
+@router.get("/stats/summary")
+async def get_rules_stats(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Upload custom rules from JSON data"""
-    uploaded_rules = []
-    
-    for rule_data in rules_data:
-        try:
-            # Validate rule content (basic YARA syntax check)
-            if not rule_data.rule_content.strip().startswith('rule '):
-                logger.warning(f"Rule {rule_data.name} doesn't start with 'rule'")
-            
-            custom_rule = UserCustomRule(
-                uploaded_by=current_user.id,
-                name=rule_data.name,
-                description=rule_data.description or "",
-                category=rule_data.category or "custom",
-                severity=rule_data.severity or "medium",
-                rule_content=rule_data.rule_content,
-                is_active=True,
-                is_approved=True  # Auto-approve for now, add moderation later
-            )
-            
-            db.add(custom_rule)
-            uploaded_rules.append(custom_rule)
-            
-        except Exception as e:
-            logger.error(f"Error uploading rule {rule_data.name}: {e}")
-            continue
-    
-    db.commit()
-    
-    return {
-        "message": f"Successfully uploaded {len(uploaded_rules)} custom rules",
-        "uploaded_count": len(uploaded_rules),
-        "total_submitted": len(rules_data)
-    }
-
-
-@router.post("/custom/scan", response_model=Dict[str, Any])
-async def start_custom_scan(
-    scan_request: CustomScanRequest,
-    background_tasks: BackgroundTasks,  # ← ADD THIS LINE
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Start a custom rule-based scan"""
-    from app.models.repository import Repository
-    from app.models.vulnerability import Scan
-    from app.services.custom_scanner_service import CustomScannerService
-    
-    # Verify repository ownership
-    repository = db.query(Repository).filter(
-        Repository.id == scan_request.repository_id,
-        Repository.owner_id == current_user.id
-    ).first()
-    
-    if not repository:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Repository not found"
-        )
-    
-    # Check for existing running scan
-    existing_scan = db.query(Scan).filter(
-        Scan.repository_id == scan_request.repository_id,
-        Scan.status.in_(["running", "pending"])
-    ).first()
-    
-    if existing_scan:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A scan is already running for this repository"
-        )
-    
+    """
+    Get statistics about available rules
+    """
     try:
-        # Get selected built-in rules
-        selected_rules = []
-        if scan_request.selected_rule_ids:
-            selected_rules = db.query(ScanRule).filter(
-                ScanRule.id.in_(scan_request.selected_rule_ids),
-                ScanRule.is_active == True
-            ).all()
+        total_global = db.query(ScanRule).filter(ScanRule.user_id == None).count()
+        total_user = db.query(ScanRule).filter(ScanRule.user_id == current_user.id).count()
         
-        # Combine with custom rules
-        all_rules = []
-        for rule in selected_rules:
-            all_rules.append({
-                'id': rule.id,
-                'name': rule.name,
-                'content': rule.rule_content,
-                'category': rule.category,
-                'severity': rule.severity,
-                'type': 'built_in'
-            })
+        active_global = db.query(ScanRule).filter(
+            ScanRule.user_id == None,
+            ScanRule.is_active == True
+        ).count()
         
-        # Add custom rules if provided
-        if scan_request.custom_rules:
-            for i, custom_rule in enumerate(scan_request.custom_rules):
-                all_rules.append({
-                    'id': f'custom_{i}',
-                    'name': custom_rule.get('name', f'Custom Rule {i+1}'),
-                    'content': custom_rule.get('rule_content', ''),
-                    'category': custom_rule.get('category', 'custom'),
-                    'severity': custom_rule.get('severity', 'medium'),
-                    'type': 'custom'
-                })
-        
-        if not all_rules:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No rules selected for scanning"
-            )
-        
-        # Create scan record
-        scan = Scan(
-            repository_id=scan_request.repository_id,
-            status="pending",
-            scan_config=scan_request.scan_config or {},
-            scan_metadata={
-                'scan_type': 'custom_rules',
-                'rules_count': len(all_rules),
-                'built_in_rules': len(selected_rules),
-                'custom_rules': len(scan_request.custom_rules or [])
-            }
-        )
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-        
-           # Get access token based on repository source
-        access_token = None
-        if repository.source_type == "github":
-            access_token = current_user.github_access_token
-        elif repository.source_type == "bitbucket":
-            access_token = current_user.bitbucket_access_token
-        elif repository.source_type == "gitlab":
-            access_token = current_user.gitlab_access_token
-        
-        if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No access token found for {repository.source_type}"
-            )
-        
-                # ✅ CRITICAL FIX: Start the custom scan in background
-        logger.info(f"Adding custom scan to background tasks for repository {scan_request.repository_id}")
-        background_tasks.add_task(
-            run_custom_scan_background,
-            scan_request.repository_id,
-            access_token,
-            repository.source_type,
-            all_rules,
-            scan_request.scan_config
-        )
-        
-        logger.info(f"Custom scan queued successfully - scan_id: {scan.id}")
+        active_user = db.query(ScanRule).filter(
+            ScanRule.user_id == current_user.id,
+            ScanRule.is_active == True
+        ).count()
         
         return {
-            "scan_id": scan.id,
-            "status": "started",
-            "rules_count": len(all_rules),
-            "message": "Custom scan started successfully"
+            "global_rules": {
+                "total": total_global,
+                "active": active_global
+            },
+            "user_custom_rules": {
+                "total": total_user,
+                "active": active_user
+            },
+            "total_available": total_global + total_user,
+            "total_active": active_global + active_user
         }
         
     except Exception as e:
-        logger.error(f"Error starting custom scan: {e}")
+        logger.error(f"Error getting rules stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to start custom scan"
+            detail="Failed to get rules statistics"
         )
-
-
-@router.get("/custom")
-async def get_user_custom_rules(
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get all approved custom rules (globally available)"""
-    custom_rules = db.query(UserCustomRule).filter(
-        UserCustomRule.is_active == True,
-        UserCustomRule.is_approved == True
-    ).order_by(UserCustomRule.created_at.desc()).all()
-    
-    return {
-        "custom_rules": [
-            {
-                "id": rule.id,
-                "name": rule.name,
-                "description": rule.description,
-                "category": rule.category,
-                "severity": rule.severity,
-                "uploaded_by": rule.uploaded_by,
-                "created_at": rule.created_at.isoformat()
-            }
-            for rule in custom_rules
-        ]
-    }
