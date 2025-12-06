@@ -925,128 +925,124 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
               <TabsContent value="overview" className="flex-1 overflow-auto">
                 <div className="space-y-6">
                   {/* Scan Status */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          <Badge className={getStatusColor(scanDetails.status)}>
-                            {scanDetails.status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">Status</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {scanDetails.scan_duration || "N/A"}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          Duration
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {scanDetails.total_files_scanned}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          Files Scanned
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {scanDetails.security_score?.toFixed(1) || "N/A"}
-                        </div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          Security Score
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="theme-bg-subtle rounded-lg p-6 border theme-border">
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="text-center">
+      <div className="text-2xl font-bold theme-text">
+        <Badge className={getStatusColor(scanDetails.status)}>
+          {scanDetails.status. toUpperCase()}
+        </Badge>
+      </div>
+      <div className="text-sm theme-text-muted mt-1">Status</div>
+    </div>
+    <div className="text-center">
+      <div className="text-2xl font-bold theme-text">
+        {scanDetails.scan_duration || "N/A"}
+      </div>
+      <div className="text-sm theme-text-muted mt-1">
+        Duration
+      </div>
+    </div>
+    <div className="text-center">
+      <div className="text-2xl font-bold theme-text">
+        {scanDetails.total_files_scanned}
+      </div>
+      <div className="text-sm theme-text-muted mt-1">
+        Files Scanned
+      </div>
+    </div>
+    <div className="text-center">
+      <div className="text-2xl font-bold theme-text">
+        {scanDetails.security_score?. toFixed(1) || "N/A"}
+      </div>
+      <div className="text-sm theme-text-muted mt-1">
+        Security Score
+      </div>
+    </div>
+  </div>
+</div>
 
                   {/* Scan Limits Alert */}
                   {scanDetails.scan_metadata?.scan_stopped_reason ===
-                    "vulnerability_limit_reached" && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <div className="flex items-start space-x-3">
-                        <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                        <div>
-                          <h4 className="font-semibold text-yellow-800">
-                            Scan Limited
-                          </h4>
-                          <p className="text-sm text-yellow-700 mt-1">
-                            Scan stopped after finding{" "}
-                            {scanDetails.scan_metadata.vulnerable_files_found}{" "}
-                            vulnerable files (limit: 15).{" "}
-                            {scanDetails.scan_metadata.files_skipped} files were
-                            not scanned due to token constraints.
-                          </p>
-                          <p className="text-sm text-yellow-700 mt-1">
-                            Total scannable files:{" "}
-                            {scanDetails.scan_metadata.total_scannable_files}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+  "vulnerability_limit_reached" && (
+  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+    <div className="flex items-start space-x-3">
+      <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5" />
+      <div>
+        <h4 className="font-semibold text-yellow-300">
+          Scan Limited
+        </h4>
+        <p className="text-sm text-yellow-200 mt-1">
+          Scan stopped after finding{" "}
+          {scanDetails.scan_metadata.vulnerable_files_found}{" "}
+          vulnerable files (limit: 15). {" "}
+          {scanDetails.scan_metadata.files_skipped} files were
+          not scanned due to token constraints.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
 
                   {/* Vulnerability Summary */}
-                  <div className="bg-white rounded-lg border p-6">
-                    <h3 className="text-lg font-semibold mb-4">
-                      Vulnerability Summary
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-red-50 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-red-600">
-                          {scanDetails.critical_count}
-                        </div>
-                        <div className="text-sm text-red-700">Critical</div>
-                      </div>
-                      <div className="bg-orange-50 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-600">
-                          {scanDetails.high_count}
-                        </div>
-                        <div className="text-sm text-orange-700">High</div>
-                      </div>
-                      <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-yellow-600">
-                          {scanDetails.medium_count}
-                        </div>
-                        <div className="text-sm text-yellow-700">Medium</div>
-                      </div>
-                      <div className="bg-gray-50 rounded-lg p-4 text-center">
-                        <div className="text-2xl font-bold text-gray-600">
-                          {scanDetails.low_count}
-                        </div>
-                        <div className="text-sm text-gray-700">Low</div>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="theme-card rounded-lg border theme-border p-6">
+  <h3 className="text-lg font-semibold mb-4 theme-text">
+    Vulnerability Summary
+  </h3>
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-center">
+      <div className="text-2xl font-bold text-red-400">
+        {scanDetails.critical_count}
+      </div>
+      <div className="text-sm text-red-300">Critical</div>
+    </div>
+    <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 text-center">
+      <div className="text-2xl font-bold text-orange-400">
+        {scanDetails.high_count}
+      </div>
+      <div className="text-sm text-orange-300">High</div>
+    </div>
+    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+      <div className="text-2xl font-bold text-yellow-400">
+        {scanDetails. medium_count}
+      </div>
+      <div className="text-sm text-yellow-300">Medium</div>
+    </div>
+    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
+      <div className="text-2xl font-bold text-blue-400">
+        {scanDetails.low_count}
+      </div>
+      <div className="text-sm text-blue-300">Low</div>
+    </div>
+  </div>
+</div>
 
                   {/* Scan Timeline */}
-                  <div className="bg-white rounded-lg border p-6">
-                    <h3 className="text-lg font-semibold mb-4">
-                      Scan Timeline
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-3">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm">
-                          Started:{" "}
-                          {new Date(scanDetails.started_at).toLocaleString()}
-                        </span>
-                      </div>
-                      {scanDetails.completed_at && (
-                        <div className="flex items-center space-x-3">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-sm">
-                            Completed:{" "}
-                            {new Date(
-                              scanDetails.completed_at
-                            ).toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <div className="theme-card rounded-lg border theme-border p-6">
+  <h3 className="text-lg font-semibold mb-4 theme-text">
+    Scan Timeline
+  </h3>
+  <div className="space-y-3">
+    <div className="flex items-center space-x-3">
+      <Clock className="w-4 h-4 theme-text-muted" />
+      <span className="text-sm theme-text">
+        Started:{" "}
+        {new Date(scanDetails.started_at). toLocaleString()}
+      </span>
+    </div>
+    {scanDetails.completed_at && (
+      <div className="flex items-center space-x-3">
+        <CheckCircle className="w-4 h-4 text-green-400" />
+        <span className="text-sm theme-text">
+          Completed:{" "}
+          {new Date(
+            scanDetails.completed_at
+          ).toLocaleString()}
+        </span>
+      </div>
+    )}
+  </div>
+</div>
                 </div>
               </TabsContent>
 
@@ -1088,108 +1084,108 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                 {/* Vulnerabilities List */}
                 <div className="flex-1 overflow-auto space-y-3">
                   {filteredVulnerabilities.map((vuln) => (
-                    <div
-                      key={vuln.id}
-                      className="bg-white rounded-lg border p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div
-                        className="flex items-start justify-between cursor-pointer"
-                        onClick={() => toggleVulnerability(vuln.id)}
-                      >
-                        <div className="flex items-start space-x-3 flex-1">
-                          <div className="flex items-center space-x-2 mt-1">
-                            {getSeverityIcon(vuln.severity)}
-                            {expandedVulns.has(vuln.id) ? (
-                              <ChevronDown className="w-4 h-4 text-gray-400" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-400" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <h4 className="font-semibold text-gray-900">
-                                {vuln.title}
-                              </h4>
-                              <Badge
-                                className={`text-xs ${getSeverityColor(
-                                  vuln.severity
-                                )}`}
-                              >
-                                {vuln.severity}
-                              </Badge>
-                              {vuln.cwe_id && (
-                                <Badge variant="outline" className="text-xs">
-                                  {vuln.cwe_id}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-600 mb-2">
-                              <Code2 className="w-3 h-3 inline mr-1" />
-                              {vuln.file_path}
-                              {vuln.line_number &&
-                                ` (Line ${vuln.line_number})`}
-                            </div>
-                            <p className="text-sm text-gray-700">
-                              {vuln.description}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {vuln.risk_score && (
-                            <div className="text-sm font-semibold text-gray-900">
-                              Risk: {vuln.risk_score.toFixed(1)}/10
-                            </div>
-                          )}
-                        </div>
-                      </div>
+  <div
+    key={vuln.id}
+    className="theme-card rounded-lg border theme-border p-4 hover:shadow-md transition-shadow"
+  >
+    <div
+      className="flex items-start justify-between cursor-pointer"
+      onClick={() => toggleVulnerability(vuln.id)}
+    >
+      <div className="flex items-start space-x-3 flex-1">
+        <div className="flex items-center space-x-2 mt-1">
+          {getSeverityIcon(vuln.severity)}
+          {expandedVulns.has(vuln.id) ? (
+            <ChevronDown className="w-4 h-4 theme-text-muted" />
+          ) : (
+            <ChevronRight className="w-4 h-4 theme-text-muted" />
+          )}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center space-x-2 mb-2">
+            <h4 className="font-semibold theme-text">
+              {vuln.title}
+            </h4>
+            <Badge
+              className={`text-xs ${getSeverityColor(
+                vuln.severity
+              )}`}
+            >
+              {vuln.severity}
+            </Badge>
+            {vuln.cwe_id && (
+              <Badge variant="outline" className="text-xs theme-text border-white/20">
+                {vuln. cwe_id}
+              </Badge>
+            )}
+          </div>
+          <div className="text-sm theme-text-muted mb-2">
+            <Code2 className="w-3 h-3 inline mr-1" />
+            {vuln.file_path}
+            {vuln.line_number &&
+              ` (Line ${vuln.line_number})`}
+          </div>
+          <p className="text-sm theme-text">
+            {vuln.description}
+          </p>
+        </div>
+      </div>
+      <div className="text-right">
+        {vuln.risk_score && (
+          <div className="text-sm font-semibold theme-text">
+            Risk: {vuln.risk_score. toFixed(1)}/10
+          </div>
+        )}
+      </div>
+    </div>
 
-                      {expandedVulns.has(vuln.id) && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <h5 className="font-semibold text-gray-900 mb-2">
-                                Recommendation
-                              </h5>
-                              <p className="text-sm text-gray-700 mb-4">
-                                {vuln.recommendation}
-                              </p>
-                              {vuln.fix_suggestion && (
-                                <>
-                                  <h5 className="font-semibold text-gray-900 mb-2">
-                                    Fix Suggestion
-                                  </h5>
-                                  <p className="text-sm text-gray-700">
-                                    {vuln.fix_suggestion}
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                            {vuln.code_snippet && (
-                              <div>
-                                <h5 className="font-semibold text-gray-900 mb-2">
-                                  Code Snippet
-                                </h5>
-                                <pre className="bg-gray-100 rounded p-3 text-xs overflow-x-auto">
-                                  <code>{vuln.code_snippet}</code>
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                          <div className="mt-4 flex items-center space-x-4 text-xs text-gray-500">
-                            <span>Category: {vuln.category}</span>
-                            {vuln.exploitability && (
-                              <span>Exploitability: {vuln.exploitability}</span>
-                            )}
-                            {vuln.impact && <span>Impact: {vuln.impact}</span>}
-                            <span>
-                              Detected:{" "}
-                              {new Date(vuln.detected_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+    {expandedVulns. has(vuln.id) && (
+      <div className="mt-4 pt-4 border-t theme-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h5 className="font-semibold text-sm theme-text mb-2">
+              Recommendation
+            </h5>
+            <p className="text-sm theme-text-muted bg-green-500/10 p-3 rounded border border-green-500/20">
+              {vuln.recommendation}
+            </p>
+            {vuln.fix_suggestion && (
+              <>
+                <h5 className="font-semibold text-sm theme-text mb-2 mt-3">
+                  Fix Suggestion
+                </h5>
+                <p className="text-sm theme-text-muted bg-blue-500/10 p-3 rounded border border-blue-500/20">
+                  {vuln.fix_suggestion}
+                </p>
+              </>
+            )}
+          </div>
+          {vuln.code_snippet && (
+            <div>
+              <h5 className="font-semibold text-sm theme-text mb-2">
+                Code Snippet
+              </h5>
+              <pre className="bg-gray-900 dark:bg-black/40 text-gray-100 dark:text-gray-300 rounded p-3 text-xs overflow-x-auto border border-gray-700 dark:border-white/10 font-mono">
+                <code>{vuln.code_snippet}</code>
+              </pre>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex items-center space-x-4 text-xs theme-text-muted">
+          <span>Category: {vuln.category}</span>
+          {vuln.exploitability && (
+            <span>Exploitability: {vuln.exploitability}</span>
+          )}
+          {vuln.impact && <span>Impact: {vuln. impact}</span>}
+          <span>
+            Detected:{" "}
+            {new Date(vuln.detected_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+    )}
+  </div>
+))}
 
                   {filteredVulnerabilities.length === 0 && (
                     <div className="text-center py-8">

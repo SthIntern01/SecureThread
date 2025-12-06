@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, FileCode, Shield } from "lucide-react";
+import { AlertTriangle, FileCode, Shield, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDashboardData } from '../../types/dashboard.types';
 
@@ -10,12 +10,13 @@ interface SecurityHotspotsProps {
 const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
   const hotspots = data.advancedMetrics?.vulnerabilityTrends?.security_hotspots || [];
   
-  if (!hotspots || hotspots.length === 0) {
+  if (! hotspots || hotspots. length === 0) {
     return (
       <div className="theme-card rounded-lg p-6">
         <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
-          <AlertTriangle className="w-5 h-5 mr-2" />
+          <Flame className="w-5 h-5 mr-2 text-orange-400" />
           Security Hotspots
+          <Badge className="ml-3 bg-green-500/20 text-green-300">All Clear</Badge>
         </h3>
         <div className="text-center py-8 theme-text-muted">
           <Shield className="w-12 h-12 mx-auto mb-3 text-green-400/60" />
@@ -41,51 +42,80 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
   };
 
   const getFileIcon = (filePath: string) => {
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    if (['js', 'ts', 'jsx', 'tsx'].includes(ext || '')) return '🟨';
-    if (['py'].includes(ext || '')) return '🐍';
+    const ext = filePath.split('. ').pop()?.toLowerCase();
+    if (['js', 'ts', 'jsx', 'tsx']. includes(ext || '')) return '🟨';
+    if (['py']. includes(ext || '')) return '🐍';
     if (['java'].includes(ext || '')) return '☕';
     if (['php'].includes(ext || '')) return '💜';
-    if (['sql'].includes(ext || '')) return '🗃️';
+    if (['sql']. includes(ext || '')) return '🗃️';
     if (filePath.toLowerCase().includes('dockerfile')) return '🐳';
     return '📄';
   };
 
+  const totalCritical = hotspots.reduce((sum, h) => sum + h.critical, 0);
+  const totalHigh = hotspots.reduce((sum, h) => sum + h.high, 0);
+
   return (
     <div className="theme-card rounded-lg p-6">
-      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
-        <AlertTriangle className="w-5 h-5 mr-2" />
-        Security Hotspots
-      </h3>
+      {/* Header with priority indicator */}
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold theme-text flex items-center">
+          <Flame className="w-5 h-5 mr-2 text-orange-400" />
+          Security Hotspots
+          {totalCritical > 0 && (
+            <Badge className="ml-3 bg-red-500/20 text-red-300 animate-pulse">
+              {totalCritical} Critical
+            </Badge>
+          )}
+        </h3>
+        <div className="text-sm theme-text-muted">
+          Showing top {Math.min(8, hotspots.length)} of {hotspots.length} files
+        </div>
+      </div>
+
+      {/* Priority Alert Banner */}
+      {totalCritical > 0 && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="text-red-300 font-medium text-sm">High Priority Action Required</div>
+            <div className="text-red-400/80 text-xs mt-1">
+              {totalCritical} critical vulnerabilities detected across {hotspots.filter(h => h.critical > 0).length} files.  
+              Immediate remediation recommended.
+            </div>
+          </div>
+        </div>
+      )}
       
-      <div className="space-y-3">
+      {/* Hotspots Grid - 2 columns for better readability */}
+      <div className="grid md:grid-cols-2 gap-4">
         {hotspots.slice(0, 8).map((hotspot, index) => (
           <div 
             key={`${hotspot.file_path}-${index}`}
-            className={`p-4 rounded-lg border ${getSeverityColor(hotspot.critical, hotspot.high)}`}
+            className={`p-4 rounded-lg border ${getSeverityColor(hotspot.critical, hotspot.high)} hover:scale-[1.02] transition-transform`}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-3 flex-1 min-w-0">
-                <div className="text-xl mt-0.5">
+                <div className="text-2xl mt-0.5">
                   {getFileIcon(hotspot.file_path)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-2">
                     <FileCode className="w-4 h-4 theme-text-muted" />
                     <span className="theme-text font-medium truncate" title={hotspot.file_path}>
-                      {hotspot.file_path.split('/').pop() || hotspot.file_path}
+                      {hotspot. file_path. split('/').pop() || hotspot.file_path}
                     </span>
                   </div>
-                  <div className="theme-text-muted text-xs truncate mb-2" title={hotspot.file_path}>
+                  <div className="theme-text-muted text-xs truncate mb-3" title={hotspot.file_path}>
                     {hotspot.file_path}
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge className={getSeverityBadgeColor(hotspot.critical, hotspot.high)}>
-                      {hotspot.count} issues
+                      {hotspot.count} total
                     </Badge>
                     {hotspot.critical > 0 && (
-                      <Badge className="bg-red-500/20 text-red-300">
-                        {hotspot.critical} critical
+                      <Badge className="bg-red-500/20 text-red-300 font-bold">
+                        {hotspot. critical} critical
                       </Badge>
                     )}
                     {hotspot.high > 0 && (
@@ -98,40 +128,46 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
               </div>
               
               <div className="text-right ml-3">
-                <div className="theme-text font-bold text-lg">{hotspot.count}</div>
-                <div className="theme-text-muted text-xs">vulnerabilities</div>
+                <div className="theme-text font-bold text-2xl">{hotspot.count}</div>
+                <div className="theme-text-muted text-xs">issues</div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Summary */}
-      <div className="mt-6 pt-4 border-t theme-border">
-        <div className="grid grid-cols-3 gap-4 text-center">
+      {/* Enhanced Summary Section */}
+      <div className="mt-6 pt-6 border-t theme-border">
+        <div className="grid grid-cols-4 gap-4 text-center mb-4">
           <div>
-            <div className="text-lg font-bold theme-text">
+            <div className="text-xl font-bold theme-text">
               {hotspots.length}
             </div>
             <div className="theme-text-muted text-sm">Files at Risk</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-red-400">
-              {hotspots.reduce((sum, h) => sum + h.critical, 0)}
+            <div className="text-xl font-bold text-red-400">
+              {totalCritical}
             </div>
             <div className="theme-text-muted text-sm">Critical Issues</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-orange-400">
-              {hotspots.reduce((sum, h) => sum + h.high, 0)}
+            <div className="text-xl font-bold text-orange-400">
+              {totalHigh}
             </div>
-            <div className="theme-text-muted text-sm">High Risk Issues</div>
+            <div className="theme-text-muted text-sm">High Risk</div>
+          </div>
+          <div>
+            <div className="text-xl font-bold text-yellow-400">
+              {hotspots.reduce((sum, h) => sum + h.count, 0)}
+            </div>
+            <div className="theme-text-muted text-sm">Total Vulnerabilities</div>
           </div>
         </div>
         
-        <div className="mt-4 text-center">
+        <div className="mt-4 p-3 bg-blue-500/10 rounded-lg text-center">
           <div className="theme-text-muted text-sm">
-            Focus on top {Math.min(3, hotspots.length)} files for maximum security impact
+            💡 <span className="font-medium">Pro Tip:</span> Focus on top {Math.min(3, hotspots.length)} files with critical issues for maximum security impact
           </div>
         </div>
       </div>
