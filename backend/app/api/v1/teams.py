@@ -8,9 +8,13 @@ from app.models.repository import Repository, UserRepositoryAccess
 
 from app.core.database import get_db
 from app.services.team_service import TeamService
-from app.models.team import MemberRole, MemberStatus
 from app.models.user import User
+import traceback
+from app.models.team import Team, TeamMember, MemberRole, MemberStatus, TeamInvitation
+from app.models.team_repository import TeamRepository  
+from app.models.repository import Repository  
 from app.core.security import get_current_active_user
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,17 +52,17 @@ class RoleUpdateRequest(BaseModel):
 @router.get("/members", response_model=List[MemberResponse])
 async def get_team_members(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get all team members for current user's team"""
     try:
         team_service = TeamService(db)
         
         # Get or create default team for user
-        team = team_service.get_or_create_default_team(current_user.id)
+        team = team_service.get_or_create_default_team(current_user. id)
         
-        # Get team members
-        members = team_service.get_team_members(team.id)
+        # ✅ Get team members - ONLY ACTIVE ones (filter out pending invitations)
+        members = team_service.get_team_members(team.id, active_only=True)
         
         return members
         
@@ -269,49 +273,37 @@ async def accept_invitation(
 ):
     """Accept team invitation"""
     try:
+        logger.info(f"🔍 User {current_user.id} ({current_user.email}) accepting invitation")
+        
         team_service = TeamService(db)
         
         # Accept invitation
         team_member = team_service.accept_invitation(token, current_user.id)
+        logger.info(f"✅ Team member created: user_id={current_user.id}, team_id={team_member.team_id}, role={team_member.role}")
         
-        # ✅ FIXED: Get all repositories owned by team members
-        team_repos = db.query(Repository).join(
-            TeamMember, Repository.imported_by == TeamMember.user_id
-        ).filter(
-            TeamMember.team_id == team_member.team_id,
-            TeamMember.role.in_([MemberRole.owner, MemberRole.admin])
-        ).all()
-        
-        # Give new member read access to all team repositories
-        repositories_shared = 0
-        for repo in team_repos:
-            # Check if access already exists
-            existing_access = db.query(UserRepositoryAccess).filter(
-                UserRepositoryAccess.user_id == current_user.id,
-                UserRepositoryAccess.repository_id == repo.id
-            ).first()
-            
-            if not existing_access:
-                repo_access = UserRepositoryAccess(
-                    user_id=current_user.id,
-                    repository_id=repo.id,
-                    access_level="read",  # Limited access for new members
-                    granted_by=team_member.invited_by
-                )
-                db.add(repo_access)
-                repositories_shared += 1
+        # ✅ CRITICAL: Set the invited workspace as the user's active workspace
+        current_user.active_team_id = team_member.team_id
+        db.add(current_user)
+        db.flush()
+        logger.info(f"✅ Set active_team_id={team_member.team_id} for user {current_user.id}")
         
         db.commit()
+        logger.info(f"✅ Invitation acceptance completed successfully")
         
         return {
             "message": "Invitation accepted successfully",
             "team_id": team_member.team_id,
-            "role": team_member.role.value,
-            "repositories_shared": repositories_shared
+            "team_name": team_member.team. name,
+            "role": team_member.role. value,
+            "active_team_id": current_user.active_team_id
         }
         
     except ValueError as e:
+        logger.error(f"❌ ValueError: {str(e)}")
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error accepting invitation: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"❌ Error: {str(e)}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

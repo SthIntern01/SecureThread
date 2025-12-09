@@ -57,7 +57,7 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
   const { currentWorkspace, workspaces, switchWorkspace } = useWorkspace();
 
-  const handleWorkspaceSwitch = async (workspaceId: number) => {
+  const handleWorkspaceSwitch = async (workspaceId: string) => {
     try {
       await switchWorkspace(workspaceId);
       setShowDropdown(false);

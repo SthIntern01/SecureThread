@@ -144,43 +144,44 @@ class WorkspaceService:
         workspace_id: int, 
         user_id: int
     ) -> List[Dict[str, Any]]:
-        """
-        Get all repositories in a workspace.
-        """
-        try:
-            # Verify user has access to workspace
-            team = self.db.query(Team).filter(
-                Team.id == workspace_id,
-                Team.created_by == user_id
-            ).first()
-            
-            if not team:
-                raise ValueError("Workspace not found or access denied")
+            """
+            Get all repositories in a workspace. 
+            """
+            try:
+                # ✅ FIXED: Verify user is a member of the workspace (not just creator)
+                team_member = self.db.query(TeamMember).filter(
+                    TeamMember.team_id == workspace_id,
+                    TeamMember.user_id == user_id,
+                    TeamMember.status == MemberStatus.active
+                ).first()
+                
+                if not team_member:
+                    raise ValueError("Workspace not found or access denied")
 
-            # Get repositories through the junction table
-            team_repos = self.db.query(TeamRepository).filter(
-                TeamRepository.team_id == workspace_id
-            ).all()
+                # Get repositories through the junction table
+                team_repos = self.db.query(TeamRepository).filter(
+                    TeamRepository.team_id == workspace_id
+                ).all()
 
-            repos = [tr.repository for tr in team_repos]
+                repos = [tr.repository for tr in team_repos]
 
-            return [
-                {
-                    "id": r.id,
-                    "name": r.name,
-                    "full_name": r.full_name,
-                    "description": r.description,
-                    "html_url": r.html_url,
-                    "language": r.language,
-                    "is_private": r.is_private,
-                    "source": r.source_type
-                }
-                for r in repos
-            ]
+                return [
+                    {
+                        "id": r.id,
+                        "name": r.name,
+                        "full_name": r. full_name,
+                        "description": r.description,
+                        "html_url": r.html_url,
+                        "language": r.language,
+                        "is_private": r.is_private,
+                        "source": r.source_type
+                    }
+                    for r in repos
+                ]
 
-        except Exception as e:
-            logger.error(f"Error fetching workspace repositories: {e}")
-            raise
+            except Exception as e:
+                logger.error(f"Error fetching workspace repositories: {e}")
+                raise
 
     def get_user_workspaces(self, user_id: int) -> List[Dict[str, Any]]:
         """

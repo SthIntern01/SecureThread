@@ -6,17 +6,32 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
-import weasyprint
-from weasyprint import HTML, CSS
-from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
+
+from jinja2 import Environment, FileSystemLoader
+
+logger = logging.getLogger(__name__)
+
+# Try to import WeasyPrint, but don't crash if native libs are missing
+try:
+    import weasyprint
+    from weasyprint import HTML, CSS
+    WEASYPRINT_AVAILABLE = True
+except Exception as e:
+    weasyprint = None
+    HTML = None
+    CSS = None
+    WEASYPRINT_AVAILABLE = False
+    # Log a warning so we know PDF won't work, but let the app run
+    logger.warning("WeasyPrint is not available or misconfigured: %s", e)
+
+from sqlalchemy.orm import Session
 
 from app.models.vulnerability import Scan, Vulnerability
 from app.models.repository import Repository
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+
 
 class PDFReportService:
     """Professional PDF Report Generation Service"""
@@ -82,6 +97,13 @@ class PDFReportService:
         report_type: str = "comprehensive"
     ) -> bytes:
         """Generate professional security report PDF"""
+
+
+        if not WEASYPRINT_AVAILABLE:
+            raise RuntimeError(
+                "PDF generation is not available on this system "
+                "(WeasyPrint native dependencies are missing or misconfigured)."
+            )
         
         try:
             # Get scan data with all relationships
