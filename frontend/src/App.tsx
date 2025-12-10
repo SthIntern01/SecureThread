@@ -55,6 +55,7 @@ const App = () => (
                 <Route path="/workspace/create" element={<CreateWorkspace />} />
                 <Route path="/workspace/callback" element={<WorkspaceCallback />} />
                 <Route path="/workspace/select-repositories" element={<SelectRepositories />} />
+                <Route path="/workspace-settings" element={<WorkspaceSettings />} />
 
                 {/* Protected routes */}
                 <Route

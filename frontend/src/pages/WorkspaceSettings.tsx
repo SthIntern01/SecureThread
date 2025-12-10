@@ -7,6 +7,7 @@ import AppSidebar from "@/components/AppSidebar";
 import { useAuth } from "../contexts/AuthContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import { workspaceService } from "../services/workspaceService";
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -82,6 +83,7 @@ const InviteMembersModal = ({
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  
 
   useEffect(() => {
     if (isOpen && inviteMethod === "link" && currentWorkspace?.id) {
@@ -361,6 +363,129 @@ const MemberRow = ({
   );
 };
 
+    // Repositories Tab Component
+    const RepositoriesTab = () => {
+      const { currentWorkspace } = useWorkspace();
+      const [repositories, setRepositories] = useState<any[]>([]);
+      const [loading, setLoading] = useState(true);
+      const [filter, setFilter] = useState("all");
+
+      useEffect(() => {
+        loadRepositories();
+      }, [currentWorkspace]);
+
+      const loadRepositories = async () => {
+        if (!currentWorkspace) return;
+        
+        try {
+          setLoading(true);
+          console.log('🔍 Loading repos for workspace:', currentWorkspace);
+          console.log('🔍 Workspace ID:', currentWorkspace.id);
+          
+          const repos = await workspaceService.getWorkspaceRepositories(
+            String(currentWorkspace.id)
+          );
+          
+          console.log('✅ Repositories loaded:', repos);
+          setRepositories(repos);
+        } catch (error) {
+          console.error('❌ Error loading repositories:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const filteredRepos = repositories.filter(repo => {
+        if (filter === "all") return true;
+        if (filter === "active") return ! repo.is_archived;
+        if (filter === "inactive") return repo.is_archived;
+        return true;
+      });
+
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Repositories</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button className="bg-accent hover:bg-accent/90">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Repo
+            </Button>
+          </div>
+
+          <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-white/70 mt-4">Loading repositories...</p>
+              </div>
+            ) : filteredRepos.length === 0 ? (
+              <div className="text-center py-12">
+                <Github className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold theme-text mb-2">
+                  No Repositories Found
+                </h3>
+                <p className="text-white/70 mb-6">
+                  No repositories are connected to this workspace
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredRepos.map((repo) => (
+                  <div 
+                    key={repo.id}
+                    className="flex items-center justify-between py-4 border-b theme-border last:border-b-0"
+                  >
+                    <div className="flex items-center space-x-4">
+                      <Github className="w-8 h-8 text-white/70" />
+                      <div>
+                        <h3 className="font-semibold theme-text">{repo.name}</h3>
+                        <p className="text-sm text-white/70">
+                          {repo.full_name}
+                        </p>
+                        {repo.description && (
+                          <p className="text-xs text-white/50 mt-1">
+                            {repo.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      {repo.language && (
+                        <Badge className="bg-blue-100 text-blue-800">
+                          {repo.language}
+                        </Badge>
+                      )}
+                      <Badge className={repo.is_private ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}>
+                        {repo.is_private ? "Private" : "Public"}
+                      </Badge>
+                      <a 
+                        href={repo.html_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline text-sm"
+                      >
+                        View on GitHub →
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+
 const WorkspaceSettings = () => {
   const { user } = useAuth();
   const { currentWorkspace } = useWorkspace();
@@ -369,6 +494,11 @@ const WorkspaceSettings = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const navigate = useNavigate();
   
   // Real data loading
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -382,6 +512,8 @@ const WorkspaceSettings = () => {
 
   useEffect(() => {
     loadMembers();
+    const interval = setInterval(loadMembers, 10000);
+    return () => clearInterval(interval);
   }, [currentWorkspace]);
 
   const loadMembers = async () => {
@@ -442,6 +574,35 @@ const handleChangeRole = async (id: number, newRole: string) => {
     alert("Failed to update member role");
   }
 };
+
+const handleDeleteWorkspace = async () => {
+    if (!currentWorkspace) return;
+    
+    if (deleteConfirmText !== currentWorkspace.name) {
+      setDeleteError('Workspace name does not match');
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setDeleteError('');
+      
+      console.log('🗑️ Deleting workspace:', currentWorkspace.id);
+      
+      const result = await workspaceService.deleteWorkspace(currentWorkspace.id);
+      
+      console.log('✅ Workspace deleted successfully');
+      
+      // Redirect to home and reload
+      navigate('/');
+      window.location.reload();
+      
+    } catch (error:  any) {
+      console.error('❌ Error deleting workspace:', error);
+      setDeleteError(error.message || 'Failed to delete workspace');
+      setIsDeleting(false);
+    }
+  };
 
   const handleInviteSent = () => {
     loadMembers();
@@ -629,50 +790,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
                 )}
 
                 {/* Repositories Tab */}
-                {activeTab === "repositories" && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <Select defaultValue="all">
-                        <SelectTrigger className="w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Repositories</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button className="bg-accent hover:bg-accent/90">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Repo
-                      </Button>
-                    </div>
-
-                    <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between py-4 border-b theme-border">
-                          <div className="flex items-center space-x-4">
-                            <Github className="w-8 h-8 text-white/70" />
-                            <div>
-                              <h3 className="font-semibold theme-text">deb-project</h3>
-                              <p className="text-sm text-white/70">
-                                Sanjanadev/deb-project
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <Badge className="bg-green-100 text-green-800">
-                              Active
-                            </Badge>
-                            <span className="text-sm text-white/70">
-                              Last scan: 6m ago
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  {activeTab === "repositories" && <RepositoriesTab />}
 
                 {/* Other Tabs - Empty States */}
                 {activeTab === "clouds" && (
@@ -766,37 +884,125 @@ const handleChangeRole = async (id: number, newRole: string) => {
                 )}
 
                 {activeTab === "advanced" && (
-                  <div className="space-y-6">
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
-                      <h3 className="text-xl font-semibold text-red-400 mb-4">
-                        Danger Zone
-                      </h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between py-4 border-b theme-border">
-                          <div>
-                            <h4 className="font-semibold theme-text">
-                              Delete Workspace
-                            </h4>
-                            <p className="text-sm text-white/70">
-                              Permanently delete this workspace and all its data
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            className="border-red-500 text-red-500 hover:bg-red-500/10"
-                          >
+                <div className="space-y-6">
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
+                    <h3 className="text-xl font-semibold text-red-400 mb-4">
+                      Danger Zone
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-4">
+                        <div>
+                          <h4 className="font-semibold theme-text">
                             Delete Workspace
-                          </Button>
+                          </h4>
+                          <p className="text-sm text-white/70">
+                            Permanently delete this workspace and all its data
+                          </p>
                         </div>
+                        <Button
+                          onClick={() => setShowDeleteModal(true)}
+                          variant="outline"
+                          className="border-red-500 text-red-500 hover: bg-red-500/10"
+                        >
+                          Delete Workspace
+                        </Button>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
+
               </div>
             </div>
           </div>
         </div>
       </div>
+      
+       
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-red-500/20">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Delete Workspace? 
+              </h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark: border-red-900/30 rounded-lg p-4">
+                <p className="text-sm text-red-900 dark: text-red-100 font-medium mb-2">
+                  ⚠️ This action cannot be undone! 
+                </p>
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  All repositories, scans, team members, and data will be permanently deleted. 
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                  Type <strong className="text-red-600">{currentWorkspace?.name}</strong> to confirm: 
+                </label>
+                <Input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => {
+                    setDeleteConfirmText(e.target. value);
+                    setDeleteError('');
+                  }}
+                  placeholder="Enter workspace name"
+                  className="w-full border-2 border-gray-300 dark:border-neutral-600 focus:border-red-500 dark:focus:border-red-500"
+                  disabled={isDeleting}
+                  autoFocus
+                />
+              </div>
+              
+              {deleteError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 rounded-lg p-3">
+                  <p className="text-sm text-red-600 dark:text-red-400 flex items-center">
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    {deleteError}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex space-x-3 pt-4">
+                <Button
+                  onClick={handleDeleteWorkspace}
+                  disabled={isDeleting || deleteConfirmText !== currentWorkspace?. name}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed text-white"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Deleting... 
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Workspace
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteConfirmText('');
+                    setDeleteError('');
+                  }}
+                  disabled={isDeleting}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <InviteMembersModal
         isOpen={showInviteModal}
@@ -806,5 +1012,7 @@ const handleChangeRole = async (id: number, newRole: string) => {
     </div>
   );
 };
+
+
 
 export default WorkspaceSettings;
