@@ -7,38 +7,33 @@
 </head>
 <body>
     <div class="cover-page">
-        <!-- Header with logo -->
-        <div class="cover-header">
-            <div class="header-logo">
-                <span class="header-logo-text">SANDBOX SECURITY</span>
-            </div>
-        </div>
+        <!-- Blue wave header -->
+        <div class="cover-wave-header"></div>
         
-        <!-- Main content centered -->
-        <div class="cover-main-content">
+        <!-- White wave overlay -->
+        <div class="cover-wave-overlay"></div>
+        
+        <!-- Bottom yellow bar -->
+        <div class="cover-bottom-bar"></div>
+        
+        <!-- Main content - centered -->
+        <div class="cover-content">
+            <!-- Title -->
             <div class="cover-title">
-                <h1>Vulnerability Assessment</h1>
-                <h1>Report</h1>
+                <h1>SECURETHREAD OPS VMS</h1>
+                <h2>Vulnerability Report</h2>
             </div>
             
-            <div class="cover-repository-info">
-                <div class="repo-name">{{ repository.name }}</div>
-                <div class="repo-details">{{ metadata.report_id }}</div>
-                <div class="repo-url">{{ repository.html_url or repository.full_name }}</div>
+            <!-- Repository name -->
+            <div class="cover-subtitle">
+                <div class="repo-name">{{ repository. name }}</div>
             </div>
         </div>
         
         <!-- Footer -->
         <div class="cover-footer">
-            <div class="footer-left">
-                <div class="confidential-text">Confidential</div>
-                <div class="scan-date">Scan Date: {{ scan.completed_at|datetime_format('short') if scan.completed_at else scan.started_at|datetime_format('short') }}</div>
-            </div>
-            
-            <div class="footer-right">
-                <div class="footer-logo">
-                    <img src="images/sandboxlogo.png" alt="Sandbox Security" class="footer-logo-img">
-                </div>
+            <div class="footer-company">
+                <div class="company-name">Sandboxsecurity. ai</div>
             </div>
         </div>
     </div>

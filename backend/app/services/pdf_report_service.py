@@ -1,4 +1,4 @@
-# backend/app/services/pdf_report_service.py - SIMPLIFIED VERSION
+# backend/app/services/pdf_report_service.py
 
 import os
 import io
@@ -6,12 +6,14 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from collections import Counter
+
+# Third-party imports
 from jinja2 import Environment, FileSystemLoader
-import weasyprint
 from weasyprint import HTML, CSS
 from sqlalchemy.orm import Session
-from collections import Counter, defaultdict
 
+# App imports
 from app.models.vulnerability import Scan, Vulnerability
 from app.models.repository import Repository
 from app.models.user import User
@@ -19,13 +21,16 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 class PDFReportService:
-    """Professional PDF Report Generation Service"""
-    
+    """
+    Professional PDF Report Generation Service
+    Matches Sandbox Security / Pay10 Black Box Penetration Testing Report Standards.
+    """
+
     def __init__(self):
         self.base_path = Path(__file__).parent.parent
         self.templates_path = self.base_path / "templates" / "reports"
         self.static_path = self.base_path / "static"
-        
+
         # Initialize Jinja2 environment
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(self.templates_path)),
@@ -33,47 +38,72 @@ class PDFReportService:
             trim_blocks=True,
             lstrip_blocks=True
         )
-        
-        # Register filters using the correct method
+
+        # Register filters
         self._register_filters()
-        
+
         # Ensure directories exist
         self.templates_path.mkdir(parents=True, exist_ok=True)
         self.static_path.mkdir(parents=True, exist_ok=True)
-    
+
     def _register_filters(self):
-        """Register Jinja2 filters"""
-        
+        """Register Jinja2 filters for template rendering"""
+
         def datetime_format(dt, format_type='full'):
+            """Format datetime objects in various formats"""
             if isinstance(dt, str):
                 try:
                     dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
-                except:
+                except ValueError:
                     return dt
-            
+
             if not dt:
                 return "N/A"
-            
+
             formats = {
                 'full': "%B %d, %Y at %I:%M %p UTC",
-                'date': "%B %d, %Y", 
+                'date': "%B %d, %Y",
                 'time': "%I:%M %p UTC",
                 'short': "%m/%d/%Y",
-                'iso': "%Y-%m-%d %H:%M:%S"
+                'iso': "%Y-%m-%d %H:%M:%S",
+                'ordinal': self._format_ordinal_date(dt),
+                'month_year': "%B %Y"
             }
-            
+
             return dt.strftime(formats.get(format_type, formats['full']))
-        
+
         def currency(value):
+            """Format numbers as currency"""
             try:
                 return f"${float(value):,.0f}"
-            except:
+            except (ValueError, TypeError):
                 return "$0"
-        
-        # Register filters
+
+        def percentage(value):
+            """Format numbers as percentage"""
+            try:
+                return f"{float(value):.1f}%"
+            except (ValueError, TypeError):
+                return "0%"
+
+        # Register all filters
         self.jinja_env.filters['datetime_format'] = datetime_format
         self.jinja_env.filters['currency'] = currency
-    
+        self.jinja_env.filters['percentage'] = percentage
+
+    def _format_ordinal_date(self, dt):
+        """Format date with ordinal suffix (e.g., November 7th, 2025)"""
+        if not dt:
+            return "N/A"
+
+        day = dt.day
+        if 4 <= day <= 20 or 24 <= day <= 30:
+            suffix = "th"
+        else:
+            suffix = ["st", "nd", "rd"][day % 10 - 1]
+
+        return dt.strftime(f"%B {day}{suffix}, %Y")
+
     async def generate_security_report(
         self,
         scan_id: int,
@@ -81,337 +111,771 @@ class PDFReportService:
         user: User,
         report_type: str = "comprehensive"
     ) -> bytes:
-        """Generate professional security report PDF"""
-        
+        """
+        Generate professional security report PDF matching Sandbox Security template.
+
+        Args:
+            scan_id: ID of the scan to generate report for
+            db: Database session
+            user: Current user
+            report_type: Type of report (comprehensive or executive)
+
+        Returns:
+            bytes: PDF content
+        """
         try:
             # Get scan data with all relationships
             scan = db.query(Scan).filter(Scan.id == scan_id).first()
             if not scan:
                 raise ValueError(f"Scan {scan_id} not found")
-            
+
             # Get repository
             repository = db.query(Repository).filter(Repository.id == scan.repository_id).first()
             if not repository:
                 raise ValueError(f"Repository {scan.repository_id} not found")
-            
+
             # Verify ownership
             if repository.owner_id != user.id:
                 raise PermissionError("Access denied to scan")
-            
-            # Get vulnerabilities
+
+            # Get vulnerabilities ordered by severity and risk
             vulnerabilities = db.query(Vulnerability).filter(
                 Vulnerability.scan_id == scan_id
             ).order_by(
                 Vulnerability.severity.desc(),
                 Vulnerability.risk_score.desc()
             ).all()
-            
-            # Prepare report data
+
+            # Prepare comprehensive report data
             report_data = self._prepare_report_data(scan, repository, vulnerabilities, user)
-            
+
             # Generate PDF
             return await self._generate_comprehensive_report(report_data)
-                
+
         except Exception as e:
             logger.error(f"Error generating PDF report for scan {scan_id}: {e}", exc_info=True)
             raise
-    
+
     def _prepare_report_data(self, scan: Scan, repository: Repository, vulnerabilities: List[Vulnerability], user: User) -> Dict[str, Any]:
-        """Prepare comprehensive data for report generation"""
-        
-        # Calculate metrics
+        """
+        Prepare comprehensive data structure for report generation.
+        Matches the exact structure needed for the Sandbox Security template.
+        """
+
+        # ========================================
+        # SECTION 1: Calculate Basic Metrics
+        # ========================================
+
         total_vulns = len(vulnerabilities)
+
+        # Count vulnerabilities by severity
         severity_counts = {
             'critical': sum(1 for v in vulnerabilities if v.severity == 'critical'),
-            'high': sum(1 for v in vulnerabilities if v.severity == 'high'), 
+            'high': sum(1 for v in vulnerabilities if v.severity == 'high'),
             'medium': sum(1 for v in vulnerabilities if v.severity == 'medium'),
             'low': sum(1 for v in vulnerabilities if v.severity == 'low')
         }
-        
-        # Risk assessment
+
+        # ========================================
+        # SECTION 2: CVSS Ranges and Definitions
+        # ========================================
+
+        cvss_ranges = {
+            'critical': '9.0-10.0',
+            'high': '7.0-8.9',
+            'medium': '4.0-6.9',
+            'low': '0.1-3.9',
+            'informational': 'N/A'
+        }
+
+        severity_definitions = {
+            'critical': 'Exploitation is straightforward and usually results in system-level compromise. It is advised to form a plan of action and patch immediately.',
+            'high': 'Exploitation is more difficult but could cause elevated privileges and potentially a loss of data or downtime. It is advised to form a plan of action and patch as soon as possible.',
+            'medium': 'Vulnerabilities exist but are not exploitable or require extra steps such as social engineering, access (privileged or regular). It is advised to form a plan of action and patch after high-priority issues have been resolved.',
+            'low': 'Vulnerabilities are non-exploitable but would reduce an organization\'s attack surface. It is advised to form a plan of action and patch during the next maintenance window.',
+            'informational': 'No vulnerability exists. Additional information is provided regarding items noticed during testing, strong controls, and additional documentation.'
+        }
+
+        # ========================================
+        # SECTION 3: Risk Assessment
+        # ========================================
+
         risk_score = self._calculate_overall_risk(vulnerabilities)
         risk_level = self._get_risk_level(risk_score)
-        
-        # Vulnerability by category
+        threat_level = self._calculate_threat_level(vulnerabilities)
+
+        # ========================================
+        # SECTION 4: Vulnerability Categorization
+        # ========================================
+
+        # Group by category
         categories = {}
         for vuln in vulnerabilities:
             cat = vuln.category or 'Other'
             if cat not in categories:
-                categories[cat] = {'count': 0, 'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+                categories[cat] = {
+                    'count': 0,
+                    'critical': 0,
+                    'high': 0,
+                    'medium': 0,
+                    'low': 0,
+                    'vulnerabilities': []
+                }
             categories[cat]['count'] += 1
             categories[cat][vuln.severity] += 1
-        
-        # OWASP Top 10 mapping
+            categories[cat]['vulnerabilities'].append(vuln)
+
+        # Group by OWASP category
         owasp_mapping = {}
         for vuln in vulnerabilities:
             if vuln.owasp_category:
                 cat = vuln.owasp_category
                 if cat not in owasp_mapping:
-                    owasp_mapping[cat] = {'count': 0, 'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+                    owasp_mapping[cat] = {
+                        'count': 0,
+                        'critical': 0,
+                        'high': 0,
+                        'medium': 0,
+                        'low': 0
+                    }
                 owasp_mapping[cat]['count'] += 1
                 owasp_mapping[cat][vuln.severity] += 1
-        
-        # File statistics
+
+        # ========================================
+        # SECTION 5: File Analysis
+        # ========================================
+
         file_counts = Counter(v.file_path for v in vulnerabilities if v.file_path)
-        hotspots = [{'file': file_path, 'vulnerability_count': count, 'risk_level': 'High' if count >= 3 else 'Medium', 'recommendation': 'Priority refactoring required'} 
-                   for file_path, count in file_counts.items() if count >= 2]
-        
-        # Attack vectors
+
+        # Identify hotspot files (files with multiple vulnerabilities)
+        hotspots = []
+        for file_path, count in file_counts.items():
+            if count >= 2:
+                file_vulns = [v for v in vulnerabilities if v.file_path == file_path]
+                hotspots.append({
+                    'file': file_path,
+                    'vulnerability_count': count,
+                    'risk_level': 'Critical' if count >= 5 else 'High' if count >= 3 else 'Medium',
+                    'severity_breakdown': {
+                        'critical': sum(1 for v in file_vulns if v.severity == 'critical'),
+                        'high': sum(1 for v in file_vulns if v.severity == 'high'),
+                        'medium': sum(1 for v in file_vulns if v.severity == 'medium'),
+                        'low': sum(1 for v in file_vulns if v.severity == 'low'),
+                    },
+                    'recommendation': 'Priority refactoring required' if count >= 3 else 'Review and remediate'
+                })
+
+        # Sort hotspots by vulnerability count
+        hotspots.sort(key=lambda x: x['vulnerability_count'], reverse=True)
+
+        # ========================================
+        # SECTION 6: Attack Vector Analysis
+        # ========================================
+
         attack_vectors = []
+
+        # Injection vulnerabilities
         injection_vulns = [v for v in vulnerabilities if 'injection' in (v.category or '').lower()]
         if injection_vulns:
             attack_vectors.append({
                 'vector': 'Code Injection',
                 'count': len(injection_vulns),
-                'risk': 'High',
-                'description': 'Malicious code execution through input validation failures'
+                'risk': 'High' if len(injection_vulns) >= 3 else 'Medium',
+                'description': 'Malicious code execution through input validation failures',
+                'severity_breakdown': {
+                    'critical': sum(1 for v in injection_vulns if v.severity == 'critical'),
+                    'high': sum(1 for v in injection_vulns if v.severity == 'high'),
+                    'medium': sum(1 for v in injection_vulns if v.severity == 'medium'),
+                }
             })
-        
-        # Business calculations
+
+        # Authentication/Authorization issues
+        auth_vulns = [v for v in vulnerabilities if any(
+            keyword in (v.category or '').lower()
+            for keyword in ['authentication', 'authorization', 'access control']
+        )]
+        if auth_vulns:
+            attack_vectors.append({
+                'vector': 'Authentication & Authorization',
+                'count': len(auth_vulns),
+                'risk': 'High' if len(auth_vulns) >= 2 else 'Medium',
+                'description': 'Unauthorized access through weak authentication or authorization controls',
+                'severity_breakdown': {
+                    'critical': sum(1 for v in auth_vulns if v.severity == 'critical'),
+                    'high': sum(1 for v in auth_vulns if v.severity == 'high'),
+                    'medium': sum(1 for v in auth_vulns if v.severity == 'medium'),
+                }
+            })
+
+        # Cryptography issues
+        crypto_vulns = [v for v in vulnerabilities if 'crypt' in (v.category or '').lower()]
+        if crypto_vulns:
+            attack_vectors.append({
+                'vector': 'Cryptographic Weaknesses',
+                'count': len(crypto_vulns),
+                'risk': 'High',
+                'description': 'Weak cryptographic implementations that could expose sensitive data',
+                'severity_breakdown': {
+                    'critical': sum(1 for v in crypto_vulns if v.severity == 'critical'),
+                    'high': sum(1 for v in crypto_vulns if v.severity == 'high'),
+                    'medium': sum(1 for v in crypto_vulns if v.severity == 'medium'),
+                }
+            })
+
+        # ========================================
+        # SECTION 7: Business Impact Calculations
+        # ========================================
+
+        # Cost estimates based on industry standards
         critical_cost = severity_counts['critical'] * 50000
         high_cost = severity_counts['high'] * 25000
         medium_cost = severity_counts['medium'] * 10000
         low_cost = severity_counts['low'] * 2500
-        
+
         potential_cost = critical_cost + high_cost + medium_cost + low_cost
         remediation_cost = self._calculate_remediation_cost(vulnerabilities)
+        cost_avoidance = max(0, potential_cost - remediation_cost)
         roi_percentage = ((potential_cost - remediation_cost) / max(remediation_cost, 1)) * 100 if remediation_cost > 0 else 0
-        
-        # Resource estimation
+
+        # Resource estimation (developer days)
         severity_effort = {'critical': 3, 'high': 2, 'medium': 1, 'low': 0.5}
         total_days = sum(severity_effort.get(v.severity, 1) for v in vulnerabilities)
-        
+        security_specialist_days = max(5, total_days * 0.2)
+        project_manager_days = max(2, total_days * 0.1)
+
+        # Timeline estimation
+        timeline_weeks = max(2, total_days / 5)
+
+        # ========================================
+        # SECTION 8: Prepare Metadata
+        # ========================================
+
+        metadata = {
+            'generated_at': datetime.utcnow(),
+            'report_version': '1.0',
+            'report_id': f"PEN-TEST-{repository.name.upper()}-{scan.id}",
+            'company': 'Sandbox Security',
+            'tagline': 'sandboxsecurity.ai',
+            'contact_email': 'rahul@sandboxsecurity.ai',
+            'scan_id': scan.id,
+            'analyst': {
+                'name': user.full_name or user.email,
+                'email': user.email,
+                'title': 'Security Assessment Specialist',
+                'organization': 'Sandbox Security'
+            },
+            'classification': 'CONFIDENTIAL',
+            'client_name': repository.name,
+        }
+
+        # ========================================
+        # SECTION 9: Repository Information
+        # ========================================
+
+        repository_data = {
+            'name': repository.name,
+            'full_name': repository.full_name,
+            'description': repository.description or "Security assessment of application codebase",
+            'source': repository.source_type.title() if repository.source_type else 'Unknown',
+            'url': repository.html_url or repository.full_name,
+            'language': repository.language or "Mixed",
+            'is_private': repository.is_private,
+            'visibility': "Private" if repository.is_private else "Public",
+            'owner': repository.owner.email if hasattr(repository, 'owner') else 'N/A',
+        }
+
+        # ========================================
+        # SECTION 10: Scan Information
+        # ========================================
+
+        scan_data = {
+            'id': scan.id,
+            'status': scan.status.title(),
+            'started_at': scan.started_at,
+            'completed_at': scan.completed_at,
+            'duration': scan.scan_duration or "Unknown",
+            'files_scanned': scan.total_files_scanned or 0,
+            'methodology': 'Black Box Penetration Testing',
+            'scan_type': getattr(scan, 'scan_type', 'standard').title(),
+            'assessment_period': self._format_assessment_period(scan.started_at, scan.completed_at),
+            'assessment_date': scan.completed_at or scan.started_at or datetime.utcnow(),
+        }
+
+        # ========================================
+        # SECTION 11: Security Metrics
+        # ========================================
+
+        security_data = {
+            'total_vulnerabilities': total_vulns,
+            'severity_counts': severity_counts,
+            'severity_definitions': severity_definitions,
+            'cvss_ranges': cvss_ranges,
+            'security_score': scan.security_score or 0,
+            'code_coverage': scan.code_coverage or 0,
+            'risk_score': risk_score,
+            'risk_level': risk_level,
+            'threat_level': threat_level,
+            'vulnerability_density': len(vulnerabilities) / max(1, scan.total_files_scanned or 1),
+        }
+
+        # ========================================
+        # SECTION 12: Process Vulnerabilities
+        # ========================================
+
+        processed_vulnerabilities = []
+        for i, v in enumerate(vulnerabilities):
+            vuln_data = {
+                'index': i + 1,
+                'id': v.id,
+                'title': v.title,
+                'description': v.description or 'No description provided',
+                'severity': v.severity,
+                'severity_label': v.severity.upper(),
+                'category': v.category or 'Uncategorized',
+                'cwe_id': v.cwe_id,
+                'owasp_category': v.owasp_category,
+                'file_path': v.file_path,
+                'line_number': v.line_number,
+                'code_snippet': v.code_snippet,
+                'recommendation': v.recommendation or 'Remediate this vulnerability following security best practices',
+                'fix_suggestion': v.fix_suggestion,
+                'risk_score': v.risk_score or 5.0,
+                'exploitability': v.exploitability or 'Medium',
+                'impact': v.impact or 'Medium',
+                'detected_at': v.detected_at,
+                'business_impact': self._assess_business_impact(v.severity),
+                'remediation_effort': self._estimate_remediation_effort(v.category),
+                'priority_score': self._calculate_priority_score(v),
+                'cvss_score': self._estimate_cvss_score(v.severity, v.risk_score),
+            }
+            processed_vulnerabilities.append(vuln_data)
+
+        # ========================================
+        # SECTION 13: Analysis Data
+        # ========================================
+
+        analysis_data = {
+            'categories': categories,
+            'hotspots': hotspots,
+            'attack_vectors': attack_vectors,
+            'owasp_mapping': owasp_mapping,
+            'file_analysis': {
+                'total_affected_files': len(file_counts),
+                'vulnerable_files': len([f for f in file_counts if file_counts[f] > 0]),
+                'most_vulnerable_files': dict(file_counts.most_common(10)),
+                'vulnerability_density': len(vulnerabilities) / max(1, scan.total_files_scanned or 1),
+                'hotspot_count': len(hotspots),
+            },
+            'technology_analysis': {
+                'primary_language': repository.language or 'Mixed',
+                'security_maturity': self._assess_security_maturity(vulnerabilities),
+                'code_quality': self._assess_code_quality(vulnerabilities, scan.total_files_scanned or 1),
+            }
+        }
+
+        # ========================================
+        # SECTION 14: Business Data
+        # ========================================
+
+        business_data = {
+            'potential_cost': potential_cost,
+            'remediation_cost': remediation_cost,
+            'cost_avoidance': cost_avoidance,
+            'roi_percentage': max(0, roi_percentage),
+            'payback_period_months': self._calculate_payback_period(remediation_cost, potential_cost),
+            'business_risk_level': self._assess_business_risk_level(vulnerabilities),
+            'compliance_impact': self._assess_compliance_impact(vulnerabilities),
+            'operational_impact': self._assess_operational_impact(vulnerabilities),
+            'reputation_impact': self._assess_reputation_impact(vulnerabilities),
+        }
+
+        # ========================================
+        # SECTION 15: Compliance Data
+        # ========================================
+
+        compliance_data = {
+            'owasp_mapping': owasp_mapping,
+            'cwe_coverage': len(set(v.cwe_id for v in vulnerabilities if v.cwe_id)),
+            'compliance_scores': {
+                'OWASP Top 10': self._calculate_owasp_compliance(vulnerabilities),
+                'CWE Coverage': min(100, len(set(v.cwe_id for v in vulnerabilities if v.cwe_id)) * 5),
+                'ISO 27001': 82.0,
+                'NIST Framework': 80.0,
+            },
+            'overall_compliance': self._calculate_overall_compliance(vulnerabilities),
+        }
+
+        # ========================================
+        # SECTION 16: Recommendations
+        # ========================================
+
+        recommendations = self._generate_recommendations(scan, vulnerabilities, severity_counts)
+
+        # ========================================
+        # SECTION 17: Resource Estimates
+        # ========================================
+
+        resources = {
+            'developer_days': total_days,
+            'security_specialist_days': security_specialist_days,
+            'project_manager_days': project_manager_days,
+            'estimated_cost': total_days * 800,  # $800 per developer day
+            'timeline_weeks': timeline_weeks,
+            'team_size': max(2, int(total_days / timeline_weeks / 5)) if timeline_weeks > 0 else 2,
+        }
+
+        # ========================================
+        # SECTION 18: Executive Summary
+        # ========================================
+
+        executive_summary = self._generate_executive_summary(
+            repository_data,
+            severity_counts,
+            risk_level,
+            scan_data
+        )
+
+        # ========================================
+        # SECTION 19: Return Complete Data Structure
+        # ========================================
+
         return {
-            'metadata': {
-                'generated_at': datetime.utcnow(),
-                'report_version': '3.0',
-                'report_id': f"SSR-{scan.id}-{datetime.utcnow().strftime('%Y%m%d')}",
-                'company': 'Sandbox Security',
-                'tagline': 'Enterprise Security Assessment Platform',
-                'scan_id': scan.id,
-                'analyst': {
-                    'name': user.full_name or user.email,
-                    'email': user.email,
-                    'title': 'Security Assessment Specialist',
-                    'organization': 'Sandbox Security'
-                },
-                'classification': 'CONFIDENTIAL',
-            },
-            'repository': {
-                'name': repository.name,
-                'full_name': repository.full_name,
-                'description': repository.description or "No description provided",
-                'source': repository.source_type.title() if repository.source_type else 'Unknown',
-                'url': repository.html_url,
-                'language': repository.language or "Mixed",
-                'is_private': repository.is_private,
-                'visibility': "Private" if repository.is_private else "Public",
-            },
-            'scan': {
-                'id': scan.id,
-                'status': scan.status.title(),
-                'started_at': scan.started_at,
-                'completed_at': scan.completed_at,
-                'duration': scan.scan_duration or "Unknown",
-                'files_scanned': scan.total_files_scanned or 0,
-                'methodology': self._get_scan_methodology(getattr(scan, 'scan_type', 'standard')),
-            },
-            'security': {
-                'total_vulnerabilities': total_vulns,
-                'severity_counts': severity_counts,
-                'security_score': scan.security_score or 0,
-                'code_coverage': scan.code_coverage or 0,
-                'risk_score': risk_score,
-                'risk_level': risk_level,
-                'threat_level': self._calculate_threat_level(vulnerabilities),
-            },
-            'vulnerabilities': [
-                {
-                    'index': i + 1,
-                    'id': v.id,
-                    'title': v.title,
-                    'description': v.description,
-                    'severity': v.severity,
-                    'category': v.category,
-                    'cwe_id': v.cwe_id,
-                    'owasp_category': v.owasp_category,
-                    'file_path': v.file_path,
-                    'line_number': v.line_number,
-                    'code_snippet': v.code_snippet,
-                    'recommendation': v.recommendation,
-                    'fix_suggestion': v.fix_suggestion,
-                    'risk_score': v.risk_score or 5.0,
-                    'exploitability': v.exploitability or 'Medium',
-                    'impact': v.impact or 'Medium',
-                    'detected_at': v.detected_at,
-                    'business_impact': self._assess_business_impact(v.severity),
-                    'remediation_effort': self._estimate_remediation_effort(v.category),
-                    'priority_score': self._calculate_priority_score(v),
-                }
-                for i, v in enumerate(vulnerabilities)
-            ],
-            'analysis': {
-                'categories': categories,
-                'hotspots': hotspots,
-                'attack_vectors': attack_vectors,
-                'patterns': [],  # Simplified for now
-                'file_analysis': {
-                    'total_affected_files': len(file_counts),
-                    'vulnerable_files': len([f for f in file_counts if file_counts[f] > 0]),
-                    'most_vulnerable_files': dict(file_counts.most_common(10)),
-                    'vulnerability_density': len(vulnerabilities) / max(1, scan.total_files_scanned or 1),
-                },
-                'technology_analysis': {
-                    'security_maturity': self._assess_security_maturity(vulnerabilities),
-                    'framework_vulnerabilities': {},
-                    'library_recommendations': [],
-                }
-            },
-            'business': {
-                'potential_cost': potential_cost,
-                'remediation_cost': remediation_cost,
-                'cost_avoidance': max(0, potential_cost - remediation_cost),
-                'roi_percentage': max(0, roi_percentage),
-                'payback_period_months': max(1, remediation_cost / max(potential_cost / 12, 1000)),
-                'business_risk_level': self._assess_business_risk_level(vulnerabilities),
-                'compliance_impact': self._assess_compliance_impact(vulnerabilities),
-                'operational_impact': self._assess_operational_impact(vulnerabilities),
-                'reputation_impact': self._assess_reputation_impact(vulnerabilities),
-            },
-            'compliance': {
-                'owasp_mapping': owasp_mapping,
-                'cwe_mapping': {},
-                'compliance_scores': {
-                    'OWASP Top 10': 85.0,
-                    'CWE Coverage': 78.0,
-                    'ISO 27001': 82.0,
-                    'NIST Framework': 80.0,
-                },
-                'overall_compliance': 81.25,
-            },
-            'recommendations': self._generate_recommendations(scan, vulnerabilities),
-            'resources': {
-                'developer_days': total_days,
-                'security_specialist_days': max(5, total_days * 0.2),
-                'project_manager_days': max(2, total_days * 0.1),
-                'estimated_cost': total_days * 800,
-                'timeline_weeks': max(2, total_days / 5),
-            },
+            'metadata': metadata,
+            'repository': repository_data,
+            'scan': scan_data,
+            'security': security_data,
+            'vulnerabilities': processed_vulnerabilities,
+            'analysis': analysis_data,
+            'business': business_data,
+            'compliance': compliance_data,
+            'recommendations': recommendations,
+            'resources': resources,
+            'executive_summary': executive_summary,
         }
-    
-    def _get_scan_methodology(self, scan_type: str) -> str:
-        methodologies = {
-            'ai': 'AI-Enhanced Static Analysis',
-            'custom': 'Custom Rule-Based Analysis',
-            'standard': 'Comprehensive Static Analysis'
+
+    # ========================================
+    # HELPER METHODS FOR DATA PREPARATION
+    # ========================================
+
+    def _format_assessment_period(self, start_date, end_date):
+        """Format assessment period as 'Month Day, Year to Month Day, Year'"""
+        if not start_date:
+            return "N/A"
+
+        start_str = start_date.strftime("%B %d, %Y") if start_date else "N/A"
+        end_str = end_date.strftime("%B %d, %Y") if end_date else "Ongoing"
+
+        return f"{start_str} to {end_str}"
+
+    def _estimate_cvss_score(self, severity: str, risk_score: Optional[float]) -> str:
+        """Estimate CVSS score based on severity"""
+        if risk_score:
+            return f"{risk_score:.1f}"
+
+        score_ranges = {
+            'critical': '9.5',
+            'high': '7.5',
+            'medium': '5.5',
+            'low': '2.5'
         }
-        return methodologies.get(scan_type, 'Standard Security Assessment')
-    
+        return score_ranges.get(severity, '5.0')
+
+    def _calculate_payback_period(self, remediation_cost: float, potential_cost: float) -> float:
+        """Calculate payback period in months"""
+        if potential_cost == 0:
+            return 0
+
+        monthly_savings = potential_cost / 12
+        if monthly_savings == 0:
+            return 12
+
+        return max(1, remediation_cost / monthly_savings)
+
+    def _calculate_owasp_compliance(self, vulnerabilities: List[Vulnerability]) -> float:
+        """Calculate OWASP Top 10 compliance score"""
+        if not vulnerabilities:
+            return 100.0
+
+        owasp_vulns = [v for v in vulnerabilities if v.owasp_category]
+        if not owasp_vulns:
+            return 90.0
+
+        # Calculate based on severity
+        critical_count = sum(1 for v in owasp_vulns if v.severity == 'critical')
+        high_count = sum(1 for v in owasp_vulns if v.severity == 'high')
+
+        if critical_count > 0:
+            return max(50, 100 - (critical_count * 15) - (high_count * 5))
+        elif high_count > 0:
+            return max(70, 100 - (high_count * 5))
+        else:
+            return 85.0
+
+    def _calculate_overall_compliance(self, vulnerabilities: List[Vulnerability]) -> float:
+        """Calculate overall compliance score"""
+        if not vulnerabilities:
+            return 95.0
+
+        total_vulns = len(vulnerabilities)
+        critical_count = sum(1 for v in vulnerabilities if v.severity == 'critical')
+        high_count = sum(1 for v in vulnerabilities if v.severity == 'high')
+
+        # Base score
+        base_score = 100
+
+        # Deduct points
+        base_score -= (critical_count * 20)
+        base_score -= (high_count * 10)
+        base_score -= ((total_vulns - critical_count - high_count) * 2)
+
+        return max(40.0, min(100.0, base_score))
+
     def _calculate_overall_risk(self, vulnerabilities: List[Vulnerability]) -> float:
+        """Calculate overall risk score (0-10)"""
         if not vulnerabilities:
             return 0.0
-        
+
         weights = {'critical': 10, 'high': 7, 'medium': 4, 'low': 1}
         total_risk = sum(weights.get(v.severity, 1) * (v.risk_score or 5.0) for v in vulnerabilities)
         max_risk = len(vulnerabilities) * 10 * 10
-        
+
         return min(10.0, (total_risk / max(max_risk, 1)) * 10)
-    
+
     def _get_risk_level(self, score: float) -> str:
-        if score >= 8.0: return "Critical"
-        elif score >= 6.0: return "High"
-        elif score >= 4.0: return "Medium"
-        elif score >= 2.0: return "Low"
-        else: return "Minimal"
-    
+        """Convert risk score to risk level"""
+        if score >= 8.0:
+            return "Critical"
+        elif score >= 6.0:
+            return "High"
+        elif score >= 4.0:
+            return "Medium"
+        elif score >= 2.0:
+            return "Low"
+        else:
+            return "Minimal"
+
     def _calculate_threat_level(self, vulnerabilities: List[Vulnerability]) -> str:
+        """Calculate overall threat level"""
         critical_count = sum(1 for v in vulnerabilities if v.severity == 'critical')
         high_count = sum(1 for v in vulnerabilities if v.severity == 'high')
-        
-        if critical_count >= 5: return "Severe"
-        elif critical_count > 0 or high_count >= 10: return "High"
-        elif high_count > 0: return "Moderate"
-        else: return "Low"
-    
+
+        if critical_count >= 5:
+            return "Severe"
+        elif critical_count > 0 or high_count >= 10:
+            return "High"
+        elif high_count > 0:
+            return "Moderate"
+        else:
+            return "Low"
+
     def _assess_business_impact(self, severity: str) -> str:
+        """Assess business impact based on severity"""
         severity_impact = {
-            'critical': 'Very High',
-            'high': 'High', 
-            'medium': 'Medium',
-            'low': 'Low'
+            'critical': 'Very High - Potential for complete system compromise',
+            'high': 'High - Significant operational disruption possible',
+            'medium': 'Medium - Limited operational impact',
+            'low': 'Low - Minimal business impact'
         }
         return severity_impact.get(severity, 'Medium')
-    
+
     def _estimate_remediation_effort(self, category: str) -> str:
+        """Estimate remediation effort based on vulnerability category"""
         category_effort = {
-            'injection': 'High',
-            'authentication': 'Medium',
-            'authorization': 'Medium', 
-            'configuration': 'Low',
-            'cryptography': 'High'
+            'injection': 'High - Requires code refactoring and input validation',
+            'authentication': 'Medium - Update authentication logic',
+            'authorization': 'Medium - Review and update access controls',
+            'configuration': 'Low - Configuration changes',
+            'cryptography': 'High - Update cryptographic implementations',
+            'xss': 'Medium - Input sanitization and output encoding',
+            'csrf': 'Low - Add CSRF tokens',
+            'sensitive data': 'High - Implement proper data protection',
         }
-        
+
         if not category:
-            return 'Medium'
-            
+            return 'Medium - Standard remediation effort'
+
         category_lower = category.lower()
         for key in category_effort:
             if key in category_lower:
                 return category_effort[key]
-        
-        return 'Medium'
-    
+
+        return 'Medium - Standard remediation effort'
+
     def _calculate_priority_score(self, vuln: Vulnerability) -> float:
+        """Calculate priority score for vulnerability"""
         severity_weights = {'critical': 10, 'high': 7, 'medium': 4, 'low': 1}
         base_score = severity_weights.get(vuln.severity, 1)
         risk_multiplier = (vuln.risk_score or 5.0) / 10.0
-        
-        return base_score * risk_multiplier
-    
+
+        return round(base_score * risk_multiplier, 2)
+
     def _calculate_remediation_cost(self, vulnerabilities: List[Vulnerability]) -> float:
-        base_costs = {'critical': 8000, 'high': 4000, 'medium': 1500, 'low': 500}
+        """Calculate estimated remediation cost"""
+        base_costs = {
+            'critical': 8000,
+            'high': 4000,
+            'medium': 1500,
+            'low': 500
+        }
         return sum(base_costs.get(v.severity, 1000) for v in vulnerabilities)
-    
+
     def _assess_security_maturity(self, vulnerabilities: List[Vulnerability]) -> str:
+        """Assess security maturity level"""
         vuln_count = len(vulnerabilities)
-        if vuln_count > 20: return "Immature"
-        elif vuln_count > 10: return "Developing"
-        elif vuln_count > 5: return "Mature"
-        else: return "Advanced"
-    
-    def _assess_business_risk_level(self, vulnerabilities: List[Vulnerability]) -> str:
         critical_count = sum(1 for v in vulnerabilities if v.severity == 'critical')
-        if critical_count >= 3: return "Severe"
-        elif critical_count > 0: return "High" 
-        else: return "Moderate"
-    
+
+        if critical_count > 5 or vuln_count > 20:
+            return "Immature - Significant security improvements needed"
+        elif critical_count > 0 or vuln_count > 10:
+            return "Developing - Security practices need enhancement"
+        elif vuln_count > 5:
+            return "Mature - Good security practices with room for improvement"
+        else:
+            return "Advanced - Strong security posture"
+
+    def _assess_code_quality(self, vulnerabilities: List[Vulnerability], total_files: int) -> str:
+        """Assess code quality based on vulnerability density"""
+        if total_files == 0:
+            return "Unknown"
+
+        density = len(vulnerabilities) / total_files
+
+        if density > 1.0:
+            return "Poor - High vulnerability density"
+        elif density > 0.5:
+            return "Fair - Moderate vulnerability density"
+        elif density > 0.2:
+            return "Good - Low vulnerability density"
+        else:
+            return "Excellent - Very low vulnerability density"
+
+    def _assess_business_risk_level(self, vulnerabilities: List[Vulnerability]) -> str:
+        """Assess business risk level"""
+        critical_count = sum(1 for v in vulnerabilities if v.severity == 'critical')
+        high_count = sum(1 for v in vulnerabilities if v.severity == 'high')
+
+        if critical_count >= 3:
+            return "Severe - Immediate executive attention required"
+        elif critical_count > 0:
+            return "High - Priority business concern"
+        elif high_count >= 5:
+            return "Moderate - Requires management attention"
+        else:
+            return "Low - Standard business risk"
+
     def _assess_compliance_impact(self, vulnerabilities: List[Vulnerability]) -> str:
-        high_impact_categories = ['injection', 'authentication', 'authorization', 'cryptography']
-        compliance_vulns = [v for v in vulnerabilities if any(cat in (v.category or '').lower() for cat in high_impact_categories)]
-        
-        if len(compliance_vulns) >= 5: return "High Risk"
-        elif len(compliance_vulns) > 0: return "Medium Risk"
-        else: return "Low Risk"
-    
+        """Assess compliance impact"""
+        high_impact_categories = ['injection', 'authentication', 'authorization', 'cryptography', 'sensitive data']
+        compliance_vulns = [v for v in vulnerabilities if any(
+            cat in (v.category or '').lower() for cat in high_impact_categories
+        )]
+
+        if len(compliance_vulns) >= 5:
+            return "High Risk - May violate compliance requirements"
+        elif len(compliance_vulns) > 0:
+            return "Medium Risk - Potential compliance concerns"
+        else:
+            return "Low Risk - Minimal compliance impact"
+
     def _assess_operational_impact(self, vulnerabilities: List[Vulnerability]) -> str:
+        """Assess operational impact"""
         critical_operational = sum(1 for v in vulnerabilities if v.severity in ['critical', 'high'])
-        if critical_operational >= 10: return "Severe Disruption"
-        elif critical_operational >= 5: return "Moderate Disruption"
-        elif critical_operational > 0: return "Minor Disruption"
-        else: return "No Disruption"
-    
+
+        if critical_operational >= 10:
+            return "Severe Disruption - Critical operational risk"
+        elif critical_operational >= 5:
+            return "Moderate Disruption - Significant operational impact"
+        elif critical_operational > 0:
+            return "Minor Disruption - Limited operational impact"
+        else:
+            return "No Disruption - Minimal operational impact"
+
     def _assess_reputation_impact(self, vulnerabilities: List[Vulnerability]) -> str:
-        public_facing = sum(1 for v in vulnerabilities if 'web' in (v.category or '').lower() or 'api' in (v.category or '').lower())
-        if public_facing >= 5: return "High Risk"
-        elif public_facing > 0: return "Medium Risk"
-        else: return "Low Risk"
-    
-    def _generate_recommendations(self, scan: Scan, vulnerabilities: List[Vulnerability]) -> Dict[str, Any]:
+        """Assess reputation impact"""
+        public_facing = sum(1 for v in vulnerabilities if any(
+            keyword in (v.category or '').lower()
+            for keyword in ['web', 'api', 'xss', 'injection', 'authentication']
+        ))
+        critical_count = sum(1 for v in vulnerabilities if v.severity == 'critical')
+
+        if critical_count >= 3 or public_facing >= 5:
+            return "High Risk - Potential for public exposure and brand damage"
+        elif critical_count > 0 or public_facing > 0:
+            return "Medium Risk - Reputation concerns if exploited"
+        else:
+            return "Low Risk - Limited reputation impact"
+
+    def _generate_executive_summary(
+        self,
+        repository_data: Dict[str, Any],
+        severity_counts: Dict[str, int],
+        risk_level: str,
+        scan_data: Dict[str, Any]
+    ) -> str:
+        """Generate executive summary text"""
+
+        total_vulns = sum(severity_counts.values())
+        repo_name = repository_data['name']
+
+        summary_parts = []
+
+        # Opening statement
+        summary_parts.append(
+            f"Sandbox Security has been engaged by {repo_name} to conduct a comprehensive Black Box Penetration Test "
+            f"aimed at identifying security weaknesses in the application codebase."
+        )
+
+        # Assessment details
+        summary_parts.append(
+            f"Sandbox Security conducted an external, Black Box Penetration Test against {repo_name}'s estate to "
+            f"simulate an attack with no insider knowledge. The objective was to identify potential vulnerabilities that "
+            f"could lead to unauthorized access, data exposure, or disruption of critical services and to determine the potential "
+            f"business impact."
+        )
+
+        # Findings summary
+        if total_vulns == 0:
+            summary_parts.append(
+                f"The assessment found no significant security vulnerabilities. The application demonstrates strong security controls "
+                f"and adherence to security best practices."
+            )
+        else:
+            findings_text = f"During the engagement we discovered {total_vulns} findings across reconnaissance, access control, and application logic layers."
+
+            if severity_counts['critical'] > 0:
+                findings_text += f" There {'are' if severity_counts['critical'] > 1 else 'is'} {severity_counts['critical']} critical issue{'s' if severity_counts['critical'] > 1 else ''} that require immediate attention."
+
+            if severity_counts['high'] > 0:
+                findings_text += f" Additionally, {severity_counts['high']} high-severity vulnerabilities were identified that pose significant security risks."
+
+            summary_parts.append(findings_text)
+
+        # Recommendations teaser
+        if total_vulns > 0:
+            summary_parts.append(
+                f"Recommendations in this report focus on immediate mitigation for critical and high findings, "
+                f"followed by medium-term improvements to authentication, monitoring, and secure development controls."
+            )
+
+        return " ".join(summary_parts)
+
+    def _generate_recommendations(
+        self,
+        scan: Scan,
+        vulnerabilities: List[Vulnerability],
+        severity_counts: Dict[str, int]
+    ) -> Dict[str, Any]:
+        """Generate comprehensive recommendations matching template format"""
+
         immediate_actions = []
         short_term_actions = []
         long_term_actions = []
-        
-        # Critical vulnerabilities - immediate action
+
+        # ========================================
+        # IMMEDIATE ACTIONS (0-7 days)
+        # ========================================
+
+        # Critical vulnerabilities
         critical_vulns = [v for v in vulnerabilities if v.severity == 'critical']
         if critical_vulns:
             immediate_actions.append({
@@ -420,984 +884,1217 @@ class PDFReportService:
                 'timeline': '24-48 hours',
                 'effort': 'High',
                 'impact': 'Prevents potential security breaches and data loss',
-                'cost': f"${len(critical_vulns) * 5000:,}",
-                'resources': f'{len(critical_vulns) * 2} developer days'
+                'description': 'These vulnerabilities pose immediate risk of system compromise and must be patched urgently.'
             })
-        
-        # High severity - short term
+
+        # High severity vulnerabilities
         high_vulns = [v for v in vulnerabilities if v.severity == 'high']
+        if high_vulns and len(high_vulns) >= 3:
+            immediate_actions.append({
+                'priority': 'HIGH',
+                'action': f'Create incident response plan for {len(high_vulns)} high-severity issues',
+                'timeline': '3-7 days',
+                'effort': 'Medium',
+                'impact': 'Reduces risk exposure and prepares for rapid remediation',
+                'description': 'Prioritize and plan remediation activities for high-severity vulnerabilities.'
+            })
+
+        # If no critical/high, add general immediate action
+        if not immediate_actions:
+            immediate_actions.append({
+                'priority': 'STANDARD',
+                'action': 'Review and validate all security findings',
+                'timeline': '1-3 days',
+                'effort': 'Low',
+                'impact': 'Ensures accurate understanding of security posture',
+                'description': 'Conduct thorough review of all identified vulnerabilities with development team.'
+            })
+
+        # ========================================
+        # SHORT-TERM ACTIONS (1-3 months)
+        # ========================================
+
+        # High severity remediation
         if high_vulns:
             short_term_actions.append({
                 'priority': 'HIGH',
                 'action': f'Remediate {len(high_vulns)} high-severity vulnerabilities',
-                'timeline': '1-2 weeks',
-                'effort': 'Medium',
+                'timeline': '2-4 weeks',
+                'effort': 'Medium to High',
                 'impact': 'Significantly reduces security risk exposure',
-                'cost': f"${len(high_vulns) * 2500:,}",
-                'resources': f'{len(high_vulns)} developer days'
+                'description': 'Implement fixes for all high-severity findings following secure coding practices.'
             })
-        
-        # Long term actions
+
+        # Medium severity remediation
+        medium_vulns = [v for v in vulnerabilities if v.severity == 'medium']
+        if medium_vulns:
+            short_term_actions.append({
+                'priority': 'MEDIUM',
+                'action': f'Address {len(medium_vulns)} medium-severity vulnerabilities',
+                'timeline': '1-2 months',
+                'effort': 'Medium',
+                'impact': 'Improves overall security posture',
+                'description': 'Remediate medium-severity issues as part of regular development cycles.'
+            })
+
+        # Security training
+        if len(vulnerabilities) >= 5:
+            short_term_actions.append({
+                'priority': 'STRATEGIC',
+                'action': 'Conduct security awareness training for development team',
+                'timeline': '1-2 months',
+                'effort': 'Medium',
+                'impact': 'Prevents future vulnerabilities through education',
+                'description': 'Train developers on secure coding practices and common vulnerability patterns.'
+            })
+
+        # ========================================
+        # LONG-TERM ACTIONS (3-12 months)
+        # ========================================
+
         long_term_actions.extend([
             {
                 'priority': 'STRATEGIC',
                 'action': 'Implement automated security scanning in CI/CD pipeline',
-                'timeline': '1-3 months',
+                'timeline': '3-4 months',
                 'effort': 'Medium',
-                'impact': 'Prevents future vulnerabilities from reaching production',
-                'cost': '$15,000',
-                'resources': '2 weeks DevOps engineer time'
+                'impact': 'Prevents vulnerabilities from reaching production',
+                'description': 'Integrate SAST, DAST, and dependency scanning tools into development workflow.'
+            },
+            {
+                'priority': 'STRATEGIC',
+                'action': 'Establish Security Champions program',
+                'timeline': '3-6 months',
+                'effort': 'Medium',
+                'impact': 'Builds security culture within development teams',
+                'description': 'Designate and train security champions in each development team.'
+            },
+            {
+                'priority': 'STRATEGIC',
+                'action': 'Implement continuous security monitoring',
+                'timeline': '6-9 months',
+                'effort': 'High',
+                'impact': 'Enables rapid detection and response to security incidents',
+                'description': 'Deploy security monitoring tools and establish incident response procedures.'
+            },
+            {
+                'priority': 'STRATEGIC',
+                'action': 'Conduct annual penetration testing',
+                'timeline': 'Ongoing',
+                'effort': 'Low',
+                'impact': 'Ensures continuous security validation',
+                'description': 'Schedule regular penetration tests to validate security controls.'
             }
         ])
-        
+
+        # ========================================
+        # RETURN COMPREHENSIVE RECOMMENDATIONS
+        # ========================================
+
         return {
             'immediate_actions': immediate_actions,
             'short_term_actions': short_term_actions,
             'long_term_actions': long_term_actions,
-            'quick_wins': [],
-            'strategic_initiatives': [
-                {
-                    'initiative': 'DevSecOps Implementation',
-                    'description': 'Integrate security into CI/CD pipeline',
-                    'timeline': '3-6 months',
-                    'investment': '$25,000',
-                    'roi': '300%'
-                }
-            ],
+            'summary': f"Total of {len(immediate_actions) + len(short_term_actions) + len(long_term_actions)} recommended actions across all timeframes.",
             'implementation_roadmap': {
                 'phase_1': {
-                    'name': 'Crisis Response',
-                    'duration': '1-2 weeks',
+                    'name': 'Immediate Response',
+                    'duration': '0-7 days',
                     'actions': immediate_actions,
-                    'success_metrics': ['Critical vulnerabilities = 0', 'High vulnerabilities < 5']
+                    'success_metrics': [
+                        'Critical vulnerabilities = 0' if severity_counts.get('critical', 0) > 0 else 'All findings validated',
+                        'High vulnerabilities documented and prioritized',
+                        'Incident response plan created'
+                    ]
                 },
                 'phase_2': {
                     'name': 'Risk Reduction',
-                    'duration': '1-2 months',
+                    'duration': '1-3 months',
                     'actions': short_term_actions,
-                    'success_metrics': ['Security score > 80', 'Medium vulnerabilities < 10']
+                    'success_metrics': [
+                        'All high-severity vulnerabilities remediated',
+                        'Security training completed for development team',
+                        'Medium-severity issues reduced by 70%'
+                    ]
                 },
                 'phase_3': {
                     'name': 'Security Maturity',
-                    'duration': '3-6 months',
+                    'duration': '3-12 months',
                     'actions': long_term_actions,
-                    'success_metrics': ['Automated security scanning', 'Zero critical vulnerabilities in production']
+                    'success_metrics': [
+                        'Automated security scanning in CI/CD pipeline',
+                        'Security champions program established',
+                        'Zero critical vulnerabilities in production',
+                        'Continuous monitoring and alerting active'
+                    ]
                 }
             }
         }
-    
+
+    # ========================================
+    # PDF GENERATION METHODS
+    # ========================================
+
     async def _generate_comprehensive_report(self, data: Dict[str, Any]) -> bytes:
-        """Generate comprehensive security report"""
-        
-        template = self.jinja_env.get_template('comprehensive_report.html')
-        html_content = template.render(**data)
-        
-        # CSS for styling
-        css_content = self._get_report_css()
-        
-        # Fix base URL for proper image loading
-        base_url = f"file:///{str(self.static_path).replace('\\', '/')}/"
-        
-        # Generate PDF with correct base URL
-        html_doc = HTML(
-            string=html_content, 
-            base_url=base_url
-        )
-        css_doc = CSS(string=css_content)
-        
-        pdf_buffer = io.BytesIO()
-        html_doc.write_pdf(pdf_buffer, stylesheets=[css_doc])
-        
-        return pdf_buffer.getvalue()
-    
+        """
+        Generate comprehensive security report PDF
+        Uses Jinja2 template and WeasyPrint for PDF generation
+        """
+
+        try:
+            # Load and render HTML template
+            template = self.jinja_env.get_template('comprehensive_report.html')
+            html_content = template.render(**data)
+
+            # Get CSS styling
+            css_content = self._get_report_css()
+
+            # Fix base URL for proper image loading
+            base_url = f"file:///{str(self.static_path).replace('\\', '/')}/"
+
+            logger.info(f"Generating PDF report for scan {data['scan']['id']}")
+            logger.debug(f"Base URL for assets: {base_url}")
+
+            # Generate PDF with WeasyPrint
+            html_doc = HTML(
+                string=html_content,
+                base_url=base_url
+            )
+            css_doc = CSS(string=css_content)
+
+            pdf_buffer = io.BytesIO()
+            html_doc.write_pdf(
+                pdf_buffer,
+                stylesheets=[css_doc],
+                presentational_hints=True
+            )
+
+            pdf_content = pdf_buffer.getvalue()
+            logger.info(f"PDF generated successfully: {len(pdf_content)} bytes")
+
+            return pdf_content
+
+        except Exception as e:
+            logger.error(f"Error generating PDF: {e}", exc_info=True)
+            raise
+
     def _get_report_css(self) -> str:
-        """Enhanced CSS for professional report styling"""
+        """
+        Enhanced CSS for professional report styling
+        Matches Sandbox Security penetration testing report template exactly.
+        Includes styling for Cover Page, Tables, Charts, and Findings.
+        """
 
         return """
-        /* Sandbox Security Professional Report Styles */
-        
+        /* ============================================ */
+        /* Sandbox Security Penetration Testing Report */
+        /* Professional PDF Styling - Matching Template */
+        /* ============================================ */
+
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-        
-        /* Page Setup */
+
+        /* ============================================ */
+        /* PAGE SETUP AND CONFIGURATION */
+        /* ============================================ */
+
         @page {
             size: A4;
-            margin: 2cm 1.5cm;
-            
-            @top-left {
-                content: "Sandbox Security";
+            margin: 20mm 20mm 25mm 20mm;
+
+            @bottom-left {
+                content: "Sandboxsecurity.ai";
                 font-family: 'Inter', sans-serif;
-                font-size: 10px;
-                color: #6B7280;
+                font-size: 8pt;
+                color: #1E3A8A;
+                font-weight: 500;
             }
-            
-            @top-right {
-                content: "Security Assessment Report";
-                font-family: 'Inter', sans-serif;
-                font-size: 10px;
-                color: #6B7280;
-            }
-            
-            @bottom-center {
-                content: "Page " counter(page) " of " counter(pages);
-                font-family: 'Inter', sans-serif;
-                font-size: 10px;
-                color: #6B7280;
-            }
-            
+
             @bottom-right {
                 content: "Confidential";
                 font-family: 'Inter', sans-serif;
-                font-size: 10px;
-                color: #EF4444;
+                font-size: 8pt;
+                color: #DC2626;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            @bottom-center {
+                content: counter(page);
+                font-family: 'Inter', sans-serif;
+                font-size: 8pt;
+                color: #1E3A8A;
                 font-weight: 600;
             }
         }
-        
+
         /* Cover Page - No Headers/Footers */
         @page cover {
             margin: 0;
-            @top-left { content: none; }
-            @top-right { content: none; }
-            @bottom-center { content: none; }
+            @bottom-left { content: none; }
             @bottom-right { content: none; }
+            @bottom-center { content: none; }
         }
-        
-        /* Base Styles */
+
+        /* Table of Contents Page */
+        @page toc {
+            margin: 20mm 20mm 25mm 20mm;
+        }
+
+        /* Content Pages */
+        @page content {
+            margin: 20mm 20mm 25mm 20mm;
+        }
+
+        /* ============================================ */
+        /* BASE STYLES */
+        /* ============================================ */
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+        html, body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
             color: #1F2937;
             background: #FFFFFF;
-            font-size: 11px;
+            font-size: 10pt;
             -webkit-font-smoothing: antialiased;
             text-rendering: optimizeLegibility;
         }
-        
-        /* Brand Colors */
+
+        /* ============================================ */
+        /* BRAND COLORS - SANDBOX SECURITY */
+        /* ============================================ */
+
         :root {
-            --major-orange: #CA450C;
-            --primary-orange: #EA580C;
-            --secondary-orange: #FB923C;
-            --light-orange: #FED7AA;
-            --accent-orange: #FDBA74;
-            --dark-gray: #1F2937;
-            --medium-gray: #6B7280;
-            --light-gray: #F3F4F6;
+            /* Primary Colors */
+            --primary-blue: #1E3A8A;
+            --dark-blue: #1E40AF;
+            --light-blue: #3B82F6;
+            --sky-blue: #60A5FA;
+            --pale-blue: #DBEAFE;
+
+            /* Accent Colors */
+            --orange-accent: #F59E0B;
+            --yellow-accent: #FCD34D;
+
+            /* Severity Colors */
             --critical-red: #DC2626;
             --high-orange: #EA580C;
             --medium-yellow: #D97706;
             --low-blue: #2563EB;
+            --info-gray: #6B7280;
+
+            /* Neutral Colors */
+            --dark-gray: #1F2937;
+            --medium-gray: #6B7280;
+            --light-gray: #F3F4F6;
+            --border-gray: #E5E7EB;
             --white: #FFFFFF;
-            --teal: #2D9D8F;
+
+            /* Background Colors */
+            --bg-critical: #FEE2E2;
+            --bg-high: #FED7AA;
+            --bg-medium: #FEF3C7;
+            --bg-low: #DBEAFE;
+            --bg-info: #F3F4F6;
         }
-        
+
         /* ============================================ */
-        /* CLEAN MINIMAL COVER PAGE DESIGN */
+        /* COVER PAGE DESIGN */
         /* ============================================ */
-        
+
         .cover-page {
             page: cover;
-            /* Use fixed A4 height (WeasyPrint-safe), not vh */
             height: 297mm;
             width: 210mm;
-            background: var(--major-orange);
-            color:#fff;
-            display:grid;
-            grid-template-rows:auto 1fr auto; /* header | main | footer */
-            margin:0;
-            padding:0;
-            page-break-after:always;
-            font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+            background: #FFFFFF;
+            position: relative;
+            page-break-after: always;
+            overflow: hidden;
         }
-
-        /* Header */
-        .cover-header {
-            padding: 16mm 0 0 0;              
-            display: flex;
-            justify-content: center;          
-            align-items: center;              
+        
+        /* Blue wave pattern at top - using SVG background */
+        .cover-wave-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            background: #3B82F6;
+            background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 40%, #1E3A8A 70%, #2563EB 100%);
+            z-index: 1;
         }
-
-        .header-logo{ display:flex; align-items:center; gap:3mm; }
-        .header-logo-img{ width:10mm; height:10mm; /* avoid CSS filter for PDF engines */ }
-        .header-logo-text {
-            font-size: 6mm;                   /* bigger text (~17px) */
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-align: center;
+        
+        /* White wave overlay using border-radius */
+        .cover-wave-overlay {
+            position: absolute;
+            top: 60px;
+            left: -10%;
+            width: 120%;
+            height: 80px;
+            background: #FFFFFF;
+            border-radius: 50% 50% 0 0;
+            z-index: 2;
         }
-
-        /* Main Content - SIMPLE CENTERING */
-        .cover-main-content {
-            flex: 1;
+        
+        /* Bottom yellow/orange bar */
+        .cover-bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: #F59E0B;
+            z-index: 1;
+        }
+        
+        /* Main content container */
+        .cover-content {
+            position: relative;
+            height: 297mm;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            text-align: center;
-            padding: 60px;
-            box-sizing: border-box;
+            padding: 0 50mm;
+            z-index: 3;
         }
-
+        
+        /* Title section */
         .cover-title {
-            margin-bottom: 60px;
+            text-align: center;
+            margin-bottom: 15mm;
         }
-
+        
         .cover-title h1 {
-            font-size: 48px;
-            font-weight: 400;
-            line-height: 1.1;
-            margin: 8px 0;
-            color: #FFFFFF;
-            letter-spacing: -0.5px;
+            font-size: 42pt;
+            font-weight: 600;
+            color: #1E3A8A;
+            line-height: 1. 3;
+            margin: 0;
+            padding: 0;
+            letter-spacing: 3px;
         }
-
-        .cover-repository-info { 
-            text-align:center; 
+        
+        . cover-title h2 {
+            font-size: 32pt;
+            font-weight: 500;
+            color: #1E3A8A;
+            line-height: 1.3;
+            margin: 8px 0 0 0;
+            padding: 0;
+            letter-spacing: 2px;
+            border: none;
         }
+        
+        /* Repository name */
+        .cover-subtitle {
+            text-align: center;
+            margin-top: 20mm;
+        }
+        
         .repo-name {
-            font-size:8mm;
-            font-weight:700;
-            margin-bottom:4mm;
-        }
-        .repo-details {
-            font-size:4.5mm;
-            opacity:.95;
-            margin-bottom:1.5mm;
-        }
-        .repo-url {
-            font-size:4mm;
-            opacity:.85;
-        }
-
-        /* Footer - PROPER SIZE AND ALIGNMENT */
-        .cover-footer{
-            padding: 0 20mm 16mm 20mm;
-            display: grid;
-            grid-template-columns: 1fr auto;  /* left text | right logo */
-            align-items: end;                  /* bottom edges aligned */
-        }
-
-        .footer-left{
-            margin: 0;
-            padding: 0;
-            line-height: 1.25;
-        }
-        .confidential-text,
-        .scan-date{
-            margin: 0;
-            padding: 0;
-        }
-
-        .footer-right {
-            height: 24mm;                /* a bit taller container */
-            display: flex;
-            align-items: flex-end;       /* stick logo to bottom */
-            justify-content: flex-end;
-            overflow: hidden;
-            padding-bottom: 1.5mm;       /* pushes logo slightly downward */
-        }
-
-        /* Logo image */
-        .footer-logo-img {
-            height: 28mm;                /* bigger logo */
-            width: auto;
-            object-fit: contain;
-            display: block;
-        }
-        
-        /* ============================================ */
-        /* REST OF REPORT STYLES */
-        /* ============================================ */
-        
-        /* Typography */
-        h1 {
-            font-size: 28px;
+            font-size: 20pt;
             font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 8px;
-            line-height: 1.2;
-        }
-        
-        h2 {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin: 24px 0 12px 0;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--primary-orange);
-            page-break-after: avoid;
-        }
-        
-        h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin: 18px 0 8px 0;
-            page-break-after: avoid;
-        }
-        
-        h4 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin: 12px 0 6px 0;
-        }
-        
-        p {
-            margin-bottom: 8px;
-            text-align: justify;
-        }
-        
-        /* Table of Contents */
-        .toc-page {
-            page-break-after: always;
-            page-break-before: always;
-        }
-        
-        .toc-container {
-            max-width: 600px;
-            margin: 40px auto;
-        }
-        
-        .toc-title {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 40px;
-            color: var(--primary-orange);
-            text-align: center;
-        }
-        
-        .toc-section {
-            margin-bottom: 30px;
-        }
-        
-        .toc-section-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--primary-orange);
-        }
-        
-        .toc-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px dotted #D1D5DB;
-        }
-        
-        .toc-item:last-child {
-            border-bottom: none;
-        }
-        
-        .toc-item-content {
-            display: flex;
-            align-items: center;
-            flex: 1;
-        }
-        
-        .toc-item-number {
-            font-weight: 600;
-            color: var(--primary-orange);
-            margin-right: 12px;
-            min-width: 30px;
-        }
-        
-        .toc-item-title {
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-        
-        .toc-item-dots {
-            flex: 1;
-            border-bottom: 1px dotted #D1D5DB;
-            margin: 0 12px;
-            height: 1px;
-        }
-        
-        .toc-item-page {
-            font-weight: 600;
-            color: var(--primary-orange);
-        }
-        
-        /* Section Headers */
-        .section-header {
-            page-break-after: avoid;
-            margin: 40px 0 24px 0;
-        }
-        
-        .section-number {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--primary-orange);
-            text-transform: uppercase;
+            color: #1E3A8A;
             letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-        
-        .section-title {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 12px;
-            padding-bottom: 12px;
-            border-bottom: 3px solid var(--primary-orange);
-        }
-        
-        .section-description {
-            font-size: 14px;
-            color: #6B7280;
-            line-height: 1.6;
-        }
-        
-        /* Cards and Containers */
-        .card {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 20px;
-            page-break-inside: avoid;
-        }
-        
-        .card-elevated {
-            border: 2px solid #E5E7EB;
-        }
-        
-        .card-primary {
-            border-left: 6px solid var(--primary-orange);
-            background: linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%);
-        }
-        
-        .card-warning {
-            border-left: 6px solid var(--medium-yellow);
-            background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%);
-        }
-        
-        .card-danger {
-            border-left: 6px solid var(--critical-red);
-            background: linear-gradient(135deg, #FEF2F2 0%, #FFFFFF 100%);
-        }
-        
-        .card-success {
-            border-left: 6px solid #10B981;
-            background: linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%);
-        }
-        
-        /* Statistics and Metrics */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin: 24px 0;
-        }
-        
-        .stats-grid-4 {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin: 24px 0;
-        }
-        
-        .stat-card {
-            background: #FFFFFF;
-            border: 2px solid #F3F4F6;
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-orange), var(--secondary-orange));
-        }
-        
-        .stat-number {
-            font-size: 36px;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 8px;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #6B7280;
-        }
-        
-        .stat-change {
-            font-size: 11px;
-            font-weight: 500;
-            margin-top: 4px;
-        }
-        
-        /* Severity Colors */
-        .stat-critical, .text-critical { color: var(--critical-red); }
-        .stat-high, .text-high { color: var(--high-orange); }
-        .stat-medium, .text-medium { color: var(--medium-yellow); }
-        .stat-low, .text-low { color: var(--low-blue); }
-        .stat-success, .text-success { color: #10B981; }
-        
-        /* Badges and Labels */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        
-        .badge-critical {
-            background: #FEE2E2;
-            color: #991B1B;
-            border: 1px solid #FCA5A5;
-        }
-        
-        .badge-high {
-            background: #FED7AA;
-            color: #9A3412;
-            border: 1px solid #FDBA74;
-        }
-        
-        .badge-medium {
-            background: #FEF3C7;
-            color: #92400E;
-            border: 1px solid #FCD34D;
-        }
-        
-        .badge-low {
-            background: #DBEAFE;
-            color: #1E40AF;
-            border: 1px solid #93C5FD;
-        }
-        
-        .badge-success {
-            background: #D1FAE5;
-            color: #065F46;
-            border: 1px solid #A7F3D0;
-        }
-        
-        .badge-info {
-            background: #E0E7FF;
-            color: #3730A3;
-            border: 1px solid #C7D2FE;
-        }
-        
-        /* Vulnerability Cards */
-        .vulnerability-card {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 16px;
-            page-break-inside: avoid;
-            position: relative;
-        }
-        
-        .vulnerability-card::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 4px;
-            border-radius: 4px 0 0 4px;
-        }
-        
-        .vulnerability-card.critical::before { background: var(--critical-red); }
-        .vulnerability-card.high::before { background: var(--high-orange); }
-        .vulnerability-card.medium::before { background: var(--medium-yellow); }
-        .vulnerability-card.low::before { background: var(--low-blue); }
-        
-        .vulnerability-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-        
-        .vulnerability-id {
-            font-size: 11px;
-            font-weight: 600;
-            color: #6B7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .vulnerability-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--dark-gray);
-            margin: 4px 0 8px 0;
-        }
-        
-        .vulnerability-meta {
-            font-size: 11px;
-            color: #6B7280;
-            margin-bottom: 12px;
-        }
-        
-        .vulnerability-description {
-            margin-bottom: 12px;
-            color: #374151;
-            font-size: 11px;
-            line-height: 1.5;
-        }
-        
-        .vulnerability-recommendation {
-            background: #EFF6FF;
-            border-left: 4px solid #3B82F6;
-            padding: 12px;
-            margin-top: 12px;
-            border-radius: 0 6px 6px 0;
-            font-size: 11px;
-        }
-        
-        .code-block {
-            background: #1F2937;
-            color: #F8FAFC;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 8px 0;
-            font-family: 'Courier New', monospace;
-            font-size: 10px;
-            border: 1px solid #374151;
-        }
-        
-        .recommendation-title {
-            font-weight: 600;
-            color: #1E40AF;
-            margin-bottom: 8px;
-        }
-        
-        /* Tables */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
-            font-size: 11px;
-            page-break-inside: auto;
-        }
-        
-        .data-table th {
-            background: var(--light-gray);
-            border: 1px solid #D1D5DB;
-            padding: 12px 8px;
-            text-align: left;
-            font-weight: 600;
-            color: var(--dark-gray);
-            font-size: 11px;
-        }
-        
-        .data-table td {
-            border: 1px solid #E5E7EB;
-            padding: 10px 8px;
-            vertical-align: top;
-        }
-        
-        .data-table tr:nth-child(even) {
-            background: #F9FAFB;
-        }
-        
-        /* Risk Matrix */
-        .risk-matrix {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
-        }
-        
-        .risk-matrix th,
-        .risk-matrix td {
-            border: 1px solid #D1D5DB;
-            padding: 12px;
-            text-align: center;
-            font-weight: 500;
-        }
-        
-        .risk-matrix th {
-            background: var(--light-gray);
-            font-weight: 600;
-        }
-        
-        .risk-critical { background: #FEE2E2; color: #991B1B; }
-        .risk-high { background: #FED7AA; color: #9A3412; }
-        .risk-medium { background: #FEF3C7; color: #92400E; }
-        .risk-low { background: #DBEAFE; color: #1E40AF; }
-        
-        /* Alerts and Callouts */
-        .alert {
-            padding: 20px;
-            border-radius: 8px;
-            margin: 16px 0;
-            border: 2px solid;
-            page-break-inside: avoid;
-        }
-        
-        .alert-critical {
-            background: #FEF2F2;
-            border-color: var(--critical-red);
-            color: #991B1B;
-        }
-        
-        .alert-warning {
-            background: #FFFBEB;
-            border-color: var(--medium-yellow);
-            color: #92400E;
-        }
-        
-        .alert-info {
-            background: #EFF6FF;
-            border-color: #3B82F6;
-            color: #1E40AF;
-        }
-        
-        .alert-success {
-            background: #F0FDF4;
-            border-color: #10B981;
-            color: #065F46;
-        }
-        
-        .alert-title {
-            font-weight: 700;
-            font-size: 14px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .alert-title::before {
-            margin-right: 8px;
-            font-size: 16px;
-        }
-        
-        .alert-critical .alert-title::before { content: '🚨'; }
-        .alert-warning .alert-title::before { content: '⚠️'; }
-        .alert-info .alert-title::before { content: 'ℹ️'; }
-        .alert-success .alert-title::before { content: '✅'; }
-        
-        /* Recommendations Section */
-        .recommendation-section {
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
-            border-radius: 12px;
-            padding: 24px;
-            margin: 20px 0;
-        }
-        
-        .recommendation-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .recommendation-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--primary-orange);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 16px;
-            font-size: 20px;
-            color: white;
-            font-weight: 600;
-        }
-        
-        .recommendation-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--dark-gray);
-        }
-        
-        .recommendation-item {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 12px;
-            page-break-inside: avoid;
-        }
-        
-        .recommendation-priority {
-            display: inline-block;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            margin-bottom: 8px;
-        }
-        
-        .priority-critical {
-            background: #FEE2E2;
-            color: #991B1B;
-        }
-        
-        .priority-high {
-            background: #FED7AA;
-            color: #9A3412;
-        }
-        
-        .priority-medium {
-            background: #FEF3C7;
-            color: #92400E;
-        }
-        
-        .priority-strategic {
-            background: #E0E7FF;
-            color: #3730A3;
         }
         
         /* Footer */
-        .report-footer {
-            background: var(--light-gray);
-            border-top: 3px solid var(--primary-orange);
-            padding: 30px;
+        .cover-footer {
+            position: absolute;
+            bottom: 25mm;
+            left: 0;
+            right: 0;
             text-align: center;
-            margin-top: 40px;
-            page-break-inside: avoid;
-        }
-        
-        .footer-logo {
-            font-size: 20px;
-            margin-bottom: 12px;
+            z-index: 3;
         }
         
         .footer-company {
-            font-size: 16px;
+            text-align: center;
+        }
+        
+        .company-name {
+            font-size: 14pt;
+            font-weight: 700;
+            color: #1E3A8A;
+            letter-spacing: 1px;
+        }
+
+        /* ============================================ */
+        /* TABLE OF CONTENTS - MATCHING TEMPLATE */
+        /* ============================================ */
+
+        .toc-page {
+            page: toc;
+            page-break-after: always;
+            page-break-before: always;
+            padding: 0;
+        }
+
+        .toc-header {
+            margin-bottom: 35px;
+        }
+
+        .toc-logo {
+            height: 45px;
+            width: auto;
+            margin-bottom: 25px;
+        }
+
+        .toc-title {
+            font-size: 28pt;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+        }
+
+        .toc-section {
+            margin-bottom: 20px;
+        }
+
+        .toc-main-item {
+            font-size: 11pt;
+            font-weight: 700;
+            color: #000000;
+            margin: 12px 0 8px 0;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--primary-blue);
+        }
+
+        .toc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 6px 0 6px 5px;
+            font-size: 9.5pt;
+            border-bottom: 1px dotted #D1D5DB;
+        }
+
+        .toc-item:last-child {
+            border-bottom: none;
+        }
+
+        .toc-item-title {
+            color: #374151;
+            font-weight: 400;
+        }
+
+        .toc-item-page {
+            color: var(--primary-blue);
+            font-weight: 600;
+            margin-left: 15px;
+        }
+
+        /* ============================================ */
+        /* CONTENT PAGES - MAIN STYLING */
+        /* ============================================ */
+
+        .content-page {
+            page: content;
+            page-break-before: always;
+        }
+
+        .page-header {
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-gray);
+        }
+
+        .page-logo {
+            height: 38px;
+            width: auto;
+        }
+
+        /* ============================================ */
+        /* TYPOGRAPHY */
+        /* ============================================ */
+
+        h1 {
+            font-size: 22pt;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 20px;
+            line-height: 1.2;
+            letter-spacing: -0.3px;
+            page-break-after: avoid;
+        }
+
+        h2 {
+            font-size: 16pt;
+            font-weight: 600;
+            color: var(--primary-blue);
+            margin: 25px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary-blue);
+            page-break-after: avoid;
+            letter-spacing: -0.2px;
+        }
+
+        h3 {
+            font-size: 13pt;
             font-weight: 600;
             color: var(--dark-gray);
+            margin: 20px 0 12px 0;
+            page-break-after: avoid;
+        }
+
+        h4 {
+            font-size: 11pt;
+            font-weight: 600;
+            color: var(--dark-gray);
+            margin: 15px 0 10px 0;
+            page-break-after: avoid;
+        }
+
+        p {
+            margin-bottom: 10px;
+            text-align: justify;
+            color: #374151;
+            line-height: 1.65;
+        }
+
+        strong {
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+
+        em {
+            font-style: italic;
+            color: var(--medium-gray);
+        }
+
+        /* ============================================ */
+        /* INFO BOXES - MATCHING TEMPLATE */
+        /* ============================================ */
+
+        .info-box {
+            background: #EFF6FF;
+            border-left: 4px solid var(--primary-blue);
+            border-radius: 4px;
+            padding: 15px 20px;
+            margin: 18px 0;
+            page-break-inside: avoid;
+        }
+
+        .info-box-title {
+            font-weight: 700;
+            color: var(--dark-blue);
+            margin-bottom: 10px;
+            font-size: 10.5pt;
+        }
+
+        .info-box p {
+            font-size: 9.5pt;
+            margin-bottom: 6px;
+            line-height: 1.6;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-box strong {
+            color: var(--primary-blue);
+        }
+
+        /* Alert variations */
+        .info-box.alert-critical {
+            background: #FEF2F2;
+            border-color: var(--critical-red);
+        }
+
+        .info-box.alert-critical .info-box-title {
+            color: #991B1B;
+        }
+
+        .info-box.alert-warning {
+            background: #FFFBEB;
+            border-color: var(--medium-yellow);
+        }
+
+        .info-box.alert-warning .info-box-title {
+            color: #92400E;
+        }
+
+        .info-box.alert-success {
+            background: #F0FDF4;
+            border-color: #10B981;
+        }
+
+        .info-box.alert-success .info-box-title {
+            color: #065F46;
+        }
+
+        /* ============================================ */
+        /* SEVERITY TABLE - MATCHING TEMPLATE EXACTLY */
+        /* ============================================ */
+
+        .severity-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            page-break-inside: avoid;
+            font-size: 9.5pt;
+        }
+
+        .severity-table th {
+            background: var(--primary-blue);
+            color: white;
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 10pt;
+            border: 1px solid var(--primary-blue);
+            vertical-align: middle;
+        }
+
+        .severity-table td {
+            padding: 10px;
+            border: 1px solid var(--border-gray);
+            vertical-align: top;
+            line-height: 1.6;
+        }
+
+        .severity-table tr:nth-child(even) {
+            background: #F9FAFB;
+        }
+
+        /* Severity cell colors - matching template */
+        .severity-critical {
+            background: var(--bg-critical) !important;
+            color: #991B1B;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-high {
+            background: var(--bg-high) !important;
+            color: #9A3412;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-medium {
+            background: var(--bg-medium) !important;
+            color: #92400E;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-low {
+            background: var(--bg-low) !important;
+            color: #1E40AF;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-info {
+            background: var(--bg-info) !important;
+            color: #4B5563;
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ============================================ */
+        /* STATISTICS GRID - RESULTS OVERVIEW */
+        /* ============================================ */
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        .stat-box {
+            background: #FFFFFF;
+            border: 2px solid var(--border-gray);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-number {
+            font-size: 36pt;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 9pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--medium-gray);
+            letter-spacing: 0.5px;
+        }
+
+        /* Stat color variants */
+        .stat-critical { color: var(--critical-red); }
+        .stat-high { color: var(--high-orange); }
+        .stat-medium { color: var(--medium-yellow); }
+        .stat-low { color: var(--low-blue); }
+
+        /* ============================================ */
+        /* VULNERABILITY SECTIONS - MATCHING TEMPLATE */
+        /* ============================================ */
+
+        .vulnerability-section {
+            margin: 25px 0;
+            page-break-inside: avoid;
+        }
+
+        .vulnerability-header-box {
+            background: var(--primary-blue);
+            color: white;
+            padding: 12px 20px;
+            margin: 20px 0 15px 0;
+            border-radius: 4px;
+            page-break-after: avoid;
+        }
+
+        .vulnerability-header-box h3 {
+            color: white;
+            margin: 0;
+            font-size: 13pt;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        /* Vulnerability Card - matching template design */
+        .vulnerability-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border-gray);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+        }
+
+        .vuln-title-section {
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--light-gray);
+        }
+
+        .vuln-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: var(--dark-gray);
+            margin-bottom: 10px;
+            line-height: 1.3;
+        }
+
+        .vuln-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 9pt;
+            color: var(--medium-gray);
+        }
+
+        .vuln-meta span {
+            display: inline-block;
+        }
+
+        .vuln-section {
+            margin: 15px 0;
+        }
+
+        .vuln-section-title {
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 8px;
+            font-size: 10pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .vuln-section p {
+            font-size: 9.5pt;
+            line-height: 1.65;
             margin-bottom: 8px;
         }
-        
-        .footer-tagline {
-            font-size: 12px;
-            color: #6B7280;
-            margin-bottom: 16px;
+
+        /* Code Block Styling */
+        .code-block {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-left: 3px solid var(--primary-blue);
+            border-radius: 4px;
+            padding: 12px 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', 'Consolas', monospace;
+            font-size: 8.5pt;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
+            color: #1F2937;
         }
-        
-        .footer-confidential {
-            font-size: 10px;
+
+        .code-block code {
+            font-family: inherit;
+        }
+
+        /* ============================================ */
+        /* BADGES - SEVERITY INDICATORS */
+        /* ============================================ */
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 8.5pt;
             font-weight: 700;
-            color: var(--critical-red);
             text-transform: uppercase;
-            letter-spacing: 1px;
-            border-top: 1px solid #E5E7EB;
-            padding-top: 16px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
         }
-        
-        /* Utility Classes */
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .text-left { text-align: left; }
-        .font-mono { font-family: 'Courier New', monospace; }
-        .font-bold { font-weight: 700; }
-        .font-semibold { font-weight: 600; }
-        .font-medium { font-weight: 500; }
-        .uppercase { text-transform: uppercase; }
-        .capitalize { text-transform: capitalize; }
-        .tracking-wide { letter-spacing: 0.5px; }
-        .tracking-wider { letter-spacing: 1px; }
-        
-        .mb-2 { margin-bottom: 8px; }
-        .mb-3 { margin-bottom: 12px; }
-        .mb-4 { margin-bottom: 16px; }
-        .mb-6 { margin-bottom: 24px; }
-        .mb-8 { margin-bottom: 32px; }
-        
-        .mt-2 { margin-top: 8px; }
-        .mt-3 { margin-top: 12px; }
-        .mt-4 { margin-top: 16px; }
-        .mt-6 { margin-top: 24px; }
-        .mt-8 { margin-top: 32px; }
-        
-        .p-4 { padding: 16px; }
-        .p-6 { padding: 24px; }
-        .px-4 { padding-left: 16px; padding-right: 16px; }
-        .py-4 { padding-top: 16px; padding-bottom: 16px; }
-        
-        /* Page Breaking */
+
+        .badge-critical { background: var(--critical-red); color: white; }
+        .badge-high { background: var(--high-orange); color: white; }
+        .badge-medium { background: var(--medium-yellow); color: white; }
+        .badge-low { background: var(--low-blue); color: white; }
+        .badge-info { background: var(--info-gray); color: white; }
+
+        /* ============================================ */
+        /* LISTS - ORDERED AND UNORDERED */
+        /* ============================================ */
+
+        ul, ol {
+            margin: 12px 0 12px 25px;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 8px;
+            font-size: 9.5pt;
+            color: #374151;
+            line-height: 1.65;
+        }
+
+        ul li {
+            list-style-type: disc;
+        }
+
+        ul li::marker {
+            color: var(--primary-blue);
+        }
+
+        ol li {
+            list-style-type: decimal;
+        }
+
+        ol li::marker {
+            color: var(--primary-blue);
+            font-weight: 600;
+        }
+
+        /* Nested lists */
+        ul ul, ol ul, ul ol, ol ol {
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+
+        /* ============================================ */
+        /* TABLES - GENERAL DATA TABLES */
+        /* ============================================ */
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0;
+            font-size: 9.5pt;
+            page-break-inside: auto;
+        }
+
+        .data-table thead {
+            background: var(--light-gray);
+        }
+
+        .data-table th {
+            border: 1px solid var(--border-gray);
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark-gray);
+            background: var(--light-gray);
+        }
+
+        .data-table td {
+            border: 1px solid var(--border-gray);
+            padding: 9px 8px;
+            vertical-align: top;
+            line-height: 1.5;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #F9FAFB;
+        }
+
+        .data-table tr:hover {
+            background: #F3F4F6;
+        }
+
+        /* ============================================ */
+        /* RECOMMENDATIONS SECTION */
+        /* ============================================ */
+
+        .recommendation-section {
+            margin: 25px 0;
+            page-break-inside: avoid;
+        }
+
+        .recommendation-header {
+            background: var(--light-blue);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px 4px 0 0;
+            margin-bottom: 0;
+        }
+
+        .recommendation-header h3 {
+            color: white;
+            margin: 0;
+            font-size: 12pt;
+        }
+
+        .recommendation-content {
+            background: #EFF6FF;
+            border: 1px solid var(--pale-blue);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            padding: 18px 20px;
+        }
+
+        .recommendation-item {
+            background: white;
+            border: 1px solid var(--border-gray);
+            border-left: 4px solid var(--primary-blue);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+
+        .recommendation-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .recommendation-priority {
+            display: inline-block;
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            margin-bottom: 8px;
+        }
+
+        .priority-critical { background: var(--bg-critical); color: #991B1B; }
+        .priority-high { background: var(--bg-high); color: #9A3412; }
+        .priority-medium { background: var(--bg-medium); color: #92400E; }
+        .priority-strategic { background: #E0E7FF; color: #3730A3; }
+
+        .recommendation-item h4 {
+            font-size: 10.5pt;
+            color: var(--dark-gray);
+            margin: 8px 0;
+        }
+
+        .recommendation-item p {
+            font-size: 9pt;
+            margin: 6px 0;
+        }
+
+        /* ============================================ */
+        /* CHARTS AND VISUAL ELEMENTS */
+        /* ============================================ */
+
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border: 1px solid var(--border-gray);
+            border-radius: 6px;
+            page-break-inside: avoid;
+        }
+
+        .chart-title {
+            font-size: 11pt;
+            font-weight: 600;
+            color: var(--dark-gray);
+            margin-bottom: 15px;
+        }
+
+        /* Progress bars */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: var(--light-gray);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--light-blue), var(--primary-blue));
+            transition: width 0.3s ease;
+        }
+
+        /* Risk indicators */
+        .risk-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .risk-indicator.critical { background: var(--critical-red); }
+        .risk-indicator.high { background: var(--high-orange); }
+        .risk-indicator.medium { background: var(--medium-yellow); }
+        .risk-indicator.low { background: var(--low-blue); }
+
+        /* ============================================ */
+        /* PAGE BREAKING CONTROLS */
+        /* ============================================ */
+
         .page-break { page-break-after: always; }
         .page-break-before { page-break-before: always; }
         .page-break-avoid { page-break-inside: avoid; }
         .page-break-auto { page-break-inside: auto; }
-        
-        /* Responsive adjustments */
-        @media print {
-            .cover-page{ size: A4; height:297mm; width:210mm; }
 
-            .cover-main-content {
-                display:flex;
-                flex-direction:column;
-                justify-content:center;
-                align-items:center;
-                text-align:center;
-                padding:0 25mm;           /* breathing room left/right */
+        /* Avoid breaking after headers */
+        h1, h2, h3, h4, h5, h6 {
+            page-break-after: avoid;
+        }
+
+        /* Keep figures with captions */
+        figure {
+            page-break-inside: avoid;
+        }
+
+        /* ============================================ */
+        /* UTILITY CLASSES */
+        /* ============================================ */
+
+        .text-left { text-align: left; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-justify { text-align: justify; }
+
+        .font-bold { font-weight: 700; }
+        .uppercase { text-transform: uppercase; }
+
+        /* Colors */
+        .text-primary { color: var(--primary-blue); }
+        .text-secondary { color: var(--medium-gray); }
+        .text-danger { color: var(--critical-red); }
+
+        /* Background Colors */
+        .bg-primary { background-color: var(--primary-blue); }
+        .bg-light { background-color: var(--light-gray); }
+
+        /* Margins & Padding */
+        .m-0 { margin: 0; }
+        .mt-4 { margin-top: 20px; }
+        .mb-4 { margin-bottom: 20px; }
+        .p-4 { padding: 20px; }
+
+        /* Borders */
+        .border { border: 1px solid var(--border-gray); }
+
+        /* ============================================ */
+        /* PRINT-SPECIFIC OPTIMIZATIONS */
+        /* ============================================ */
+
+        @media print {
+            body {
+                font-size: 10pt;
+                line-height: 1.5;
             }
-            
-            .cover-title{ margin-bottom:12mm; }
+
+            .cover-page {
+                size: A4;
+                height: 297mm;
+                width: 210mm;
+            }
+
             .cover-title h1 {
-                font-size:12mm;           /* ~34px on A4 */
-                font-weight:700;
-                line-height:1.1;
-                margin:2mm 0;
-                letter-spacing:-0.2mm;
-                color:#fff;
+                font-size: 42pt;
             }
-            
+
             .repo-name {
-                font-size: 28px;
+                font-size: 20pt;
             }
-            
-            body { 
-                font-size: 10px;
-                line-height: 1.4;
-            }
-            
-            .stats-grid-4 {
+
+            .stats-grid {
                 grid-template-columns: repeat(4, 1fr);
                 gap: 12px;
             }
-            
-            .vulnerability-card {
-                margin-bottom: 12px;
-                padding: 16px;
-            }
-            
-            .code-block {
-                font-size: 9px;
-                padding: 12px;
+
+            .stat-number {
+                font-size: 32pt;
             }
 
-            .footer-logo-img {
-                width: 90px;
-                height: 90px;
+            .vulnerability-card {
+                margin-bottom: 15px;
+                padding: 18px;
             }
+
+            .code-block {
+                font-size: 8pt;
+                padding: 10px 12px;
+            }
+
+            .footer-logo img {
+                height: 65px;
+            }
+
+            /* Ensure proper page breaks */
+            .vulnerability-section {
+                page-break-inside: avoid;
+            }
+
+            table {
+                page-break-inside: auto;
+            }
+
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+        }
+
+        /* Orphans and Widows Control */
+        p, li {
+            orphans: 3;
+            widows: 3;
         }
         """
 
-# Create alias for backward compatibility  
+# Create alias for backward compatibility
 EnterpriseReportService = PDFReportService
