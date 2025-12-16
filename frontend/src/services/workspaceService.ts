@@ -1,7 +1,7 @@
 import { teamService } from './teamService';
 
 export interface Workspace {
-  id: string;
+  id:  string;
   name: string;
   owner_id: number;
   created_at: string;
@@ -11,33 +11,49 @@ export interface Workspace {
   repository_count: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import. meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export interface WorkspaceMember {
   authProvider: any;
-  id: number;
-  workspace_id: string;
-  user_id: number;
+  id:  number;
+  workspace_id:  string;
+  user_id:  number;
   name: string;
   email: string;
   avatar?: string;
-  role: 'Owner' | 'Admin' | 'Member' | 'Viewer';
-  status: 'Active' | 'Pending' | 'Inactive';
+  role:  'Owner' | 'Admin' | 'Member' | 'Viewer';
+  status:  'Active' | 'Pending' | 'Inactive';
   invited_by?: number;
   joined_at: string;
   last_active?: string;
 }
 
+export interface Repository {
+  id: number;
+  github_id: number;
+  name: string;
+  full_name: string;
+  description?:  string;
+  html_url: string;
+  clone_url: string;
+  language?:  string;
+  is_private: boolean;
+  is_archived?:  boolean;
+  default_branch:  string;
+  created_at?:  string;
+  updated_at?:  string;
+}
+
 class WorkspaceService {
-  private readonly API_URL = import.meta.env. VITE_API_URL || 'http://localhost:8000';
+  private readonly API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   // Map team data to workspace format
   private mapTeamToWorkspace(team: any): Workspace {
     return {
-      id: team.id.toString(),
+      id: team. id.toString(),
       name: team.name,
       owner_id: team.created_by,
-      created_at: team.created_at,
+      created_at: team. created_at,
       updated_at: team.updated_at || team.created_at,
       plan: 'Pro Trial',
       member_count: 0,
@@ -62,7 +78,7 @@ class WorkspaceService {
         },
       });
 
-      if (!response.ok) {
+      if (!response. ok) {
         throw new Error(`HTTP error! status: ${response. status}`);
       }
 
@@ -82,9 +98,9 @@ class WorkspaceService {
       return workspaces.map((ws: any) => ({
         id: ws.id?.toString() || ws.team_id?.toString(),
         name: ws.name,
-        owner_id: ws.owner_id,
-        created_at:  ws.created_at,
-        updated_at: ws.updated_at,
+        owner_id:  ws.owner_id,
+        created_at: ws.created_at,
+        updated_at:  ws.updated_at,
         plan: ws. plan || 'Pro Trial',
         member_count: ws.member_count || 0,
         repository_count: ws.repository_count || 0,
@@ -99,7 +115,7 @@ class WorkspaceService {
   // Get workspace by ID
   async getWorkspace(workspaceId: string): Promise<Workspace> {
     const workspaces = await this.getUserWorkspaces();
-    const workspace = workspaces.find(w => w.id === workspaceId);
+    const workspace = workspaces.find(w => w. id === workspaceId);
     if (!workspace) {
       throw new Error('Workspace not found');
     }
@@ -107,14 +123,14 @@ class WorkspaceService {
   }
 
   // Get workspace members (uses existing team members endpoint)
-  async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+  async getWorkspaceMembers(workspaceId:  string): Promise<WorkspaceMember[]> {
     try {
-      const members = await teamService.getTeamMembers();
-      return members. map(m => ({
-        ... m,
-        workspace_id:  workspaceId,
-        joined_at: m.dateJoined,
-        last_active:  m.lastActive || undefined,
+      const members = await teamService. getTeamMembers();
+      return members.map(m => ({
+        ...m,
+        workspace_id: workspaceId,
+        joined_at: m. dateJoined,
+        last_active: m.lastActive || undefined,
       }));
     } catch (error) {
       console.error('Error fetching workspace members:', error);
@@ -122,21 +138,111 @@ class WorkspaceService {
     }
   }
 
-  async getWorkspaceRepositories(workspaceId: string): Promise<any[]> {
-    const token = localStorage.getItem('access_token');
-    
-    const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}/repositories`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+  // ✅ Get workspace repositories - FIXED
+  async getWorkspaceRepositories(workspaceId: string): Promise<Repository[]> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (! token) {
+        throw new Error('No access token found');
+      }
 
-    if (!response.ok) {
-      const error = await response. json();
-      throw new Error(error.detail || 'Failed to fetch workspace repositories');
+      console.log('🔍 Fetching repositories for workspace:', workspaceId);
+
+      const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}/repositories`, {
+        headers: {
+          'Authorization':  `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ Failed to fetch repositories:', error);
+        throw new Error(error.detail || 'Failed to fetch workspace repositories');
+      }
+
+      const repositories = await response.json();
+      console.log('✅ Fetched repositories:', repositories);
+      return repositories;
+    } catch (error) {
+      console.error('❌ Error in getWorkspaceRepositories:', error);
+      throw error;
     }
+  }
 
-    return response.json();
+  // ✅ NEW: Get available repositories (not in workspace)
+  async getAvailableRepositories(workspaceId:  string): Promise<Repository[]> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (! token) {
+        throw new Error('No access token found');
+      }
+
+      console.log('🔍 Fetching available repositories for workspace:', workspaceId);
+
+      const response = await fetch(
+        `${this.API_URL}/api/v1/workspace/${workspaceId}/available-repositories`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ Failed to fetch available repositories:', error);
+        throw new Error(error.detail || 'Failed to fetch available repositories');
+      }
+
+      const repositories = await response.json();
+      console.log('✅ Available repositories:', repositories);
+      return repositories;
+    } catch (error) {
+      console.error('❌ Error in getAvailableRepositories:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NEW: Add repository to workspace
+  async addRepositoryToWorkspace(workspaceId: string, repositoryId:  number): Promise<any> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        throw new Error('No access token found');
+      }
+
+      console.log('➕ Adding repository', repositoryId, 'to workspace', workspaceId);
+
+      const response = await fetch(
+        `${this.API_URL}/api/v1/workspace/${workspaceId}/repositories`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ repository_id: repositoryId }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ Failed to add repository:', error);
+        throw new Error(error.detail || 'Failed to add repository');
+      }
+
+      const result = await response.json();
+      console.log('✅ Repository added successfully:', result);
+      return result;
+    } catch (error:  any) {
+      console.error('❌ Error in addRepositoryToWorkspace:', error);
+      throw new Error(error.message || 'Failed to add repository to workspace');
+    }
   }
 
   // Generate invite link (uses existing team endpoint)
@@ -145,7 +251,7 @@ class WorkspaceService {
   }
 
   // Send email invitations (uses existing team endpoint)
-  async sendEmailInvitations(workspaceId: string, emails: string[], role: string) {
+  async sendEmailInvitations(workspaceId: string, emails:  string[], role: string) {
     return await teamService.sendEmailInvitations(emails, role);
   }
 
@@ -181,7 +287,7 @@ class WorkspaceService {
 
   // Get current workspace ID
   getCurrentWorkspaceId(): string | null {
-    return localStorage.getItem('current_workspace_id') || '1';
+    return localStorage. getItem('current_workspace_id') || '1';
   }
 
   // Create workspace (for now, use GitHub OAuth flow)
@@ -191,51 +297,91 @@ class WorkspaceService {
     
     sessionStorage.setItem('pending_workspace_name', name);
     
-    window.location.href = `https://github.com/login/oauth/authorize?client_id=${import.meta.env. VITE_GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=repo&state=${state}`;
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${import.meta.env.VITE_GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}&scope=repo&state=${state}`;
   }
 
   // Delete workspace
-async deleteWorkspace(workspaceId: string): Promise<{ new_active_workspace_id: string }> {
-  try {
-    const token = localStorage.getItem('access_token');
-    
-    if (!token) {
-      throw new Error('No access token found');
+  async deleteWorkspace(workspaceId: string): Promise<{ new_active_workspace_id: string }> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        throw new Error('No access token found');
+      }
+
+      console.log('🗑️ Deleting workspace:', workspaceId);
+
+      const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete workspace');
+      }
+
+      const data = await response.json();
+      console.log('✅ Workspace deleted:', data);
+      
+      return {
+        new_active_workspace_id: data.new_active_workspace_id?. toString()
+      };
+      
+    } catch (error) {
+      console.error('❌ Error deleting workspace:', error);
+      throw error;
     }
-
-    console.log('🗑️ Deleting workspace:', workspaceId);
-
-    const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to delete workspace');
-    }
-
-    const data = await response. json();
-    console.log('✅ Workspace deleted:', data);
-    
-    return {
-      new_active_workspace_id: data.new_active_workspace_id?. toString()
-    };
-    
-  } catch (error) {
-    console.error('❌ Error deleting workspace:', error);
-    throw error;
   }
-}
 
-  // Update workspace name
-  async updateWorkspace(workspaceId:  string, data: { name: string }): Promise<Workspace> {
-    // This would need a backend endpoint to update team name
-    // For now, return the workspace as-is
-    return await this.getWorkspace(workspaceId);
+  // ✅ Update workspace name - FIXED VERSION
+  async updateWorkspace(workspaceId: string, data:  { name: string }): Promise<Workspace> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        throw new Error('No access token found');
+      }
+
+      console.log('📝 Updating workspace:', workspaceId, 'with data:', data);
+
+      const response = await fetch(`${this.API_URL}/api/v1/workspace/${workspaceId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: data.name }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ Update failed:', error);
+        throw new Error(error.detail || 'Failed to update workspace');
+      }
+
+      const updatedWorkspace = await response.json();
+      console.log('✅ Workspace updated:', updatedWorkspace);
+      
+      // Map response to Workspace interface
+      return {
+        id: updatedWorkspace. id?.toString() || workspaceId,
+        name:  updatedWorkspace.name,
+        owner_id: updatedWorkspace.owner_id,
+        created_at: updatedWorkspace.created_at,
+        updated_at: updatedWorkspace. updated_at,
+        plan:  updatedWorkspace.plan || 'Pro Trial',
+        member_count: updatedWorkspace.member_count || 0,
+        repository_count: updatedWorkspace.repository_count || 0,
+      };
+      
+    } catch (error:  any) {
+      console.error('❌ Error updating workspace:', error);
+      throw new Error(error.message || 'Failed to update workspace name');
+    }
   }
 
   // Utility functions from teamService
@@ -244,7 +390,7 @@ async deleteWorkspace(workspaceId: string): Promise<{ new_active_workspace_id: s
   }
 
   parseEmails(emailString: string): string[] {
-    return teamService.parseEmails(emailString);
+    return teamService. parseEmails(emailString);
   }
 
   validateEmails(emails: string[]) {
