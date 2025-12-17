@@ -35,6 +35,35 @@ const SignInPage = () => {
     setTheme(actualTheme === 'dark' ? 'light' : 'dark');
   };
 
+  // ✅ NEW: Centralized redirect handler after successful login
+  const handleSuccessfulLogin = (accessToken: string, userData: any) => {
+    login(accessToken, userData);
+
+    // Check for redirect parameter or pending invitation
+    const searchParams = new URLSearchParams(window.location.search);
+    const redirectUrl = searchParams.get('redirect');
+    const pendingToken = sessionStorage. getItem('pending_invitation_token');
+    
+    console.log('🔍 After login - redirect:', redirectUrl);
+    console.log('🔍 After login - pending invitation:', pendingToken);
+
+    // Clean up URL
+    window.history.replaceState({}, document.title, window. location.pathname);
+
+    // Redirect priority: invitation > redirect param > default
+    if (pendingToken) {
+      console.log('🎯 Redirecting to invitation page');
+      navigate(`/accept-invite?token=${pendingToken}`, { replace: true });
+    } else if (redirectUrl) {
+      console.log('🎯 Redirecting to:', redirectUrl);
+      navigate(decodeURIComponent(redirectUrl), { replace: true });
+    } else {
+      const from = location.state?.from?.pathname || "/";
+      console.log('🏠 Redirecting to default:', from);
+      navigate(from, { replace: true });
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       const from = location.state?.from?.pathname || "/";
@@ -51,10 +80,10 @@ const SignInPage = () => {
 
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
-    const state = urlParams.get("state");
+    const state = urlParams. get("state");
     const errorParam = urlParams.get("error");
 
-    // If this page is running inside a popup...
+    // If this page is running inside a popup... 
     if (window.opener) {
       if (code && state) {
         window.opener.postMessage(
@@ -64,7 +93,7 @@ const SignInPage = () => {
       } else if (errorParam) {
         window.opener.postMessage(
           { type: "oauth-error", error: errorParam },
-          window.location.origin
+          window. location.origin
         );
       }
       window.close();
@@ -72,35 +101,35 @@ const SignInPage = () => {
     }
 
     // Handle callbacks in main window with session-based deduplication
-   if (code && state) {
-  const storedSession = sessionStorage.getItem("oauth_session");
-  const processingKey = `processing_${code}`;
-  const processedKey = `processed_${code}`;
+    if (code && state) {
+      const storedSession = sessionStorage.getItem("oauth_session");
+      const processingKey = `processing_${code}`;
+      const processedKey = `processed_${code}`;
 
-  if (
-    localStorage.getItem(processingKey) ||
-    localStorage.getItem(processedKey)
-  ) {
-    console.log("OAuth code already being processed or completed");
-    return;
-  }
+      if (
+        localStorage.getItem(processingKey) ||
+        localStorage.getItem(processedKey)
+      ) {
+        console.log("OAuth code already being processed or completed");
+        return;
+      }
 
-  if (isProcessingRef.current) {
-    console.log("OAuth already processing in this session");
-    return;
-  }
+      if (isProcessingRef.current) {
+        console.log("OAuth already processing in this session");
+        return;
+      }
 
-  isProcessingRef.current = true;
-  localStorage.setItem(processingKey, storedSession || sessionKey);
+      isProcessingRef. current = true;
+      localStorage.setItem(processingKey, storedSession || sessionKey);
 
-  if (state === "securethread_github_auth") {
-    handleGitHubCallback(code);
-  } else if (state === "securethread_google_auth") {
-    handleGoogleCallbackInMainWindow(code);
-  } else if (state === "securethread_bitbucket_auth") {
-    handleBitbucketCallback(code);
-  }
-}
+      if (state === "securethread_github_auth") {
+        handleGitHubCallback(code);
+      } else if (state === "securethread_google_auth") {
+        handleGoogleCallbackInMainWindow(code);
+      } else if (state === "securethread_bitbucket_auth") {
+        handleBitbucketCallback(code);
+      }
+    }
 
     // Cleanup old processing flags on page load
     const cleanupOldFlags = () => {
@@ -141,7 +170,7 @@ const SignInPage = () => {
   // Popup message handler
   useEffect(() => {
     const handlePopupMessage = (event: MessageEvent) => {
-      console.log("SignIn: Received message from popup:", event.data);
+      console.log("SignIn:  Received message from popup:", event. data);
       console.log("SignIn: Event origin:", event.origin);
       console.log("SignIn: Window origin:", window.location.origin);
 
@@ -150,7 +179,7 @@ const SignInPage = () => {
       const { type, code, state, error } = event.data;
 
       if (popupInterval.current) {
-        window.clearInterval(popupInterval.current);
+        window.clearInterval(popupInterval. current);
         popupInterval.current = null;
       }
 
@@ -186,16 +215,16 @@ const SignInPage = () => {
 
         if (popup.current) {
           try {
-            popup.current.close();
+            popup. current.close();
           } catch (e) {
-            console.log("Could not close popup window");
+            console. log("Could not close popup window");
           }
           popup.current = null;
         }
       }
     };
 
-    window.addEventListener("message", handlePopupMessage);
+    window. addEventListener("message", handlePopupMessage);
     return () => window.removeEventListener("message", handlePopupMessage);
   }, []);
 
@@ -233,14 +262,14 @@ const SignInPage = () => {
       setLoadingProvider("github");
       setError("");
 
-      console.log("Initiating GitHub login...");
+      console.log("Initiating GitHub login.. .");
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/v1/auth/github/authorize`
       );
       const data = await response.json();
 
       if (data.authorization_url) {
-        console.log("Redirecting to GitHub OAuth...");
+        console.log("Redirecting to GitHub OAuth.. .");
         window.location.href = data.authorization_url;
       } else {
         setError("Failed to get GitHub authorization URL");
@@ -260,7 +289,7 @@ const SignInPage = () => {
     try {
       console.log(
         "Processing GitHub callback with code:",
-        code.substring(0, 10) + "..."
+        code. substring(0, 10) + "..."
       );
 
       setLoadingProvider("github");
@@ -284,7 +313,7 @@ const SignInPage = () => {
         // Wait for the other request to complete
         setTimeout(() => {
           if (localStorage.getItem(processedKey)) {
-            console.log("OAuth completed by another request, refreshing page");
+            console. log("OAuth completed by another request, refreshing page");
             window.location.reload();
           }
         }, 2000);
@@ -300,7 +329,7 @@ const SignInPage = () => {
         return;
       }
 
-      if (!response.ok) {
+      if (! response.ok) {
         const errorData = await response.text();
         console.error("GitHub callback failed:", response.status, errorData);
         throw new Error(`Authentication failed: ${response.status}`);
@@ -317,17 +346,8 @@ const SignInPage = () => {
           Date.now().toString()
         );
 
-        login(data.access_token, data.user || {});
-
-        // Clean up URL
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname
-        );
-
-        const from = location.state?.from?.pathname || "/";
-        navigate(from, { replace: true });
+        // ✅ Use centralized redirect handler
+        handleSuccessfulLogin(data.access_token, data. user || {});
       } else {
         throw new Error("Invalid response from server - no access token");
       }
@@ -340,7 +360,7 @@ const SignInPage = () => {
         setError("Failed to sign in with GitHub. Please try again.");
       }
 
-      window.history.replaceState({}, document.title, window.location.pathname);
+      window.history.replaceState({}, document. title, window.location.pathname);
     } finally {
       // Clean up processing flag
       localStorage.removeItem(processingKey);
@@ -360,7 +380,7 @@ const SignInPage = () => {
       setError("");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/v1/auth/google/authorize`
+        `${import.meta.env. VITE_API_URL}/api/v1/auth/google/authorize`
       );
       const data = await response.json();
 
@@ -382,7 +402,7 @@ const SignInPage = () => {
     const processedKey = `processed_${code}`;
 
     try {
-      console.log("Processing Google callback...");
+      console.log("Processing Google callback.. .");
       setLoadingProvider("google");
 
       const response = await fetch(
@@ -423,10 +443,8 @@ const SignInPage = () => {
           Date.now().toString()
         );
 
-        login(data.access_token, data.user || {});
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const from = location.state?.from?.pathname || "/";
-        navigate(from, { replace: true });
+        // ✅ Use centralized redirect handler
+        handleSuccessfulLogin(data.access_token, data.user || {});
       } else {
         throw new Error("Invalid response from server");
       }
@@ -436,11 +454,11 @@ const SignInPage = () => {
       if (localStorage.getItem(processingKey) === currentSession) {
         setError("Failed to sign in with Google. Please try again.");
       }
-      window.history.replaceState({}, document.title, window.location.pathname);
+      window.history.replaceState({}, document.title, window. location.pathname);
     } finally {
       localStorage.removeItem(processingKey);
       setLoadingProvider(null);
-      isProcessingRef.current = false;
+      isProcessingRef. current = false;
     }
   };
 
@@ -482,19 +500,19 @@ const SignInPage = () => {
     }
   };
 
-  const handleGitLabCallback = async (code: string) => {
+  const handleGitLabCallback = async (code:  string) => {
     const processingKey = `processing_${code}`;
     const processedKey = `processed_${code}`;
 
     try {
-      console.log("Processing GitLab callback...");
+      console. log("Processing GitLab callback.. .");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/v1/auth/gitlab/callback`,
+        `${import.meta.env. VITE_API_URL}/api/v1/auth/gitlab/callback`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
+          headers:  { "Content-Type": "application/json" },
+          body:  JSON.stringify({ code }),
         }
       );
 
@@ -521,16 +539,14 @@ const SignInPage = () => {
       const data = await response.json();
 
       if (data.access_token) {
-        localStorage.setItem(processedKey, "true");
+        localStorage. setItem(processedKey, "true");
         localStorage.setItem(
           processedKey + "_timestamp",
           Date.now().toString()
         );
 
-        login(data.access_token, data.user || {});
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const from = location.state?.from?.pathname || "/";
-        navigate(from, { replace: true });
+        // ✅ Use centralized redirect handler
+        handleSuccessfulLogin(data.access_token, data.user || {});
       } else {
         throw new Error("Invalid response from server");
       }
@@ -540,7 +556,7 @@ const SignInPage = () => {
       if (localStorage.getItem(processingKey) === currentSession) {
         setError("Failed to sign in with GitLab. Please try again.");
       }
-      window.history.replaceState({}, document.title, window.location.pathname);
+      window.history.replaceState({}, document.title, window.location. pathname);
     } finally {
       localStorage.removeItem(processingKey);
       setLoadingProvider(null);
@@ -549,33 +565,33 @@ const SignInPage = () => {
   };
 
   const handleBitbucketLogin = async () => {
-  if (loadingProvider !== null) {
-    console.log("Login already in progress, ignoring click");
-    return;
-  }
+    if (loadingProvider !== null) {
+      console.log("Login already in progress, ignoring click");
+      return;
+    }
 
-  try {
-    setLoadingProvider("bitbucket");
-    setError("");
+    try {
+      setLoadingProvider("bitbucket");
+      setError("");
 
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
-    );
-    const data = await response.json();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/auth-url`
+      );
+      const data = await response.json();
 
-    if (data.authorization_url) {
-      // Use full redirect flow like GitHub
-      window.location.href = data.authorization_url;
-    } else {
-      setError("Failed to get Bitbucket authorization URL");
+      if (data.authorization_url) {
+        // Use full redirect flow like GitHub
+        window.location.href = data.authorization_url;
+      } else {
+        setError("Failed to get Bitbucket authorization URL");
+        setLoadingProvider(null);
+      }
+    } catch (error) {
+      console.error("Bitbucket login error:", error);
+      setError("Failed to initiate Bitbucket login");
       setLoadingProvider(null);
     }
-  } catch (error) {
-    console.error("Bitbucket login error:", error);
-    setError("Failed to initiate Bitbucket login");
-    setLoadingProvider(null);
-  }
-};
+  };
 
   const handleBitbucketCallback = async (code: string) => {
     const processingKey = `processing_${code}`;
@@ -585,10 +601,10 @@ const SignInPage = () => {
       console.log("Processing Bitbucket callback...");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/v1/auth/bitbucket/callback`,
+        `${import.meta.env. VITE_API_URL}/api/v1/auth/bitbucket/callback`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type":  "application/json" },
           body: JSON.stringify({ code }),
         }
       );
@@ -603,7 +619,7 @@ const SignInPage = () => {
         return;
       }
 
-      if (response.status === 400) {
+      if (response. status === 400) {
         console.log("Bitbucket OAuth code already processed");
         setTimeout(() => window.location.reload(), 1000);
         return;
@@ -618,26 +634,24 @@ const SignInPage = () => {
       const data = await response.json();
 
       if (data.access_token) {
-        localStorage.setItem(processedKey, "true");
+        localStorage. setItem(processedKey, "true");
         localStorage.setItem(
           processedKey + "_timestamp",
           Date.now().toString()
         );
 
-        login(data.access_token, data.user || {});
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const from = location.state?.from?.pathname || "/";
-        navigate(from, { replace: true });
+        // ✅ Use centralized redirect handler
+        handleSuccessfulLogin(data.access_token, data.user || {});
       } else {
         throw new Error("Invalid response from server");
       }
     } catch (err) {
       console.error("Bitbucket callback error:", err);
-      const currentSession = sessionStorage.getItem("oauth_session");
+      const currentSession = sessionStorage. getItem("oauth_session");
       if (localStorage.getItem(processingKey) === currentSession) {
-        setError("Failed to sign in with Bitbucket. Please try again.");
+        setError("Failed to sign in with Bitbucket.  Please try again.");
       }
-      window.history.replaceState({}, document.title, window.location.pathname);
+      window.history.replaceState({}, document.title, window. location.pathname);
     } finally {
       localStorage.removeItem(processingKey);
       setLoadingProvider(null);
@@ -646,7 +660,7 @@ const SignInPage = () => {
   };
 
   const handleComingSoonProvider = (provider: string) => {
-    setError(`${provider} integration coming soon!`);
+    setError(`${provider} integration coming soon! `);
     setTimeout(() => setError(""), 3000);
   };
 
@@ -689,7 +703,7 @@ const SignInPage = () => {
           </div>
           <div className="mb-12">
             <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">
-              One dashboard for risk, threat, and project security.
+              One dashboard for risk, threat, and project security. 
             </h1>
           </div>
           <div className="space-y-6">
@@ -737,7 +751,7 @@ const SignInPage = () => {
             </div>
           </div>
           <div className="mt-16 pt-8 border-t border-gray-300 dark:border-gray-700">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-500 dark: text-gray-400 mb-4">
               Trusted by leading software companies
             </p>
             <div className="flex items-center space-x-6 opacity-60">
@@ -756,7 +770,7 @@ const SignInPage = () => {
             <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
               <IconShield className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">SECURE THREAD</span>
+            <span className="text-xl font-bold text-gray-900 dark: text-white">SECURE THREAD</span>
           </div>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -787,7 +801,7 @@ const SignInPage = () => {
             <button
               onClick={handleGoogleLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white hover:bg-gray-50 dark:bg-gray-800/80 dark:hover:bg-gray-700/80 backdrop-blur-sm text-gray-900 dark:text-white font-semibold rounded-lg border-2 border-gray-300 dark:border-gray-600 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-white hover:bg-gray-50 dark:bg-gray-800/80 dark:hover:bg-gray-700/80 backdrop-blur-sm text-gray-900 dark:text-white font-semibold rounded-lg border-2 border-gray-300 dark:border-gray-600 transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled: cursor-not-allowed"
             >
               <IconBrandGoogle className="w-5 h-5 text-[#4285f4]" />
               <span>
@@ -799,7 +813,7 @@ const SignInPage = () => {
             <button
               onClick={handleGitLabLogin}
               disabled={loadingProvider !== null}
-              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26] hover:bg-[#e85d1f] dark:bg-[#fc6d26]/90 dark:hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#fc6d26] hover:bg-[#e85d1f] dark:bg-[#fc6d26]/90 dark:hover:bg-[#e85d1f]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled: opacity-50 disabled:cursor-not-allowed"
             >
               <IconBrandGitlab className="w-5 h-5" />
               <span>
@@ -814,12 +828,12 @@ const SignInPage = () => {
               className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-[#0052cc] hover:bg-[#003d99] dark:bg-[#0052cc]/90 dark:hover:bg-[#003d99]/90 backdrop-blur-sm text-white font-semibold rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/>
+                <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/>
               </svg>
               <span>
                 {loadingProvider === "bitbucket"
-                  ? "Connecting..."
-                  : "Continue with Bitbucket"}
+                  ?  "Connecting..."
+                  :  "Continue with Bitbucket"}
               </span>
             </button>
           </div>
@@ -835,7 +849,7 @@ const SignInPage = () => {
               |{" "}
               <button
                 onClick={() => handleComingSoonProvider("Docker ID")}
-                className="text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors"
+                className="text-orange-500 hover:text-orange-600 dark:hover: text-orange-400 font-medium transition-colors"
               >
                 Docker ID
               </button>
@@ -845,12 +859,12 @@ const SignInPage = () => {
             <div className="flex items-start space-x-3">
               <IconShield className="w-5 h-5 text-blue-600 dark:text-blue-300 mt-0.5 flex-shrink-0" />
               <div>
-                <h4 className="font-semibold text-blue-900 dark:text-blue-100 text-sm">
+                <h4 className="font-semibold text-blue-900 dark: text-blue-100 text-sm">
                   Secure read-only access
                 </h4>
-                <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                <p className="text-xs text-blue-800 dark: text-blue-200 mt-1">
                   Our analysis does not require any agents, just read-only API
-                  access. We never store your code.
+                  access.  We never store your code. 
                 </p>
               </div>
             </div>

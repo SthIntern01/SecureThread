@@ -27,31 +27,56 @@ async def get_security_overview(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get comprehensive security overview with metrics"""
+    """Get comprehensive security overview with metrics - WORKSPACE SCOPED"""
     
     try:
-        logger.info(f"📊 Metrics request from user {current_user.id}: time_range={time_range}, repo_id={repository_id}")
+        # ✅ Get active workspace
+        active_workspace_id = current_user.active_team_id
         
-        metrics_service = MetricsService(db, current_user.id)
+        logger.info(f"📊 Metrics request from user {current_user.id}: time_range={time_range}, repo_id={repository_id}, workspace={active_workspace_id}")
         
-        # 🔧 FIX: Parse time filter correctly
+        # ✅ Get workspace repository IDs
+        workspace_repo_ids = None
+        if active_workspace_id:
+            from app.models. team_repository import TeamRepository
+            
+            workspace_repos = db.query(TeamRepository. repository_id).filter(
+                TeamRepository.team_id == active_workspace_id
+            ).all()
+            workspace_repo_ids = [r[0] for r in workspace_repos]
+            
+            logger.info(f"📦 Workspace {active_workspace_id} has {len(workspace_repo_ids)} repositories")
+            
+            # If specific repository requested, verify it's in the workspace
+            if repository_id and repository_id not in workspace_repo_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Repository not in active workspace"
+                )
+        
+        # ✅ Pass workspace filter to metrics service
+        metrics_service = MetricsService(db, current_user.id, workspace_repo_ids=workspace_repo_ids)
+        
+        # 🔧 Parse time filter
         time_filter = metrics_service.parse_time_range(time_range)
         logger.info(f"📅 Parsed time filter: {time_filter}")
         
-        # Calculate all metrics sections with consistent time filtering
+        # Calculate all metrics sections with workspace and time filtering
         security_metrics = await metrics_service.calculate_security_metrics(repository_id, time_filter)
-        code_quality_metrics = await metrics_service.calculate_code_quality_metrics(repository_id, time_filter)
+        code_quality_metrics = await metrics_service. calculate_code_quality_metrics(repository_id, time_filter)
         vulnerability_trends = await metrics_service.calculate_vulnerability_trends(repository_id, time_filter)
         compliance_scores = await metrics_service.calculate_compliance_scores(repository_id, time_filter)
         team_metrics = await metrics_service.calculate_team_metrics(repository_id, time_filter)
         
-        logger.info(f"📈 Calculated metrics - Total vulnerabilities: {security_metrics.get('total_vulnerabilities')}")
+        logger.info(f"📈 Calculated metrics - Total vulnerabilities:  {security_metrics.get('total_vulnerabilities')}")
         
         return {
             "user_id": current_user.id,
-            "generated_at": datetime.utcnow().isoformat(),
-            "time_range": time_range,
+            "workspace_id": active_workspace_id,  # ✅ Include workspace
+            "generated_at": datetime. utcnow().isoformat(),
+            "time_range":  time_range,
             "repository_filter": repository_id,
+            "workspace_repository_count": len(workspace_repo_ids) if workspace_repo_ids else None,  # ✅ Add context
             "security_metrics": security_metrics,
             "code_quality_metrics": code_quality_metrics,
             "vulnerability_trends": vulnerability_trends,
@@ -59,7 +84,9 @@ async def get_security_overview(
             "team_metrics": team_metrics
         }
         
-    except Exception as e:
+    except HTTPException: 
+        raise
+    except Exception as e: 
         logger.error(f"❌ Error generating security metrics for user {current_user.id}: {e}")
         logger.exception("Full traceback:")
         raise HTTPException(

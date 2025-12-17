@@ -659,35 +659,64 @@ async def debug_scan_metadata(
     }
 
 
-# ✅ FIXED CUSTOM SCANS ENDPOINT - NO PARAMETERS
+# ✅ FIXED CUSTOM SCANS ENDPOINT - WITH WORKSPACE FILTER
 @router.get("/custom/", response_model=dict)
 async def get_custom_scans(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's custom scan results - USER SCOPED"""
+    """Get user's custom scan results - WORKSPACE SCOPED"""
     try:
-        # Base query - only get scans for repositories owned by current user
-        query = db.query(Scan).join(Repository).filter(
-            Repository.owner_id == current_user.id,
-            Scan.scan_metadata.isnot(None)
-        )
+        # Get user's active workspace
+        active_workspace_id = current_user. active_team_id
         
-        # Get all user's scans first
-        all_user_scans = query.all()
+        # ✅ Get repository IDs for active workspace
+        if active_workspace_id:
+            from app.models.team_repository import TeamRepository
+            
+            workspace_repo_ids = db.query(TeamRepository.repository_id).filter(
+                TeamRepository.team_id == active_workspace_id
+            ).all()
+            repo_ids = [r[0] for r in workspace_repo_ids]
+            
+            if not repo_ids:
+                # No repositories in workspace
+                logger.info(f"No repositories in workspace {active_workspace_id}")
+                return {
+                    "scans": [],
+                    "total_count": 0,
+                    "user_id": current_user.id,
+                    "workspace_id":  active_workspace_id
+                }
+            
+            # Filter scans by workspace repositories
+            query = db.query(Scan).join(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Repository.id.in_(repo_ids),  # ✅ Filter by workspace repos
+                Scan.scan_metadata.isnot(None)
+            )
+        else:
+            # No active workspace - show all user's scans
+            query = db.query(Scan).join(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Scan.scan_metadata.isnot(None)
+            )
+        
+        # Get all scans
+        all_scans = query.all()
         
         # Filter for custom scans in Python (more reliable for JSONB)
         custom_scans = []
-        for scan in all_user_scans:
+        for scan in all_scans:
             if (scan.scan_metadata 
                 and isinstance(scan.scan_metadata, dict)
-                and scan.scan_metadata.get('scan_type') == 'custom_rules'):
-                custom_scans.append(scan)
+                and scan. scan_metadata.get('scan_type') == 'custom_rules'):
+                custom_scans. append(scan)
         
         # Sort by started_at (most recent first)
         custom_scans.sort(key=lambda x: x.started_at or datetime.min, reverse=True)
         
-        logger.info(f"Found {len(custom_scans)} custom scans for user {current_user.id}")
+        logger.info(f"Found {len(custom_scans)} custom scans for user {current_user.id} in workspace {active_workspace_id}")
         
         scans_data = []
         for scan in custom_scans:
@@ -697,7 +726,7 @@ async def get_custom_scans(
             
             scan_data = {
                 'id': scan.id,
-                'repository_id': scan.repository_id,
+                'repository_id': scan. repository_id,
                 'repository_name': repo_name,
                 'status': scan.status,
                 'started_at': scan.started_at.isoformat() if scan.started_at else None,
@@ -712,27 +741,28 @@ async def get_custom_scans(
                 'scan_metadata': {
                     'scan_type': scan.scan_metadata.get('scan_type', 'custom_rules'),
                     'rules_count': scan.scan_metadata.get('rules_count', 0),
-                    'custom_rules_count': scan.scan_metadata.get('custom_rules_count', 0),
-                    'files_scanned': scan.total_files_scanned or 0
+                    'custom_rules_count': scan. scan_metadata.get('custom_rules_count', 0),
+                    'files_scanned':  scan.total_files_scanned or 0
                 }
             }
-            scans_data.append(scan_data)
+            scans_data. append(scan_data)
         
         return {
             "scans": scans_data,
             "total_count": len(scans_data),
-            "user_id": current_user.id
+            "user_id": current_user. id,
+            "workspace_id": active_workspace_id  # ✅ Include workspace info
         }
         
     except Exception as e:
-        logger.error(f"Error fetching custom scans for user {current_user.id}: {e}")
+        logger. error(f"Error fetching custom scans for user {current_user.id}: {e}")
         # Return empty result instead of error for better UX
         return {
             "scans": [],
             "total_count": 0,
-            "user_id": current_user.id
+            "user_id": current_user.id,
+            "workspace_id": current_user.active_team_id
         }
-
 
 @router.get("/custom/{scan_id}", response_model=dict)
 async def get_custom_scan_details(

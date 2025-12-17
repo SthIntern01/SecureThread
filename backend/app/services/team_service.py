@@ -62,47 +62,60 @@ class TeamService:
             self.db.rollback()
             raise e
     
-    def get_team_members(self, team_id: int) -> List[Dict]:
-        """Get all members of a team with their details"""
-        try:
-        # Get members without join to avoid ambiguity
-            members = self.db.query(TeamMember).filter(
-                TeamMember.team_id == team_id
-            ).all()
+    def get_team_members(self, team_id: int, active_only:  bool = False):
+        """Get all members of a team
         
+        Args:
+            team_id: The team ID
+            active_only: If True, only return active members (exclude pending invitations)
+        """
+        try:
+            query = self.db.query(TeamMember).filter(TeamMember.team_id == team_id)
+            
+            # ✅ Filter by status if requested
+            if active_only:  
+                query = query.filter(TeamMember.status == MemberStatus.active)
+            
+            members = query.all()
+            
+            # Format member data
             result = []
             for member in members:
-            # Load user separately to avoid join ambiguity
                 user = self.db.query(User).filter(User.id == member.user_id).first()
-                if not user:
-                    continue
-            
-            # Determine auth provider
-                auth_provider = "Email"
-                if user.github_username:
-                    auth_provider = "GitHub"
-                elif user.gitlab_username:
-                    auth_provider = "GitLab"
-                elif user.google_email:
-                    auth_provider = "Google"
-                elif user.bitbucket_username:
-                    auth_provider = "Bitbucket"
-            
-                result.append({
-                    "id": member.id,
-                    "user_id": user.id,
-                    "name": user.full_name or user.github_username or user.gitlab_username or "Unknown User",
-                    "email": user.email or user.google_email,
-                    "avatar": user.avatar_url,
-                    "role": member.role.value,
-                    "status": member.status.value,
-                    "authProvider": auth_provider,
-                    "dateJoined": member.joined_at.isoformat(),
-                    "lastActive": member.last_active.isoformat() if member.last_active else None
-                })
-        
+                if user:
+                    # ✅ Determine auth provider based on which username exists
+                    auth_provider = "email"
+                    if user.github_username:
+                        auth_provider = "github"
+                    elif user.gitlab_username:
+                        auth_provider = "gitlab"
+                    elif user.bitbucket_username:
+                        auth_provider = "bitbucket"
+                    
+                    # ✅ Determine display name
+                    display_name = (
+                        user.full_name or 
+                        user.github_username or 
+                        user.gitlab_username or 
+                        user.bitbucket_username or 
+                        user.email. split('@')[0] if user.email else "Unknown"
+                    )
+                    
+                    result. append({
+                        "id":  member.id,
+                        "user_id": user.id,
+                        "name": display_name,
+                        "email": user.email,
+                        "avatar":  user.avatar_url,
+                        "role": member.role. value,
+                        "status":  member.status.value,
+                        "authProvider": auth_provider,
+                        "dateJoined": member.joined_at.isoformat() if member.joined_at else member.created_at.isoformat(),
+                        "lastActive": user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None
+                    })
+                
             return result
-        
+                
         except Exception as e:
             logger.error(f"Error fetching team members: {str(e)}")
             raise e

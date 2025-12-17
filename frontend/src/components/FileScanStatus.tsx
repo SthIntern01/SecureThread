@@ -42,6 +42,8 @@ import {
   Download,
   Eye,
   AlertCircle,
+  Code,
+  Shield,
 } from "lucide-react";
 
 interface FileStatus {
@@ -550,76 +552,130 @@ const FileScanStatus: React.FC<FileScanStatusProps> = ({
       </Dialog>
 
       {/* File Details Modal */}
-      <Dialog open={!!selectedFile} onOpenChange={() => setSelectedFile(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Vulnerabilities in {selectedFile}</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-            {fileVulnerabilities.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                <p className="text-gray-600">
-                  No vulnerabilities found in this file
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {fileVulnerabilities.map((vuln, index) => (
-                  <Card key={index}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{vuln.title}</CardTitle>
-                        <Badge className={getSeverityColor(vuln.severity)}>
-                          {vuln.severity.toUpperCase()}
-                        </Badge>
-                      </div>
-                      <CardDescription>
-                        {vuln.line_number && `Line ${vuln.line_number} • `}
-                        {vuln.category}
-                        {vuln.risk_score &&
-                          ` • Risk Score: ${vuln.risk_score}/10`}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-medium text-sm text-gray-700 mb-1">
-                            Description
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {vuln.description}
-                          </p>
-                        </div>
+<Dialog open={!! selectedFile} onOpenChange={() => setSelectedFile(null)}>
+  <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col theme-card">
+    <DialogHeader>
+      <DialogTitle className="flex items-center space-x-2 theme-text">
+        <FileText className="w-5 h-5 text-blue-400" />
+        <span>Vulnerabilities in {selectedFile}</span>
+      </DialogTitle>
+    </DialogHeader>
+    <div className="flex-1 overflow-y-auto">
+      {fileVulnerabilities.length === 0 ? (
+        <div className="text-center py-8">
+          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+          <p className="theme-text-muted">
+            No vulnerabilities found in this file
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {fileVulnerabilities.map((vuln, index) => (
+            <Card key={index} className="overflow-hidden theme-card border theme-border">
+              <CardHeader className="theme-bg-subtle border-b theme-border">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg flex items-center space-x-2 theme-text">
+                      <span>{vuln.title}</span>
+                    </CardTitle>
+                    <CardDescription className="mt-2 theme-text-muted">
+                      {vuln.line_number && (
+                        <span className="inline-flex items-center text-sm">
+                          <Code className="w-4 h-4 mr-1" />
+                          Line {vuln.line_number}
+                        </span>
+                      )}
+                      {vuln.line_number && vuln.category && <span className="mx-2">•</span>}
+                      {vuln.category && <span className="text-sm">{vuln.category}</span>}
+                      {vuln.risk_score && (
+                        <>
+                          <span className="mx-2">•</span>
+                          <span className="text-sm font-medium">
+                            Risk Score: {vuln.risk_score}/10
+                          </span>
+                        </>
+                      )}
+                    </CardDescription>
+                  </div>
+                  <Badge className={getSeverityColor(vuln.severity)}>
+                    {vuln.severity. toUpperCase()}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="space-y-4">
+                  {/* Description - Theme Aware */}
+                  <div>
+                    <h4 className="font-semibold text-sm theme-text mb-2 flex items-center">
+                      <AlertCircle className="w-4 h-4 mr-2 text-orange-400" />
+                      Description
+                    </h4>
+                    <p className="text-sm theme-text bg-orange-500/10 p-3 rounded border border-orange-500/20">
+                      {vuln.description}
+                    </p>
+                  </div>
 
-                        {vuln.code_snippet && (
-                          <div>
-                            <h4 className="font-medium text-sm text-gray-700 mb-1">
-                              Code Snippet
-                            </h4>
-                            <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
-                              <code>{vuln.code_snippet}</code>
-                            </pre>
+                  {/* Code Snippet - Theme Aware Dark Code Block */}
+                  {vuln.code_snippet && (
+                    <div>
+                      <h4 className="font-semibold text-sm theme-text mb-2 flex items-center">
+                        <Code className="w-4 h-4 mr-2 text-blue-400" />
+                        Code Snippet
+                      </h4>
+                      <div className="relative">
+                        <pre className="bg-gray-900 dark:bg-black/40 text-gray-100 dark:text-gray-300 p-4 rounded-lg text-xs overflow-x-auto border border-gray-700 dark:border-white/10 font-mono leading-relaxed">
+                          <code className="text-gray-100 dark:text-gray-300">{vuln.code_snippet}</code>
+                        </pre>
+                        {vuln.line_number && (
+                          <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                            Line {vuln.line_number}
                           </div>
                         )}
-
-                        <div>
-                          <h4 className="font-medium text-sm text-gray-700 mb-1">
-                            Recommendation
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {vuln.recommendation}
-                          </p>
-                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+                    </div>
+                  )}
+
+                  {/* Recommendation - Theme Aware */}
+                  <div>
+                    <h4 className="font-semibold text-sm theme-text mb-2 flex items-center">
+                      <Shield className="w-4 h-4 mr-2 text-green-400" />
+                      Recommendation
+                    </h4>
+                    <p className="text-sm theme-text bg-green-500/10 p-3 rounded border border-green-500/20">
+                      {vuln.recommendation}
+                    </p>
+                  </div>
+
+                  {/* Additional Info - Theme Aware */}
+                  <div className="pt-3 border-t theme-border">
+                    <div className="grid grid-cols-2 gap-4 text-xs theme-text-muted">
+                      <div>
+                        <span className="font-medium">Category:</span>{" "}
+                        <span className="theme-text">{vuln.category}</span>
+                      </div>
+                      {vuln.risk_score && (
+                        <div>
+                          <span className="font-medium">Risk Score:</span>{" "}
+                          <span className={`font-bold ${
+                            vuln.risk_score >= 7 ? 'text-red-400' :
+                            vuln.risk_score >= 4 ? 'text-orange-400' :
+                            'text-yellow-400'
+                          }`}>
+                            {vuln.risk_score}/10
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  </DialogContent>
+</Dialog>
     </>
   );
 };

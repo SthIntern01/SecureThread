@@ -664,225 +664,243 @@ const SimpleScanDetailsModal: React.FC<SimpleScanDetailsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center space-x-2">
-            <ShieldCheck className="w-5 h-5 text-accent" />
-            <span>Security Scan Report - {repositoryName}</span>
-          </DialogTitle>
-          <DialogDescription>
-            Detailed security analysis results for this repository
-          </DialogDescription>
-          <div className="flex items-center justify-end space-x-2 pt-2">
+  <Dialog open={isOpen} onOpenChange={onClose}>
+    <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col theme-card">
+      <DialogHeader className="flex-shrink-0 border-b theme-border pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <DialogTitle className="flex items-center space-x-2 theme-text">
+              <ShieldCheck className="w-5 h-5 text-blue-400" />
+              <span>Security Scan Report - {repositoryName}</span>
+            </DialogTitle>
+            <DialogDescription className="theme-text-muted mt-1">
+              Detailed security analysis results for this repository
+            </DialogDescription>
+          </div>
+          <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="sm"
               onClick={exportReport}
               disabled={!scanDetails}
+              className="theme-border hover:bg-white/5"
             >
               <Download className="w-4 h-4 mr-2" />
               Export Report
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose}
+              className="hover:bg-white/5"
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
-        </DialogHeader>
+        </div>
+      </DialogHeader>
 
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading scan details...</p>
+      {loading ?  (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-4"></div>
+            <p className="theme-text-muted">Loading scan details...</p>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <p className="text-red-400 mb-4">{error}</p>
+            <Button 
+              onClick={fetchScanDetails} 
+              variant="outline"
+              className="theme-border hover:bg-white/5"
+            >
+              Try Again
+            </Button>
+          </div>
+        </div>
+      ) : scanDetails ? (
+        <div className="flex-1 overflow-auto space-y-6 p-6">
+          {/* Scan Status - Theme Aware */}
+          <div className="theme-bg-subtle rounded-lg p-6 border theme-border">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <Badge className={getStatusColor(scanDetails.status)}>
+                  {scanDetails. status. toUpperCase()}
+                </Badge>
+                <div className="text-sm theme-text-muted mt-1">Status</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold theme-text">
+                  {scanDetails.scan_duration || "N/A"}
+                </div>
+                <div className="text-sm theme-text-muted mt-1">Duration</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold theme-text">
+                  {scanDetails.total_files_scanned}
+                </div>
+                <div className="text-sm theme-text-muted mt-1">
+                  Files Scanned
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold theme-text">
+                  {scanDetails.security_score?. toFixed(1) || "N/A"}
+                </div>
+                <div className="text-sm theme-text-muted mt-1">
+                  Security Score
+                </div>
+              </div>
             </div>
           </div>
-        ) : error ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <p className="text-red-600 mb-4">{error}</p>
-              <Button onClick={fetchScanDetails} variant="outline">
-                Try Again
-              </Button>
-            </div>
-          </div>
-        ) : scanDetails ? (
-          <div className="flex-1 overflow-auto space-y-6">
-            {/* Scan Status */}
-            <div className="bg-gray-50 rounded-lg p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center">
-                  <Badge className={getStatusColor(scanDetails.status)}>
-                    {scanDetails.status.toUpperCase()}
-                  </Badge>
-                  <div className="text-sm text-gray-600 mt-1">Status</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {scanDetails.scan_duration || "N/A"}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">Duration</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {scanDetails.total_files_scanned}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Files Scanned
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">
-                    {scanDetails.security_score?.toFixed(1) || "N/A"}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Security Score
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Scan Limits Alert */}
-            {scanDetails.scan_metadata?.scan_stopped_reason ===
-              "vulnerability_limit_reached" && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-yellow-800">
-                      Scan Limited
-                    </h4>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      Scan stopped due to token constraints.{" "}
-                      {scanDetails.scan_metadata.files_skipped} files were not
-                      scanned.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Vulnerability Summary */}
-            <div className="bg-white rounded-lg border p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Vulnerability Summary
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-red-50 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-red-600">
-                    {scanDetails.critical_count}
-                  </div>
-                  <div className="text-sm text-red-700">Critical</div>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {scanDetails.high_count}
-                  </div>
-                  <div className="text-sm text-orange-700">High</div>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {scanDetails.medium_count}
-                  </div>
-                  <div className="text-sm text-yellow-700">Medium</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {scanDetails.low_count}
-                  </div>
-                  <div className="text-sm text-gray-700">Low</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Vulnerabilities List */}
-            <div className="bg-white rounded-lg border p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Vulnerabilities ({scanDetails.total_vulnerabilities})
-              </h3>
-              {scanDetails.vulnerabilities.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                    No Vulnerabilities Found
+          {/* Scan Limits Alert - Theme Aware */}
+          {scanDetails.scan_metadata?.scan_stopped_reason ===
+            "vulnerability_limit_reached" && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-yellow-300">
+                    Scan Limited
                   </h4>
-                  <p className="text-gray-600">
-                    Great! This scan didn't find any security vulnerabilities.
+                  <p className="text-sm text-yellow-200 mt-1">
+                    Scan stopped due to token constraints. {" "}
+                    {scanDetails.scan_metadata. files_skipped} files were not
+                    scanned.
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {scanDetails.vulnerabilities.map((vuln) => (
-                    <div
-                      key={vuln.id}
-                      className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h4 className="font-semibold text-gray-900">
-                              {vuln.title}
-                            </h4>
-                            <Badge
-                              className={`text-xs ${getSeverityColor(
-                                vuln.severity
-                              )}`}
-                            >
-                              {vuln.severity}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-600 mb-2">
-                            📁 {vuln.file_path}
-                            {vuln.line_number && ` (Line ${vuln.line_number})`}
-                          </div>
-                          <p className="text-sm text-gray-700 mb-2">
-                            {vuln.description}
-                          </p>
-                          <p className="text-sm text-blue-700">
+              </div>
+            </div>
+          )}
+
+          {/* Vulnerability Summary - Theme Aware */}
+          <div className="theme-card rounded-lg border theme-border p-6">
+            <h3 className="text-lg font-semibold mb-4 theme-text">
+              Vulnerability Summary
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-red-400">
+                  {scanDetails. critical_count}
+                </div>
+                <div className="text-sm text-red-300">Critical</div>
+              </div>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-orange-400">
+                  {scanDetails.high_count}
+                </div>
+                <div className="text-sm text-orange-300">High</div>
+              </div>
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-400">
+                  {scanDetails. medium_count}
+                </div>
+                <div className="text-sm text-yellow-300">Medium</div>
+              </div>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-blue-400">
+                  {scanDetails.low_count}
+                </div>
+                <div className="text-sm text-blue-300">Low</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Vulnerabilities List - Theme Aware */}
+          <div className="theme-card rounded-lg border theme-border p-6">
+            <h3 className="text-lg font-semibold mb-4 theme-text">
+              Vulnerabilities ({scanDetails.total_vulnerabilities})
+            </h3>
+            {scanDetails.vulnerabilities.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
+                <h4 className="text-lg font-semibold theme-text mb-2">
+                  No Vulnerabilities Found
+                </h4>
+                <p className="theme-text-muted">
+                  Great!  This scan didn't find any security vulnerabilities.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {scanDetails.vulnerabilities.map((vuln) => (
+                  <div
+                    key={vuln.id}
+                    className="border theme-border rounded-lg p-4 hover:bg-white/5 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h4 className="font-semibold theme-text">
+                            {vuln.title}
+                          </h4>
+                          <Badge
+                            className={`text-xs ${getSeverityColor(
+                              vuln.severity
+                            )}`}
+                          >
+                            {vuln.severity}
+                          </Badge>
+                        </div>
+                        <div className="text-sm theme-text-muted mb-2">
+                          📁 {vuln.file_path}
+                          {vuln.line_number && ` (Line ${vuln.line_number})`}
+                        </div>
+                        <p className="text-sm theme-text mb-2">
+                          {vuln.description}
+                        </p>
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2 mt-2">
+                          <p className="text-sm text-blue-300">
                             <strong>Fix:</strong> {vuln.recommendation}
                           </p>
                         </div>
-                        {vuln.risk_score && (
-                          <div className="text-right ml-4">
-                            <div className="text-sm font-semibold text-gray-900">
-                              Risk: {vuln.risk_score.toFixed(1)}/10
-                            </div>
-                          </div>
-                        )}
                       </div>
+                      {vuln.risk_score && (
+                        <div className="text-right ml-4">
+                          <div className="text-sm font-semibold theme-text">
+                            Risk: {vuln.risk_score. toFixed(1)}/10
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Scan Timeline - Theme Aware */}
+          <div className="theme-card rounded-lg border theme-border p-6">
+            <h3 className="text-lg font-semibold mb-4 theme-text">
+              Scan Timeline
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <Clock className="w-4 h-4 theme-text-muted" />
+                <span className="text-sm theme-text">
+                  Started: {new Date(scanDetails.started_at).toLocaleString()}
+                </span>
+              </div>
+              {scanDetails.completed_at && (
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-sm theme-text">
+                    Completed:{" "}
+                    {new Date(scanDetails.completed_at).toLocaleString()}
+                  </span>
                 </div>
               )}
             </div>
-
-            {/* Scan Timeline */}
-            <div className="bg-white rounded-lg border p-6">
-              <h3 className="text-lg font-semibold mb-4">Scan Timeline</h3>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Clock className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    Started: {new Date(scanDetails.started_at).toLocaleString()}
-                  </span>
-                </div>
-                {scanDetails.completed_at && (
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span className="text-sm">
-                      Completed:{" "}
-                      {new Date(scanDetails.completed_at).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
+        </div>
+      ) : null}
+    </DialogContent>
+  </Dialog>
+);
 };
 
 export default SimpleScanDetailsModal;

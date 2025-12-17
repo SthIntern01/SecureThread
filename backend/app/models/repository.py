@@ -39,6 +39,7 @@ class Repository(Base):
     scans = relationship("Scan", back_populates="repository", cascade="all, delete-orphan")
     ai_recommendations = relationship("AIRecommendation", back_populates="repository", cascade="all, delete-orphan")
     ai_analysis_requests = relationship("AIAnalysisRequest", back_populates="repository")
+    team_repositories = relationship("TeamRepository", back_populates="repository", cascade="all, delete-orphan")
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
