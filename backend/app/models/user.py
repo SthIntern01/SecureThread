@@ -39,6 +39,9 @@ class User(Base):
 
     github_token = Column(String, nullable=True)
 
+    github_pat_encrypted = Column(Text, nullable=True)
+    github_pat_created_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

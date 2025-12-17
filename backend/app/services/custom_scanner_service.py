@@ -35,7 +35,7 @@ class CustomScannerService:
         self.llm_service = LLMService()
         
         # Scanning configuration
-        self.MAX_FILES_TO_SCAN = 500  # Increased from 100
+        self.MAX_FILES_TO_SCAN = 1000
         self.MAX_FILE_SIZE = 500 * 1024  # 500KB (increased from 200KB)
         self.BATCH_SIZE = 10  # Process 10 files at a time
         
@@ -144,7 +144,7 @@ class CustomScannerService:
             logger.info("🔬 Step 5: Scanning files with rule engine...")
             scan_results = await self._scan_all_files_with_rules(
                 files_to_scan, access_token, repository.full_name,
-                provider_type, compiled_rules, scan.id
+                provider_type, compiled_rules, scan.id, repository.id
             )
             
             logger.info(f"✅ Scan completed: {scan_results['files_scanned']} files, "
@@ -409,7 +409,8 @@ class CustomScannerService:
         repo_full_name: str,
         provider_type: str,
         compiled_rules: List[Dict[str, Any]],
-        scan_id: int
+        scan_id: int,
+        repository_id: int
     ) -> Dict[str, Any]:
         """
         Scan all files using compiled rules
@@ -429,8 +430,8 @@ class CustomScannerService:
             # Scan batch concurrently
             batch_tasks = [
                 self._scan_single_file(
-                    file_info, access_token, repo_full_name,
-                    provider_type, compiled_rules
+                    file_info, access_token, repo_full_name, 
+                    provider_type, compiled_rules, repository_id
                 )
                 for file_info in batch
             ]
@@ -470,7 +471,8 @@ class CustomScannerService:
         access_token: str,
         repo_full_name: str,
         provider_type: str,
-        compiled_rules: List[Dict[str, Any]]
+        compiled_rules: List[Dict[str, Any]],
+        repository_id: int
     ) -> Dict[str, Any]:
         """
         Scan a single file with all rules
@@ -505,7 +507,7 @@ class CustomScannerService:
             vulnerabilities = []
             
             for rule in compiled_rules:
-                matches = self._apply_rule_to_content(file_content, file_path, rule)
+                matches = self._apply_rule_to_content(file_content, file_path, rule, repository_id)
                 vulnerabilities.extend(matches)
             
             status = 'vulnerable' if vulnerabilities else 'clean'
@@ -531,7 +533,8 @@ class CustomScannerService:
         self,
         content: str,
         file_path: str,
-        rule: Dict[str, Any]
+        rule: Dict[str, Any],
+        repository_id: int
     ) -> List[Dict[str, Any]]:
         """
         Apply a single rule to file content and return vulnerabilities
@@ -565,6 +568,7 @@ class CustomScannerService:
                 code_snippet = '\n'.join(lines[start_line:end_line])
                 
                 vulnerability = {
+                    'repository_id': repository_id,
                     'title': rule['name'],
                     'description': rule['description'],
                     'severity': rule['severity'],
@@ -702,63 +706,97 @@ class CustomScannerService:
         scan_id: int,
         vulnerabilities: List[Dict[str, Any]]
     ):
-        """Save vulnerabilities to database in batches to avoid connection timeouts"""
-        BATCH_SIZE = 100  # Save 100 vulnerabilities at a time
+        """Save vulnerabilities to database in batches - WITH ERROR HANDLING"""
+        BATCH_SIZE = 50  # Reduced from 100 for better reliability
         
         total = len(vulnerabilities)
         logger.info(f"💾 Saving {total} vulnerabilities in batches of {BATCH_SIZE}...")
         
         saved_count = 0
-        failed_count = 0
+        failed_vulnerabilities = []
         
         for i in range(0, total, BATCH_SIZE):
             batch = vulnerabilities[i:i + BATCH_SIZE]
             batch_num = (i // BATCH_SIZE) + 1
             total_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
             
+            # --- Stage 1: Prepare (Add to session) with individual error handling ---
+            for vuln_data in batch:
+                try: 
+                    vulnerability = Vulnerability(
+                        scan_id=scan_id,
+                        repository_id=vuln_data.get('repository_id'),
+                        title=vuln_data.get('title', 'Unknown')[:255],
+                        description=vuln_data.get('description', 'No description')[:1000],
+                        severity=vuln_data.get('severity', 'low'),
+                        category=vuln_data.get('category', 'other'),
+                        cwe_id=vuln_data.get('cwe_id'),
+                        owasp_category=vuln_data.get('owasp_category'),
+                        file_path=vuln_data.get('file_path', 'Unknown')[:500],
+                        line_number=vuln_data.get('line_number'),
+                        line_end_number=vuln_data.get('line_end_number'),
+                        # Ensure code_snippet is not an empty string if it's supposed to be nullable
+                        code_snippet=vuln_data.get('code_snippet', '')[:1000] or None,
+                        recommendation=vuln_data.get('recommendation', 'Review this issue')[:2000],
+                        fix_suggestion=vuln_data.get('fix_suggestion', '')[:2000],
+                        risk_score=vuln_data.get('risk_score', 0.0),
+                        exploitability=vuln_data.get('exploitability', 'low'),
+                        impact=vuln_data.get('impact', 'low'),
+                        status='open'
+                    )
+                    self.db.add(vulnerability)
+                    saved_count += 1
+                    
+                except Exception as e:
+                    # Log the preparation failure and store the data
+                    logger.error(f"❌ Failed to prepare vulnerability: {e}")
+                    failed_vulnerabilities.append({
+                        'file': vuln_data.get('file_path', 'Unknown'),
+                        'title': vuln_data.get('title', 'Unknown'),
+                        'error': str(e)
+                    })
+                    continue # Move to the next vulnerability data item
+            
+            # --- Stage 2: Commit the prepared batch ---
             try:
-                for vuln_data in batch:
-                    try:
-                        vulnerability = Vulnerability(
-                            scan_id=scan_id,
-                            title=vuln_data.get('title', '')[:255],  # Truncate if too long
-                            description=vuln_data.get('description', '')[:1000],  # Limit description
-                            severity=vuln_data.get('severity', 'low'),
-                            category=vuln_data.get('category', 'other'),
-                            cwe_id=vuln_data.get('cwe_id'),
-                            owasp_category=vuln_data.get('owasp_category'),
-                            file_path=vuln_data.get('file_path', '')[:500],  # Limit path
-                            line_number=vuln_data.get('line_number'),
-                            line_end_number=vuln_data.get('line_end_number'),
-                            code_snippet=vuln_data.get('code_snippet', '')[:1000] if vuln_data.get('code_snippet') else None,  # Limit snippet
-                            recommendation=vuln_data.get('recommendation', '')[:2000],  # Limit recommendation
-                            fix_suggestion=vuln_data.get('fix_suggestion', '')[:2000],  # Limit fix
-                            risk_score=vuln_data.get('risk_score', 0.0),  # Fixed: removed space after 0.
-                            exploitability=vuln_data.get('exploitability', 'low'),
-                            impact=vuln_data.get('impact', 'low')
-                        )
-                        self.db.add(vulnerability)
-                        saved_count += 1
-                    except Exception as e:
-                        logger.error(f"Error preparing vulnerability: {e}")
-                        failed_count += 1
-                
-                # Commit this batch
                 self.db.commit()
-                logger.info(f"✅ Saved batch {batch_num}/{total_batches} ({saved_count}/{total} vulnerabilities)")
-                
-                # Small delay to avoid overwhelming the database
-                await asyncio.sleep(0.1)  # Fixed: removed space after asyncio.
-                
+                logger.info(f"✅ Saved batch {batch_num}/{total_batches} ({saved_count}/{total} total)")
             except Exception as e:
-                logger.error(f"❌ Error saving batch {batch_num}: {e}")
-                self.db.rollback()  # Rollback failed batch
-                failed_count += len(batch)
+                logger.error(f"❌ Failed to commit batch {batch_num}: {e}")
+                self.db.rollback()
+
+                for vuln_data in batch:
+                    is_already_failed = any(
+                        f['file'] == vuln_data.get('file_path') and f['title'] == vuln_data.get('title')
+                        for f in failed_vulnerabilities
+                    )
+                    if not is_already_failed:
+                        failed_vulnerabilities.append({
+                            'file': vuln_data.get('file_path', 'Unknown'),
+                            'title': vuln_data.get('title', 'Unknown'),
+                            'error': f"Batch commit failed: {str(e)}"
+                        })
+                continue # Move to the next batch
+            
+            # Small delay between batches
+            await asyncio.sleep(0.1)
         
-        if failed_count > 0:
-            logger.warning(f"⚠️ Failed to save {failed_count} vulnerabilities")
+        # --- Final Logging and Error Check ---
+        logger.info("📊 SAVE SUMMARY:")
+        logger.info(f"  Total vulnerabilities: {total}")
+        logger.info(f"  Successfully saved: {saved_count}")
+        logger.info(f"  Failed to save: {len(failed_vulnerabilities)}")
         
-        logger.info(f"✅ Successfully saved {saved_count}/{total} vulnerabilities to database")
+        if failed_vulnerabilities:
+            logger.warning("⚠️ Failed vulnerabilities:")
+            for failed in failed_vulnerabilities[:10]:  # Show first 10
+                logger.warning(f"  - {failed['file']}: {failed['title']} ({failed['error']})")
+            if len(failed_vulnerabilities) > 10:
+                logger.warning(f"  ... and {len(failed_vulnerabilities) - 10} more")
+        
+        # If too many failed, raise error
+        if len(failed_vulnerabilities) > total * 0.1 and total > 0: # More than 10% failed, and total isn't zero
+            raise Exception(f"Failed to save {len(failed_vulnerabilities)} vulnerabilities - scan may be incomplete")   
     
     def _calculate_security_score(
         self,

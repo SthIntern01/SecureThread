@@ -51,6 +51,10 @@ import {
   IconLogout,
 } from "@tabler/icons-react";
 import ScanDetailsModal from "./ScanDetailsModal";
+import { GitHubPATModal } from './GitHubPATModal';
+import { CodeEditorModal } from './CodeEditorModal';
+import { CreatePRModal } from './CreatePRModal';
+import { githubIntegrationService } from '../services/githubIntegrationService';
 
 interface Project {
   id: number;
@@ -101,8 +105,6 @@ interface FileContent {
   download_url?: string;
 }
 
-// Replace the CodeViewer component in frontend/src/components/RepositoryDetails.tsx
-
 interface CodeViewerProps {
   fileName: string;
   content: string;
@@ -118,6 +120,7 @@ interface CodeViewerProps {
     recommendation: string;
   }>;
   onClose: () => void;
+  onFixClick?: (vuln: any) => void;
 }
 
 const CodeViewer: React.FC<CodeViewerProps> = ({
@@ -126,12 +129,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
   language,
   vulnerabilities = [],
   onClose,
+  onFixClick,
 }) => {
   const [copied, setCopied] = useState(false);
   const [selectedVuln, setSelectedVuln] = useState<number | null>(null);
   const [processedContent, setProcessedContent] = useState<string>("");
 
-  // ✅ FIX: Process content safely on mount
   useEffect(() => {
     let contentString: string;
 
@@ -141,9 +144,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
       } else if (typeof content === 'string') {
         contentString = content;
       } else if (typeof content === 'object') {
-        // Handle GitHub API response format
         if ('content' in content && typeof content.content === 'string') {
-          // Decode base64 content
           try {
             contentString = atob(content.content.replace(/\n/g, ''));
           } catch (e) {
@@ -151,7 +152,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
             contentString = content.content;
           }
         } else {
-          // Fallback to JSON stringify
           contentString = JSON.stringify(content, null, 2);
         }
       } else {
@@ -229,10 +229,8 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
     }
   };
 
-  // ✅ FIX: Use processedContent instead of content
   const lines = processedContent.split("\n");
 
-  // Create a map of line numbers to vulnerabilities
   const vulnsByLine = new Map<number, Array<(typeof vulnerabilities)[0]>>();
   vulnerabilities.forEach((vuln) => {
     if (vuln.line_number) {
@@ -242,7 +240,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
     }
   });
 
-  // ✅ Show loading state while processing
   if (!processedContent) {
     return (
       <Dialog open={true} onOpenChange={onClose}>
@@ -259,7 +256,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-7xl h-[95vh] flex flex-col p-0">
-        {/* Header */}
         <div className="border-b border-gray-200 p-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -310,7 +306,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
         </div>
 
         <div className="flex-1 min-h-0 flex">
-          {/* Scrollable Code Area */}
           <div className="flex-1 relative">
             <div
               className="absolute inset-0 bg-gray-50 overflow-auto"
@@ -320,7 +315,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
               }}
             >
               <div className="flex">
-                {/* Line Numbers */}
                 <div className="bg-gray-100 border-r border-gray-300 px-4 py-4 text-right select-none flex-shrink-0">
                   <div className="font-mono text-sm text-gray-500 leading-6">
                     {lines.map((_, index) => {
@@ -368,7 +362,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                   </div>
                 </div>
 
-                {/* Code Content with Vulnerability Highlighting */}
                 <div className="flex-1 px-4 py-4">
                   <pre className="font-mono text-sm leading-6 text-gray-800">
                     {lines.map((line, index) => {
@@ -414,7 +407,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                             {line || " "}
                           </span>
 
-                          {/* Vulnerability Tooltip */}
                           {hasVulns && selectedVuln === lineNumber && (
                             <div className="absolute left-full top-0 ml-2 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 max-w-md">
                               <div className="space-y-2">
@@ -456,7 +448,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
             </div>
           </div>
 
-          {/* Vulnerability Sidebar */}
           {vulnerabilities.length > 0 && (
             <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
               <div className="p-4 border-b border-gray-200">
@@ -468,34 +459,52 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                 {vulnerabilities.map((vuln) => (
                   <div
                     key={vuln.id}
-                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer"
-                    onClick={() => {
-                      if (vuln.line_number) {
-                        setSelectedVuln(vuln.line_number);
-                      }
-                    }}
+                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm"
                   >
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Badge
-                        className={`text-xs ${getSeverityColor(vuln.severity)}`}
-                      >
-                        {vuln.severity}
-                      </Badge>
-                      {vuln.line_number && (
-                        <span className="text-xs text-gray-500">
-                          Line {vuln.line_number}
-                        </span>
-                      )}
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (vuln.line_number) {  // Fixed: removed space after dot
+                          setSelectedVuln(vuln.line_number);  // Fixed: removed space after dot
+                        }
+                      }}
+                    >
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Badge
+                          className={`text-xs ${getSeverityColor(vuln.severity)}`}
+                        >
+                          {vuln.severity}
+                        </Badge>
+                        {vuln.line_number && (  // Fixed: removed space after dot
+                          <span className="text-xs text-gray-500">
+                            Line {vuln.line_number}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                        {vuln.title}
+                      </h4>
+                      <p className="text-xs text-gray-600 mb-2">
+                        {vuln.description}
+                      </p>
+                      <p className="text-xs text-blue-600 mb-3">
+                        <strong>Fix: </strong> {vuln.recommendation}
+                      </p>
                     </div>
-                    <h4 className="font-semibold text-sm text-gray-900 mb-1">
-                      {vuln.title}
-                    </h4>
-                    <p className="text-xs text-gray-600 mb-2">
-                      {vuln.description}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      <strong>Fix:</strong> {vuln.recommendation}
-                    </p>
+                    
+                    {/* Fix Code Button - NEW! */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onFixClick) {
+                          onFixClick(vuln);
+                        }
+                      }}
+                      className="w-full mt-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Code className="w-4 h-4" />
+                      Fix This Vulnerability
+                    </button>
                   </div>
                 ))}
               </div>
@@ -670,6 +679,12 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
   const [fileStatuses, setFileStatuses] = useState<{ [key: string]: any }>({});
+  const [showPATModal, setShowPATModal] = useState(false);
+  const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [showPRModal, setShowPRModal] = useState(false);
+  const [hasPATToken, setHasPATToken] = useState(false);
+  const [selectedVulnerability, setSelectedVulnerability] = useState<any>(null);
+  const [savedFixId, setSavedFixId] = useState<number | null>(null);
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     content: string;
@@ -698,6 +713,43 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   useEffect(() => {
     fetchContents(currentPath);
   }, [currentPath]);
+
+  useEffect(() => {
+    checkPATStatus();
+  }, []);
+
+  const checkPATStatus = async () => {
+    try {
+      const status = await githubIntegrationService.checkPATStatus();
+      setHasPATToken(status.has_token);
+    } catch (error) {
+      console.error('Error checking PAT status:', error);
+    }
+  };
+
+  const handleFixVulnerability = (vuln: any) => {
+    setSelectedVulnerability(vuln);
+    if (!hasPATToken) {
+      setSelectedFile(null);
+      setShowPATModal(true);
+    } else {
+      setShowCodeEditor(true);
+    }
+  };
+
+  const handleFixSaved = (fixId: number) => {
+    setSavedFixId(fixId);
+    setShowCodeEditor(false);
+    setTimeout(() => {
+      setShowPRModal(true);
+    }, 500);
+  };
+
+  const handlePRSuccess = (prUrl: string) => {
+    alert(`Pull request created! ${prUrl}`);
+    setShowPRModal(false);
+    window.open(prUrl, '_blank');
+  };
 
   const fetchContents = async (path: string) => {
     setLoading(true);
@@ -732,19 +784,18 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     }
   };
 
-  // Add this function inside your RepositoryDetails component
-const getVcsProviderName = (): string => {
-  if (project?.html_url) {
-    if (project.html_url.includes('github.com')) {
-      return 'GitHub';
-    } else if (project.html_url.includes('bitbucket.org')) {
-      return 'Bitbucket';
-    } else if (project.html_url.includes('gitlab.com')) {
-      return 'GitLab';
+  const getVcsProviderName = (): string => {
+    if (project?.html_url) {
+      if (project.html_url.includes('github.com')) {
+        return 'GitHub';
+      } else if (project.html_url.includes('bitbucket.org')) {
+        return 'Bitbucket';
+      } else if (project.html_url.includes('gitlab.com')) {
+        return 'GitLab';
+      }
     }
-  }
-  return 'Repository';
-};
+    return 'Repository';
+  };
 
   const fetchFileContent = async (filePath: string, fileName: string) => {
     try {
@@ -768,7 +819,6 @@ const getVcsProviderName = (): string => {
         const extension = fileName.split(".").pop()?.toLowerCase() || "";
         const language = getLanguageFromExtension(extension);
 
-        // Get vulnerabilities for this file
         const fileVulnerabilities = getVulnerabilityForFile(filePath);
 
         setSelectedFile({
@@ -791,9 +841,7 @@ const getVcsProviderName = (): string => {
     }
   };
 
-  // Add scan polling effect
   useEffect(() => {
-    // Start polling if there's a running scan
     if (
       project.latest_scan?.status === "running" ||
       project.latest_scan?.status === "pending"
@@ -834,12 +882,10 @@ const getVcsProviderName = (): string => {
           const scanData = await response.json();
           setLatestScanData(scanData);
 
-          // Update project status based on scan status
           if (scanData.status === "completed" || scanData.status === "failed") {
             clearInterval(interval);
             setScanPollingInterval(null);
 
-            // Refresh vulnerabilities and file statuses
             if (scanData.status === "completed") {
               fetchVulnerabilities();
               fetchFileScanStatuses(scanData.id);
@@ -899,7 +945,6 @@ const getVcsProviderName = (): string => {
         const data = await response.json();
         const statusMap: { [key: string]: any } = {};
 
-        // Check if we have file_results directly or it is there in scan_metadata
         const fileResults =
           data.file_results ||
           data.scan?.scan_metadata?.file_scan_results ||
@@ -1063,7 +1108,6 @@ const getVcsProviderName = (): string => {
         }
       }
 
-      // Show old vulnerability indicator for backward compatibility
       if (hasVulnerabilities(filePath)) {
         const severity = getHighestSeverityForFile(filePath);
         const severityColors = {
@@ -1148,12 +1192,40 @@ const getVcsProviderName = (): string => {
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Sort contents: directories first, then files
   const sortedContents = [...filteredContents].sort((a, b) => {
     if (a.type === "dir" && b.type === "file") return -1;
     if (a.type === "file" && b.type === "dir") return 1;
     return a.name.localeCompare(b.name);
   });
+
+  // ✅ NEW:  Get all vulnerable files across entire repository
+const allVulnerableFiles = React.useMemo(() => {
+  const vulnFilePaths = new Set(vulnerabilities.map(v => v. file_path));
+  return Array.from(vulnFilePaths).map(filePath => {
+    const fileVulns = vulnerabilities.filter(v => v.file_path === filePath);
+    const fileName = filePath.split('/').pop() || filePath;
+    const highestSeverity = fileVulns.reduce((max, vuln) => {
+      const severityOrder = { critical: 4, high: 3, medium:  2, low: 1 };
+      return severityOrder[vuln.severity] > severityOrder[max.severity] ? vuln : max;
+    });
+    
+    return {
+      path: filePath,
+      name: fileName,
+      fullPath: filePath,
+      vulnerabilityCount: fileVulns. length,
+      highestSeverity: highestSeverity.severity,
+      vulnerabilities: fileVulns
+    };
+  }).sort((a, b) => {
+    // Sort by severity first, then by count
+    const severityOrder = { critical: 4, high: 3, medium:  2, low: 1 };
+    if (severityOrder[a.highestSeverity] !== severityOrder[b.highestSeverity]) {
+      return severityOrder[b.highestSeverity] - severityOrder[a.highestSeverity];
+    }
+    return b.vulnerabilityCount - a. vulnerabilityCount;
+  });
+}, [vulnerabilities]);
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
@@ -1172,7 +1244,6 @@ const getVcsProviderName = (): string => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
-            {/* Header */}
             <div className="flex items-center space-x-2 text-sm mb-4">
               <span className="font-medium theme-text">SecureThread</span>
               <ChevronRight size={16} className="text-gray-300" />
@@ -1186,7 +1257,6 @@ const getVcsProviderName = (): string => {
               <span className="font-medium theme-text">{project.name}</span>
             </div>
 
-            {/* Project Header */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 shadow-lg">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-4">
@@ -1228,18 +1298,16 @@ const getVcsProviderName = (): string => {
                     </Button>
                   )}
                   <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(project.html_url, "_blank")}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              View on {getVcsProviderName()}
-            </Button>
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(project.html_url, "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    View on {getVcsProviderName()}
+                  </Button>
                 </div>
               </div>
 
-              {/* Project Stats */}
-              {/* Project Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="text-lg font-semibold text-brand-black">
@@ -1275,9 +1343,78 @@ const getVcsProviderName = (): string => {
               </div>
             </div>
 
-            {/* File Browser */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
-              {/* Browser Header */}
+              {/* ✅ NEW:  Vulnerable Files Section */}
+              {allVulnerableFiles.length > 0 && (
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-red-200 shadow-lg overflow-hidden mb-6">
+                  <div className="p-4 bg-red-50 border-b border-red-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                          <span className="text-red-600 font-bold text-lg">! </span>
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-semibold text-red-900">
+                            Files with Vulnerabilities
+                          </h2>
+                          <p className="text-sm text-red-700">
+                            {allVulnerableFiles.length} file{allVulnerableFiles.length !== 1 ? 's' :  ''} contain{allVulnerableFiles.length === 1 ? 's' : ''} security issues
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto divide-y divide-red-100">
+                    {allVulnerableFiles.map((file, index) => (
+                      <div
+                        key={`vuln-${file.path}-${index}`}
+                        onClick={() => fetchFileContent(file.path, file.name)}
+                        className="p-4 hover:bg-red-50 cursor-pointer transition-colors flex items-center justify-between"
+                      >
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className="relative">
+                            <File className="w-5 h-5 text-red-600" />
+                            <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
+                              file.highestSeverity === 'critical' ?  'bg-red-600' :
+                              file.highestSeverity === 'high' ? 'bg-orange-600' :
+                              file.highestSeverity === 'medium' ? 'bg-yellow-600' :  'bg-blue-600'
+                            }`}></div>
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium text-gray-900 truncate">
+                                {file.name}
+                              </span>
+                              <Badge 
+                                variant="destructive" 
+                                className="text-xs flex-shrink-0"
+                              >
+                                {file.vulnerabilityCount} issue{file.vulnerabilityCount !== 1 ? 's' :  ''}
+                              </Badge>
+                              <Badge 
+                                className={`text-xs flex-shrink-0 ${
+                                  file.highestSeverity === 'critical' ? 'bg-red-600' : 
+                                  file.highestSeverity === 'high' ?  'bg-orange-600' :
+                                  file.highestSeverity === 'medium' ? 'bg-yellow-600' : 'bg-blue-600'
+                                } theme-text`}
+                              >
+                                {file.highestSeverity}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate mt-1">
+                              {file.fullPath}
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 ml-2" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="p-4 border-b border-gray-200/50">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                   <div className="flex items-center space-x-4">
@@ -1309,7 +1446,6 @@ const getVcsProviderName = (): string => {
                   </div>
                 </div>
 
-                {/* Breadcrumb */}
                 <div className="flex items-center space-x-2 mt-4">
                   {getBreadcrumbPath().map((segment, index) => (
                     <React.Fragment key={index}>
@@ -1327,7 +1463,6 @@ const getVcsProviderName = (): string => {
                 </div>
               </div>
 
-              {/* File List */}
               <div className="max-h-96 overflow-y-auto">
                 {loading ? (
                   <div className="p-8 text-center">
@@ -1361,7 +1496,6 @@ const getVcsProviderName = (): string => {
                       const hasVulns = fileVulns.length > 0;
                       const fileStatus = fileStatuses[item.path];
 
-                      // Determine status message and color for files only
                       let statusMessage = "";
                       let statusColor = "";
                       let statusBadge = null;
@@ -1372,7 +1506,6 @@ const getVcsProviderName = (): string => {
 
                         if (currentScanStatus === "completed") {
                           if (fileStatus) {
-                            // We have scan data for this file
                             switch (fileStatus.status) {
                               case "vulnerable":
                                 const vulnCount = hasVulns
@@ -1437,7 +1570,6 @@ const getVcsProviderName = (): string => {
                                 );
                             }
                           } else if (hasVulns) {
-                            // Legacy: we have vulnerabilities but no file status
                             statusMessage = `Scanning OK, ${fileVulns.length} Vulnerabilities found`;
                             statusColor = "text-red-600";
                             statusBadge = (
@@ -1447,7 +1579,6 @@ const getVcsProviderName = (): string => {
                               </Badge>
                             );
                           } else {
-                            // No scan data and no vulnerabilities - assume not scanned due to constraints
                             statusMessage =
                               "Scanning did not occur (API Constraints)";
                             statusColor = "text-gray-600";
@@ -1477,7 +1608,6 @@ const getVcsProviderName = (): string => {
                             </Badge>
                           );
                         } else {
-                          // No scan has been run yet
                           statusMessage = "Not scanned";
                           statusColor = "text-gray-600";
                           statusBadge = (
@@ -1521,10 +1651,8 @@ const getVcsProviderName = (): string => {
                                 <div className="font-medium text-brand-black flex items-center space-x-2">
                                   <span>{item.name}</span>
 
-                                  {/* Show scan status badge for files */}
                                   {item.type === "file" && statusBadge}
 
-                                  {/* Show vulnerability count badge if there are vulnerabilities */}
                                   {hasVulns && (
                                     <Badge
                                       variant="destructive"
@@ -1538,14 +1666,12 @@ const getVcsProviderName = (): string => {
                                   )}
                                 </div>
 
-                                {/* File size */}
                                 {item.type === "file" && item.size && (
                                   <div className="text-sm text-brand-gray">
                                     {formatFileSize(item.size)}
                                   </div>
                                 )}
 
-                                {/* Status message for files */}
                                 {item.type === "file" && statusMessage && (
                                   <div
                                     className={`text-sm font-medium ${statusColor} mt-1`}
@@ -1554,7 +1680,6 @@ const getVcsProviderName = (): string => {
                                   </div>
                                 )}
 
-                                {/* Show scan status reason if available */}
                                 {fileStatus &&
                                   fileStatus.reason &&
                                   fileStatus.status !== "scanned" &&
@@ -1564,7 +1689,6 @@ const getVcsProviderName = (): string => {
                                     </div>
                                   )}
 
-                                {/* Show vulnerability details if present */}
                                 {hasVulns && item.type === "file" && (
                                   <div className="text-xs text-red-600 mt-1">
                                     {fileVulns.filter(
@@ -1642,7 +1766,6 @@ const getVcsProviderName = (): string => {
         </div>
       </div>
 
-      {/* Code Viewer Modal */}
       {selectedFile && (
         <CodeViewer
           fileName={selectedFile.name}
@@ -1650,14 +1773,57 @@ const getVcsProviderName = (): string => {
           language={selectedFile.language}
           vulnerabilities={selectedFile.vulnerabilities}
           onClose={() => setSelectedFile(null)}
+          onFixClick={handleFixVulnerability}
         />
       )}
-      {/* Scan Details Modal */}
+      
       <ScanDetailsModal
         isOpen={showScanModal}
         onClose={() => setShowScanModal(false)}
         scanId={selectedScanId}
         repositoryName={project.name}
+      />
+      
+      <GitHubPATModal
+        isOpen={showPATModal}
+        onClose={() => setShowPATModal(false)}
+        onSuccess={() => {
+          setHasPATToken(true);
+          setShowPATModal(false);
+          if (selectedVulnerability) {
+            setShowCodeEditor(true);
+          }
+        }}
+      />
+
+      {selectedVulnerability && (
+        <CodeEditorModal
+          isOpen={showCodeEditor}
+          onClose={() => {
+            setShowCodeEditor(false);
+            setSelectedVulnerability(null);
+          }}
+          vulnerability={{
+            id: selectedVulnerability.id,
+            title: selectedVulnerability.title,
+            severity: selectedVulnerability.severity,
+            file_path: selectedVulnerability.file_path,
+            line_number: selectedVulnerability.line_number,
+            code_snippet: selectedVulnerability.code_snippet,
+            fix_suggestion: selectedVulnerability.fix_suggestion,
+            repository_id: project.id,
+          }}
+          onFixSaved={handleFixSaved}
+        />
+      )}
+
+      <CreatePRModal
+        isOpen={showPRModal}
+        onClose={() => setShowPRModal(false)}
+        repositoryId={project.id}
+        repositoryName={project.full_name}
+        preSelectedFixIds={savedFixId ? [savedFixId] : []}
+        onSuccess={handlePRSuccess}
       />
     </div>
   );

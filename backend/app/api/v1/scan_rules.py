@@ -141,13 +141,30 @@ async def create_custom_rule(
         db.commit()
         db.refresh(new_rule)
         
-        logger.info(f"User {current_user.id} created custom rule: {new_rule.name} (ID: {new_rule.id})")
+        logger.info(f"User {current_user.id} created custom rule: {new_rule.name} (ID: {new_rule.id})")  # Fixed: removed extra space
         
         return new_rule
         
     except HTTPException:
         raise
     except Exception as e:
+        # 🔥 NEW: Check if it's a duplicate rule error
+        error_message = str(e)
+        
+        # Check for duplicate constraint violation (PostgreSQL error code for unique violation)
+        if 'unique_rule_hash' in error_message or 'duplicate key value' in error_message: 
+            logger.warning(f"User {current_user.id} tried to add duplicate rule: {rule_data.name}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,  # 409 = Conflict
+                detail={
+                    "message": "This rule already exists in the database! ",
+                    "error": "duplicate_rule",
+                    "hint": "A rule with identical content is already present.  Please modify your rule or use the existing one."
+                }
+            )
+        
+        # For any other error
         logger.error(f"Error creating custom rule: {e}")
         db.rollback()
         raise HTTPException(
