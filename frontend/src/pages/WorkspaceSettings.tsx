@@ -57,7 +57,7 @@ import { IconUser } from "@tabler/icons-react";
 interface TeamMember {
   id: number;
   user_id: number;
-  name: string;
+  name:  string;
   email: string;
   avatar?: string;
   role: string;
@@ -86,10 +86,10 @@ const InviteMembersModal = ({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && inviteMethod === "link" && currentWorkspace?.id) {
+    if (isOpen && inviteMethod === "link" && currentWorkspace?. id) {
       generateInviteLink();
     }
-  }, [isOpen, inviteMethod, role, currentWorkspace?. id]);
+  }, [isOpen, inviteMethod, role, currentWorkspace?.id]);
 
   const generateInviteLink = async () => {
     if (!currentWorkspace?.id) return;
@@ -98,7 +98,7 @@ const InviteMembersModal = ({
     
     try {
       setLoading(true);
-      const response = await workspaceService. generateInviteLink(workspaceId, role);
+      const response = await workspaceService.generateInviteLink(workspaceId, role);
       setInviteLink(response.invite_link);
     } catch (error) {
       console.error(error);
@@ -250,7 +250,7 @@ const InviteMembersModal = ({
             ) : (
               <Button
                 onClick={handleCopyLink}
-                className="flex-1 bg-accent hover:bg-accent/90"
+                className="flex-1 bg-accent hover: bg-accent/90"
               >
                 <Copy className="w-4 h-4 mr-2" />
                 {copied ? "Copied!" : "Copy Invite Link"}
@@ -279,7 +279,7 @@ const MemberRow = ({
         return <Crown className="w-4 h-4 text-yellow-500" />;
       case "Admin":
         return <Shield className="w-4 h-4 text-blue-500" />;
-      case "Member": 
+      case "Member":
         return <Users className="w-4 h-4 text-green-500" />;
       default:
         return <IconUser className="w-4 h-4 text-gray-500" />;
@@ -294,7 +294,7 @@ const MemberRow = ({
         return "bg-blue-100 text-blue-800";
       case "Member":
         return "bg-green-100 text-green-800";
-      default: 
+      default:
         return "bg-gray-100 text-gray-800";
     }
   };
@@ -303,7 +303,7 @@ const MemberRow = ({
     <div className="flex items-center justify-between py-4 border-b theme-border last:border-b-0">
       <div className="flex items-center space-x-4">
         <div className="w-10 h-10 bg-gradient-to-br from-accent/20 to-accent/40 rounded-full flex items-center justify-center">
-          {member.avatar ?  (
+          {member.avatar ? (
             <img
               src={member.avatar}
               alt={member.name}
@@ -343,7 +343,7 @@ const MemberRow = ({
                 <Shield className="w-4 h-4 mr-2" />
                 Make Admin
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onChangeRole(member.id, "Member")}>
+              <DropdownMenuItem onClick={() => onChangeRole(member. id, "Member")}>
                 <Users className="w-4 h-4 mr-2" />
                 Make Member
               </DropdownMenuItem>
@@ -363,17 +363,12 @@ const MemberRow = ({
   );
 };
 
-// ✅ UPDATED Repositories Tab Component with Add Repo functionality
+// ✅ SIMPLIFIED Repositories Tab Component - READ ONLY (No Add Repo)
 const RepositoriesTab = () => {
   const { currentWorkspace } = useWorkspace();
   const [repositories, setRepositories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
-  const [showAddRepoDialog, setShowAddRepoDialog] = useState(false);
-  const [availableRepos, setAvailableRepos] = useState<any[]>([]);
-  const [loadingAvailable, setLoadingAvailable] = useState(false);
-  const [selectedRepo, setSelectedRepo] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     loadRepositories();
@@ -397,45 +392,6 @@ const RepositoriesTab = () => {
     }
   };
 
-  const loadAvailableRepositories = async () => {
-    if (!currentWorkspace) return;
-    
-    try {
-      setLoadingAvailable(true);
-      const repos = await workspaceService. getAvailableRepositories(
-        String(currentWorkspace.id)
-      );
-      console.log('✅ Available repositories:', repos);
-      setAvailableRepos(repos);
-    } catch (error) {
-      console.error('❌ Error loading available repositories:', error);
-      alert('Failed to load available repositories');
-    } finally {
-      setLoadingAvailable(false);
-    }
-  };
-
-  const handleAddRepository = async () => {
-    if (!selectedRepo || !currentWorkspace) return;
-    
-    try {
-      setAdding(true);
-      await workspaceService.addRepositoryToWorkspace(
-        String(currentWorkspace.id),
-        selectedRepo
-      );
-      setShowAddRepoDialog(false);
-      setSelectedRepo(null);
-      await loadRepositories();
-      alert('Repository added successfully!');
-    } catch (error:  any) {
-      console.error('❌ Error adding repository:', error);
-      alert(error. message || 'Failed to add repository');
-    } finally {
-      setAdding(false);
-    }
-  };
-
   const filteredRepos = repositories.filter(repo => {
     if (filter === "all") return true;
     if (filter === "active") return !repo.is_archived;
@@ -456,16 +412,9 @@ const RepositoriesTab = () => {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
-        <Button 
-          className="bg-accent hover:bg-accent/90"
-          onClick={() => {
-            setShowAddRepoDialog(true);
-            loadAvailableRepositories();
-          }}
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Repo
-        </Button>
+        <div className="text-sm theme-text-secondary">
+          Total:  {repositories.length} {repositories.length === 1 ? 'repository' : 'repositories'}
+        </div>
       </div>
 
       <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
@@ -480,8 +429,11 @@ const RepositoriesTab = () => {
             <h3 className="text-xl font-semibold theme-text mb-2">
               No Repositories Found
             </h3>
-            <p className="text-white/70 mb-6">
-              No repositories are connected to this workspace
+            <p className="text-white/70 mb-4">
+              No repositories are connected to this workspace yet.
+            </p>
+            <p className="text-sm text-white/50">
+              Import repositories from the Projects page to add them here.
             </p>
           </div>
         ) : (
@@ -518,9 +470,12 @@ const RepositoriesTab = () => {
                     href={repo.html_url} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-accent hover:underline text-sm"
+                    className="text-accent hover:underline text-sm flex items-center space-x-1"
                   >
-                    View on GitHub →
+                    <span>View on GitHub</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
                   </a>
                 </div>
               </div>
@@ -529,92 +484,19 @@ const RepositoriesTab = () => {
         )}
       </div>
 
-      {/* ✅ Add Repository Dialog */}
-      <Dialog open={showAddRepoDialog} onOpenChange={setShowAddRepoDialog}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-neutral-900">
-          <DialogHeader>
-            <DialogTitle className="theme-text text-xl font-semibold">Add Repository to Workspace</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
-            {loadingAvailable ? (
-              <div className="text-center py-8">
-                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-white/70 mt-4">Loading repositories...</p>
-              </div>
-            ) : availableRepos.length === 0 ? (
-              <div className="text-center py-8">
-                <Github className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                <p className="text-white/70">All your repositories are already in this workspace</p>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-white/70">Select a repository to add to this workspace: </p>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {availableRepos.map((repo) => (
-                    <div
-                      key={repo.id}
-                      onClick={() => setSelectedRepo(repo. id)}
-                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                        selectedRepo === repo.id
-                          ? 'border-accent bg-accent/10 shadow-md'
-                          : 'border-gray-300 dark:border-neutral-700 hover:border-accent/50 hover:bg-accent/5'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Github className="w-6 h-6 theme-text flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold theme-text truncate">{repo.name}</h4>
-                          <p className="text-sm text-white/70 truncate">{repo.full_name}</p>
-                          {repo.description && (
-                            <p className="text-xs text-white/50 mt-1 line-clamp-2">{repo.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {repo.language && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">{repo.language}</Badge>
-                          )}
-                          {selectedRepo === repo.id && (
-                            <Check className="w-5 h-5 text-accent flex-shrink-0" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="flex justify-end space-x-3 pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowAddRepoDialog(false);
-                  setSelectedRepo(null);
-                }}
-                className="border-gray-300 dark:border-neutral-700"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAddRepository}
-                disabled={!selectedRepo || adding}
-                className="bg-accent hover:bg-accent/90 text-accent-foreground disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {adding ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Repository
-                  </>
-                )}
-              </Button>
-            </div>
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-semibold theme-text text-sm mb-1">
+              Want to add more repositories?
+            </h4>
+            <p className="text-xs text-white/70">
+              Go to the <strong>Projects</strong> page and use <strong>"Import from GitHub"</strong> to add more repositories to this workspace.
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   );
 };
@@ -741,9 +623,9 @@ const WorkspaceSettings = () => {
     { id: "clouds", label: "Clouds", icon: Cloud },
     { id: "containers", label: "Containers", icon: Package },
     { id: "domains", label: "Domains & APIs", icon: Globe },
-    { id: "integrations", label: "Integrations", icon:  Zap },
-    { id:  "sla", label: "SLA", icon: Shield },
-    { id:  "advanced", label: "Advanced", icon:  Settings },
+    { id: "integrations", label: "Integrations", icon: Zap },
+    { id: "sla", label: "SLA", icon: Shield },
+    { id: "advanced", label: "Advanced", icon:  Settings },
   ];
 
   const filteredMembers = members.filter(
@@ -837,7 +719,7 @@ const WorkspaceSettings = () => {
                             </button>
                           </div>
                           <div className="text-base theme-text">
-                            {currentWorkspace?.name || workspaceName}
+                            {currentWorkspace?. name || workspaceName}
                           </div>
                         </div>
                         <div>
@@ -887,7 +769,7 @@ const WorkspaceSettings = () => {
                       </div>
                       <Button
                         onClick={() => setShowInviteModal(true)}
-                        className="bg-accent hover:bg-accent/90"
+                        className="bg-accent hover: bg-accent/90"
                       >
                         <UserPlus className="w-4 h-4 mr-2" />
                         Invite Members
@@ -1036,7 +918,7 @@ const WorkspaceSettings = () => {
                           <Button
                             onClick={() => setShowDeleteModal(true)}
                             variant="outline"
-                            className="border-red-500 text-red-500 hover:bg-red-500/10"
+                            className="border-red-500 text-red-500 hover: bg-red-500/10"
                           >
                             Delete Workspace
                           </Button>
@@ -1121,7 +1003,7 @@ const WorkspaceSettings = () => {
       {/* Delete Workspace Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-red-500/20">
+          <div className="bg-white dark: bg-neutral-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-red-500/20">
             <div className="flex items-center space-x-3 mb-4">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
@@ -1137,7 +1019,7 @@ const WorkspaceSettings = () => {
                   ⚠️ This action cannot be undone! 
                 </p>
                 <p className="text-sm text-red-800 dark: text-red-200">
-                  All repositories, scans, team members, and data will be permanently deleted. 
+                  All repositories, scans, team members, and data will be permanently deleted.
                 </p>
               </div>
               
