@@ -71,10 +71,10 @@ interface Repository {
   language: string;
   is_private: boolean;
   is_fork: boolean;
-  is_imported?: boolean;
-  created_at?: string;
-  updated_at?: string;
-  owner?: string;
+  is_imported?:  boolean;
+  created_at?:  string;
+  updated_at?:  string;
+  owner?:  string;
 }
 
 interface Project {
@@ -89,11 +89,11 @@ interface Project {
   language: string;
   is_private: boolean;
   is_fork: boolean;
-  owner: string;
+  owner:  string;
   repository: string;
   source: "github" | "gitlab" | "bitbucket"; 
   status: "active" | "scanning" | "failed" | "completed" | "pending";
-  lastScan: string | null;
+  lastScan:  string | null;
   vulnerabilities: {
     total: number;
     critical: number;
@@ -107,15 +107,15 @@ interface Project {
   scanDuration: string | null;
   created_at: string;
   updated_at: string;
-  latest_scan?: {
+  latest_scan?:  {
     id: number;
     status: string;
-    scan_type?: string;
-    started_at: string;
-    completed_at?: string;
+    scan_type?:  string;
+    started_at:  string;
+    completed_at?:  string;
     scan_duration?: string;
   } | null;
-  security_score?: number | null;
+  security_score?:  number | null;
   code_coverage?: number | null;
 }
 
@@ -124,9 +124,9 @@ const ImportRepositoriesModal = ({
   onClose,
   onImport,
 }: {
-  isOpen: boolean;
+  isOpen:  boolean;
   onClose: () => void;
-  onImport: (repos: Repository[]) => void;  // ✅ Changed to accept Repository[]
+  onImport: (repos: Repository[]) => void;
 }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
@@ -151,7 +151,7 @@ const ImportRepositoriesModal = ({
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
         }/api/v1/repositories/github/available`,
         {
           headers: {
@@ -163,7 +163,7 @@ const ImportRepositoriesModal = ({
 
       if (response.ok) {
         const data = await response.json();
-        setRepositories(data.repositories || []);
+        setRepositories(data. repositories || []);
       } else {
         const errorData = await response.text();
         setError(
@@ -184,9 +184,9 @@ const ImportRepositoriesModal = ({
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("access_token");
+      const token = localStorage. getItem("access_token");
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/search?query=${encodeURIComponent(query)}`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/search? query=${encodeURIComponent(query)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -201,7 +201,7 @@ const ImportRepositoriesModal = ({
         setIsSearchMode(true);
       } else {
         const errorData = await response.text();
-        setError(`Failed to search repositories: ${response.status} ${response.statusText}`);
+        setError(`Failed to search repositories: ${response. status} ${response.statusText}`);
       }
     } catch (error) {
       console.error("Error searching repositories:", error);
@@ -239,14 +239,13 @@ const ImportRepositoriesModal = ({
 
     setImporting(true);
     try {
-      // ✅ Get full repository objects for selected IDs
       const selectedRepoData = repositories.filter(repo => 
         selectedRepos.includes(repo.id)
       );
       
       console.log("Selected repositories for import:", selectedRepoData);
       
-      await onImport(selectedRepoData);  // ✅ Pass full repository objects
+      await onImport(selectedRepoData);
       setSelectedRepos([]);
       onClose();
     } catch (error) {
@@ -261,33 +260,33 @@ const ImportRepositoriesModal = ({
     .filter(
       (repo) =>
         repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        repo.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        repo.description?. toLowerCase().includes(searchTerm. toLowerCase())
     );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
+          <DialogTitle className="flex items-center space-x-2 text-gray-900 dark:text-white">
             <Github size={20} />
             <span>Import GitHub Repositories</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-          {loading ? (
+          {loading ?  (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-                <p className="text-brand-gray">Loading repositories...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
+                <p className="text-gray-600 dark: text-white/70">Loading repositories...</p>
               </div>
             </div>
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
-                <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-                <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline">
+                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-500 mx-auto mb-4" />
+                <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline" className="border-gray-300 dark:border-white/20">
                   Try Again
                 </Button>
               </div>
@@ -295,25 +294,25 @@ const ImportRepositoriesModal = ({
           ) : (
             <>
               <div className="space-y-3">
-                {!isSearchMode ? (
+                {! isSearchMode ? (
                   <div className="flex items-center space-x-2">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
                       <Input
                         placeholder="Search your repositories..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20"
                       />
                     </div>
                     <Button
                       variant="outline"
                       onClick={() => setIsSearchMode(true)}
-                      className="whitespace-nowrap"
+                      className="whitespace-nowrap border-gray-300 dark:border-white/20"
                     >
                       Search Public Repos
                     </Button>
-                    <div className="text-sm text-brand-gray whitespace-nowrap">
+                    <div className="text-sm text-gray-600 dark:text-white/70 whitespace-nowrap">
                       {selectedRepos.length} selected
                     </div>
                   </div>
@@ -324,48 +323,48 @@ const ImportRepositoriesModal = ({
                         variant="outline"
                         size="sm"
                         onClick={handleBackToMyRepos}
-                        className="whitespace-nowrap"
+                        className="whitespace-nowrap border-gray-300 dark:border-white/20"
                       >
                         ← My Repos
                       </Button>
                       <form onSubmit={handleSearchSubmit} className="flex-1 flex space-x-2">
                         <div className="relative flex-1">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
                           <Input
                             placeholder="Search public repositories (e.g., 'react authentication')"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => setSearchQuery(e. target.value)}
                             className="pl-10"
                           />
                         </div>
-                        <Button type="submit" disabled={!searchQuery.trim()}>
+                        <Button type="submit" disabled={!searchQuery.trim()} style={{ color: 'white' }} className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600">
                           Search
                         </Button>
                       </form>
                     </div>
-                    <div className="text-xs text-brand-gray">
-                      Searching public GitHub repositories. Results sorted by stars.
+                    <div className="text-xs text-gray-600 dark:text-white/70">
+                      Searching public GitHub repositories.  Results sorted by stars.
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto border rounded-lg">
+              <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-white/20 rounded-lg">
                 {filteredRepos.length === 0 ? (
                   <div className="text-center py-8">
-                    <Github className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-brand-gray">
+                    <Github className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-600 dark: text-white/70">
                       {repositories.filter((r) => !r.is_imported).length === 0
                         ? "All your repositories have been imported!"
-                        : "No repositories found matching your search."}
+                        : "No repositories found matching your search. "}
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-gray-100 dark:divide-white/10">
                     {filteredRepos.map((repo, index) => (
                       <div
                         key={`repo-${repo.github_id}-${index}`}
-                        className="p-4 hover:bg-gray-50 transition-colors"
+                        className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                       >
                         <div className="flex items-start space-x-3">
                           <div className="flex items-center mt-1">
@@ -375,7 +374,7 @@ const ImportRepositoriesModal = ({
                               checked={selectedRepos.includes(repo.id)}
                               onChange={(e) => {
                                 const repoId = repo.id;
-                                const isChecked = e.target.checked;
+                                const isChecked = e.target. checked;
 
                                 setSelectedRepos((prevSelected) => {
                                   let newSelected;
@@ -391,44 +390,44 @@ const ImportRepositoriesModal = ({
                                   return newSelected;
                                 });
                               }}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                              className="w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-[#003D6B] dark: focus:ring-orange-500 focus:ring-2 cursor-pointer"
                             />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="text-sm font-medium text-brand-black truncate">
-                                {repo.name}
+                              <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {repo. name}
                               </h3>
                               {isSearchMode && repo.owner && (
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
                                   by {repo.owner}
                                 </span>
                               )}
                               {repo.is_private && (
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-white/10">
                                   Private
                                 </Badge>
                               )}
                               {repo.is_fork && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs border-gray-300 dark:border-white/30">
                                   Fork
                                 </Badge>
                               )}
                               {repo.language && (
                                 <Badge
                                   variant="secondary"
-                                  className="text-xs bg-blue-100 text-blue-800"
+                                  className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300"
                                 >
                                   {repo.language}
                                 </Badge>
                               )}
                             </div>
                             {repo.description && (
-                              <p className="text-sm text-brand-gray mb-2 line-clamp-2">
+                              <p className="text-sm text-gray-600 dark:text-white/70 mb-2 line-clamp-2">
                                 {repo.description}
                               </p>
                             )}
-                            <div className="flex items-center text-xs text-brand-gray space-x-4">
+                            <div className="flex items-center text-xs text-gray-500 dark:text-white/60 space-x-4">
                               <span>Branch: {repo.default_branch}</span>
                               <span>
                                 Updated:{" "}
@@ -445,18 +444,19 @@ const ImportRepositoriesModal = ({
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t">
-                <div className="text-sm text-brand-gray">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/20">
+                <div className="text-sm text-gray-600 dark:text-white/70">
                   {filteredRepos.length} repositories available for import
                 </div>
                 <div className="flex space-x-3">
-                  <Button variant="outline" onClick={onClose}>
+                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20">
                     Cancel
                   </Button>
                   <Button
                     onClick={handleImport}
                     disabled={selectedRepos.length === 0 || importing}
-                    className="min-w-[120px]"
+                    className="min-w-[120px] bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
+                    style={{ color: 'white' }}
                   >
                     {importing ? (
                       <div className="flex items-center space-x-2">
@@ -496,7 +496,7 @@ const getScanTypeIcon = (scanType: string | null | undefined): string => {
   switch (scanType) {
     case 'custom':
       return '⚙️';
-    case 'ai':
+    case 'ai': 
       return '🤖';
     default:
       return '🔍';
@@ -519,7 +519,7 @@ const ImportBitbucketRepositoriesModal = ({
   onClose,
   onImport,
 }: {
-  isOpen: boolean;
+  isOpen:  boolean;
   onClose: () => void;
   onImport: (repoIds: string[]) => void;
 }) => {
@@ -544,7 +544,7 @@ const ImportBitbucketRepositoriesModal = ({
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
         }/api/v1/repositories/bitbucket/available`,
         {
           headers: {
@@ -581,7 +581,7 @@ const ImportBitbucketRepositoriesModal = ({
   };
 
   const handleImport = async () => {
-    if (selectedRepos.length === 0) return;
+    if (selectedRepos. length === 0) return;
 
     setImporting(true);
     try {
@@ -605,30 +605,30 @@ const ImportBitbucketRepositoriesModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
+          <DialogTitle className="flex items-center space-x-2 text-gray-900 dark: text-white">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+              <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
             </svg>
             <span>Import Bitbucket Repositories</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-          {loading ? (
+          {loading ?  (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-                <p className="text-brand-gray">Loading repositories...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
               </div>
             </div>
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
-                <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-                <p className="text-red-600 mb-4">{error}</p>
-                <Button onClick={fetchAvailableBitbucketRepositories} variant="outline">
+                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-500 mx-auto mb-4" />
+                <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                <Button onClick={fetchAvailableBitbucketRepositories} variant="outline" className="border-gray-300 dark:border-white/20">
                   Try Again
                 </Button>
               </div>
@@ -637,73 +637,73 @@ const ImportBitbucketRepositoriesModal = ({
             <>
               <div className="flex items-center space-x-4">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark: text-gray-400 w-4 h-4" />
                   <Input
                     placeholder="Search repositories..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    onChange={(e) => setSearchTerm(e. target.value)}
+                    className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20"
                   />
                 </div>
-                <div className="text-sm text-brand-gray">
+                <div className="text-sm text-gray-600 dark:text-white/70">
                   {selectedRepos.length} selected
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto border rounded-lg">
-                {filteredRepos.length === 0 ? (
+              <div className="flex-1 overflow-y-auto border border-gray-200 dark: border-white/20 rounded-lg">
+                {filteredRepos.length === 0 ?  (
                   <div className="text-center py-8">
-                    <svg className="w-12 h-12 text-gray-300 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                    <svg className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M. 778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
                     </svg>
-                    <p className="text-brand-gray">
+                    <p className="text-gray-600 dark: text-white/70">
                       {repositories.filter((r) => !r.is_imported).length === 0
                         ? "All your repositories have been imported!"
                         : "No repositories found matching your search."}
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-gray-100 dark:divide-white/10">
                     {filteredRepos.map((repo, index) => (
                       <div
                         key={`bitbucket-repo-${repo.id}-${index}`}
-                        className="p-4 hover:bg-gray-50 transition-colors"
+                        className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                       >
                         <div className="flex items-start space-x-3">
                           <div className="flex items-center mt-1">
                             <input
                               type="checkbox"
-                              id={`bitbucket-repo-checkbox-${repo.id}`}
-                              checked={selectedRepos.includes(repo.id)}
+                              id={`bitbucket-repo-checkbox-${repo. id}`}
+                              checked={selectedRepos.includes(repo. id)}
                               onChange={(e) => handleRepoToggle(repo.id)}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                              className="w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-[#003D6B] dark:focus:ring-orange-500 focus:ring-2 cursor-pointer"
                             />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="text-sm font-medium text-brand-black truncate">
+                              <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
                                 {repo.full_name}
                               </h3>
-                              {repo.is_private && (
-                                <Badge variant="secondary" className="text-xs">
+                              {repo. is_private && (
+                                <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-white/10">
                                   Private
                                 </Badge>
                               )}
                               {repo.language && (
                                 <Badge
                                   variant="secondary"
-                                  className="text-xs bg-blue-100 text-blue-800"
+                                  className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300"
                                 >
-                                  {repo.language}
+                                  {repo. language}
                                 </Badge>
                               )}
                             </div>
-                            {repo.description && (
-                              <p className="text-sm text-brand-gray mb-2 line-clamp-2">
+                            {repo. description && (
+                              <p className="text-sm text-gray-600 dark:text-white/70 mb-2 line-clamp-2">
                                 {repo.description}
                               </p>
                             )}
-                            <div className="flex items-center text-xs text-brand-gray space-x-4">
+                            <div className="flex items-center text-xs text-gray-500 dark:text-white/60 space-x-4">
                               <span>Branch: {repo.default_branch}</span>
                               <span>
                                 Updated:{" "}
@@ -718,18 +718,19 @@ const ImportBitbucketRepositoriesModal = ({
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t">
-                <div className="text-sm text-brand-gray">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/20">
+                <div className="text-sm text-gray-600 dark: text-white/70">
                   {filteredRepos.length} repositories available for import
                 </div>
                 <div className="flex space-x-3">
-                  <Button variant="outline" onClick={onClose}>
+                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20">
                     Cancel
                   </Button>
                   <Button
                     onClick={handleImport}
                     disabled={selectedRepos.length === 0 || importing}
-                    className="min-w-[120px]"
+                    className="min-w-[120px] bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
+                    style={{ color:  'white' }}
                   >
                     {importing ? (
                       <div className="flex items-center space-x-2">
@@ -762,10 +763,10 @@ const ProjectCard = ({
   onViewFileScanStatus,
   onViewScanDetails,
 }: {
-  project: Project;
+  project:  Project;
   onDelete: (projectId: number) => void;
   onSync: (projectId: number) => void;
-  onViewDetails: (project: Project) => void;
+  onViewDetails:  (project: Project) => void;
   onStartScan: (projectId: number) => void;
   onStopScan: (projectId: number) => void;
   onViewFileScanStatus: (project: Project) => void;
@@ -774,17 +775,17 @@ const ProjectCard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const getStatusIcon = (status: string, scanType?: string) => {
+  const getStatusIcon = (status: string, scanType?:  string) => {
     switch (status) {
       case "active":
       case "completed":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-500" />;
       case "scanning":
         return (
           <span className="text-base">{getScanTypeIcon(scanType)}</span>
         );
       case "failed":
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <XCircle className="w-4 h-4 text-red-600 dark:text-red-500" />;
       case "pending":
       default:
         return <Clock className="w-4 h-4 text-gray-500" />;
@@ -793,16 +794,16 @@ const ProjectCard = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
+      case "active": 
       case "completed":
-        return "bg-green-100 text-green-800";
-      case "scanning":
-        return "bg-blue-100 text-blue-800";
-      case "failed":
-        return "bg-red-100 text-red-800";
-      case "pending":
+        return "bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300";
+      case "scanning": 
+        return "bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300";
+      case "failed": 
+        return "bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300";
+      case "pending": 
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-50 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300";
     }
   };
 
@@ -810,12 +811,12 @@ const ProjectCard = ({
     switch (source) {
       case "github":
         return <IconBrandGithub className="w-4 h-4" />;
-      case "gitlab":
+      case "gitlab": 
         return <IconBrandGitlab className="w-4 h-4" />;
       case "bitbucket":
         return (
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+            <path d="M. 778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
           </svg>
         );
       case "docker":
@@ -844,82 +845,82 @@ const ProjectCard = ({
   };
 
   const totalVulnerabilities = project.vulnerabilities
-    ? project.vulnerabilities.critical +
+    ?  project.vulnerabilities.critical +
       project.vulnerabilities.high +
-      project.vulnerabilities.medium +
+      project.vulnerabilities. medium +
       project.vulnerabilities.low
     : null;
 
   const hasScanned =
     project.vulnerabilities !== null && project.coverage !== null;
   const isScanning =
-    project.latest_scan?.status === "running" ||
-    project.latest_scan?.status === "pending";
+    project.latest_scan?. status === "running" ||
+    project.latest_scan?. status === "pending";
 
   return (
-    <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20 hover:shadow-xl transition-shadow">
+    <div className="bg-white dark: bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/20 hover:shadow-xl hover:border-[#003D6B] dark:hover:border-orange-500 transition-all">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-accent/20 rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-[#D6E6FF] dark:bg-orange-500/20 rounded-lg flex items-center justify-center">
             {getSourceIcon(project.source)}
           </div>
           <div>
-            <h3 className="text-lg font-semibold theme-text">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               {project.name}
             </h3>
-            <p className="text-sm text-white/70">{project.owner}</p>
+            <p className="text-sm text-gray-600 dark:text-white/70">{project.owner}</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className="text-white/70 hover:text-accent transition-colors">
+          <button className="text-gray-600 dark:text-white/70 hover:text-[#003D6B] dark: hover:text-orange-400 transition-colors">
             <Star
               className={`w-4 h-4 ${
-                project.isStarred ? "fill-yellow-400 text-yellow-400" : ""
+                project.isStarred ? "fill-yellow-500 text-yellow-500" :  ""
               }`}
             />
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-white/70 hover:theme-text transition-colors p-1 rounded-md hover:bg-gray-100/80 dark:bg-white/10">
+              <button className="text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white transition-colors p-1 rounded-md hover:bg-gray-100 dark:hover:bg-white/10">
                 <MoreHorizontal className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20">
               <DropdownMenuItem
                 onClick={handleSync}
                 disabled={isSyncing}
-                className="cursor-pointer"
+                className="cursor-pointer text-gray-900 dark:text-white"
               >
                 <RefreshCw
                   className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`}
                 />
                 {isSyncing ? "Syncing..." : "Sync Project"}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="bg-gray-200 dark:bg-white/20" />
               <DropdownMenuItem
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400 focus:bg-red-50 dark:focus:bg-red-500/10"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                {isDeleting ? "Deleting..." : "Delete Project"}
+                {isDeleting ? "Deleting..." :  "Delete Project"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
-      <p className="text-sm text-white/70 mb-4 line-clamp-2">
+      <p className="text-sm text-gray-600 dark:text-white/70 mb-4 line-clamp-2">
         {project.description}
       </p>
       <div className="flex items-center space-x-4 mb-4">
         <div className="flex items-center space-x-2 flex-shrink-0">
           {getStatusIcon(project.status, project.latest_scan?.scan_type)}
-          <Badge className={`text-xs ${getStatusColor(project.status)}`}>
+          <Badge className={`text-xs border ${getStatusColor(project.status)}`}>
             {project.status === "completed" && (
               <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Completed</span>
             )}
             {project.status === "scanning" && (
-              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Running...</span>
+              <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Running... </span>
             )}
             {project.status === "failed" && (
               <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Failed</span>
@@ -927,19 +928,19 @@ const ProjectCard = ({
             {project.status === "pending" && (
               <span>{getScanTypeLabel(project.latest_scan?.scan_type)} Pending</span>
             )}
-            {!["completed", "scanning", "failed", "pending"].includes(project.status) && (
+            {! ["completed", "scanning", "failed", "pending"].includes(project.status) && (
               <span>{project.status}</span>
             )}
           </Badge>
         </div>
-        <div className="flex items-center space-x-2 text-sm text-white/70 min-w-0 flex-1">
+        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-white/70 min-w-0 flex-1">
           <GitBranch className="w-4 h-4 flex-shrink-0" />
           <span className="truncate">{project.branch}</span>
         </div>
         {project.language && (
           <Badge
             variant="secondary"
-            className="text-xs bg-blue-100 text-blue-800 flex-shrink-0"
+            className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300 flex-shrink-0"
           >
             {project.language}
           </Badge>
@@ -947,24 +948,24 @@ const ProjectCard = ({
       </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <div className="text-xs text-white/70 mb-1">Vulnerabilities</div>
-          {hasScanned ? (
+          <div className="text-xs text-gray-600 dark:text-white/70 mb-1">Vulnerabilities</div>
+          {hasScanned ?  (
             <>
-              <div className="text-lg font-semibold theme-text">
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
                 {totalVulnerabilities}
               </div>
               {totalVulnerabilities && totalVulnerabilities > 0 && (
                 <div className="flex space-x-1 mt-1">
-                  {project.vulnerabilities!.critical > 0 && (
+                  {project.vulnerabilities! .critical > 0 && (
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities!.high > 0 && (
+                  {project.vulnerabilities! .high > 0 && (
                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities!.medium > 0 && (
+                  {project.vulnerabilities! .medium > 0 && (
                     <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities!.low > 0 && (
+                  {project.vulnerabilities! .low > 0 && (
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   )}
                 </div>
@@ -972,34 +973,34 @@ const ProjectCard = ({
             </>
           ) : (
             <>
-              <div className="text-lg font-semibold text-white/40">N/A</div>
-              <div className="text-xs text-white/50">Scan to get details</div>
+              <div className="text-lg font-semibold text-gray-400 dark:text-white/40">N/A</div>
+              <div className="text-xs text-gray-500 dark: text-white/50">Scan to get details</div>
             </>
           )}
         </div>
         <div>
-          <div className="text-xs text-white/70 mb-1">Coverage</div>
+          <div className="text-xs text-gray-600 dark:text-white/70 mb-1">Coverage</div>
           {hasScanned ? (
             <>
-              <div className="text-lg font-semibold theme-text">
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
                 {project.coverage}%
               </div>
-              <div className="w-full bg-white/20 rounded-full h-1 mt-1">
+              <div className="w-full bg-gray-200 dark:bg-white/20 rounded-full h-1 mt-1">
                 <div
-                  className="bg-accent h-1 rounded-full"
+                  className="bg-[#003D6B] dark:bg-orange-500 h-1 rounded-full"
                   style={{ width: `${project.coverage}%` }}
                 ></div>
               </div>
             </>
           ) : (
             <>
-              <div className="text-lg font-semibold text-white/40">N/A</div>
-              <div className="text-xs text-white/50">Scan to get details</div>
+              <div className="text-lg font-semibold text-gray-400 dark:text-white/40">N/A</div>
+              <div className="text-xs text-gray-500 dark:text-white/50">Scan to get details</div>
             </>
           )}
         </div>
       </div>
-      <div className="flex items-center justify-between text-xs text-white/70 mb-4">
+      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-white/70 mb-4">
         <div className="flex items-center space-x-1">
           <Clock className="w-3 h-3" />
           <span>
@@ -1015,23 +1016,23 @@ const ProjectCard = ({
           </div>
         )}
       </div>
-      <div className="flex flex-col space-y-2 pt-4 border-t border-white/20">
+      <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200 dark:border-white/20">
         <Button
           size="sm"
           variant="outline"
-          className="w-full bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
+          className="w-full bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover: bg-gray-50 dark: hover:bg-white/20"
           onClick={() => onViewDetails(project)}
         >
           <Eye className="w-4 h-4 mr-2" />
           View Details
         </Button>
 
-        {project.latest_scan?.status === "completed" && (
+        {project.latest_scan?. status === "completed" && (
           <div className="flex space-x-2">
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
+              className="flex-1 bg-white dark: bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
               onClick={() => onViewFileScanStatus(project)}
             >
               <FileText className="w-4 h-4 mr-1" />
@@ -1040,7 +1041,7 @@ const ProjectCard = ({
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text hover:bg-white/20"
+              className="flex-1 bg-white dark:bg-white/10 border-gray-300 dark: border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
               onClick={() => onViewScanDetails(project)}
             >
               <Activity className="w-4 h-4 mr-1" />
@@ -1049,12 +1050,12 @@ const ProjectCard = ({
           </div>
         )}
 
-        {isScanning ? (
+        {isScanning ?  (
           <Button
             size="sm"
             variant="outline"
-            className="w-full text-red-400 hover:text-red-300 border-red-300 hover:border-red-400 bg-gray-100/80 dark:bg-white/10 hover:bg-white/20"
-            onClick={() => onStopScan(project.id)}
+            className="w-full text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border-red-300 dark:border-red-500/50 hover:border-red-400 dark:hover:border-red-400 bg-white dark:bg-white/10 hover:bg-red-50 dark:hover:bg-red-500/10"
+            onClick={() => onStopScan(project. id)}
           >
             <StopCircle className="w-4 h-4 mr-2" />
             Stop Scan
@@ -1062,9 +1063,10 @@ const ProjectCard = ({
         ) : (
           <Button
             size="sm"
-            className="w-full bg-accent hover:bg-accent/90"
+            style={{ color: 'white' }}
+            className="w-full bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
             onClick={() => onStartScan(project.id)}
-            disabled={project.latest_scan?.status === "pending"}
+            disabled={project.latest_scan?. status === "pending"}
           >
             <Play className="w-4 h-4 mr-2" />
             {project.latest_scan?.status === "pending"
@@ -1104,7 +1106,7 @@ const Projects = () => {
     if (user) {
       if (user.bitbucket_username) {
         setAuthProvider('bitbucket');
-      } else if (user.github_username) {
+      } else if (user. github_username) {
         setAuthProvider('github');
       } else {
         setAuthProvider(null);
@@ -1124,12 +1126,12 @@ const Projects = () => {
 
   const getProviderIcon = (provider: 'github' | 'bitbucket' | null) => {
     switch (provider) {
-      case 'github':
+      case 'github': 
         return <Github className="w-4 h-4 mr-2" />;
       case 'bitbucket':
         return (
           <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+            <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-. 768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
           </svg>
         );
       default:
@@ -1139,7 +1141,7 @@ const Projects = () => {
 
   const getProviderName = (provider: 'github' | 'bitbucket' | null) => {
     switch (provider) {
-      case 'github': return 'GitHub';
+      case 'github':  return 'GitHub';
       case 'bitbucket': return 'Bitbucket';
       default: return 'GitHub';
     }
@@ -1173,7 +1175,7 @@ const Projects = () => {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
         }/api/v1/repositories/`,
         {
           headers: {
@@ -1187,9 +1189,9 @@ const Projects = () => {
         const data = await response.json();
         const repositories = data.repositories || [];
 
-        const transformedProjects: Project[] = repositories.map(
-          (repo: any) => ({
-            id: repo.id,
+        const transformedProjects:  Project[] = repositories.map(
+          (repo:  any) => ({
+            id:  repo.id,
             github_id: repo.github_id,
             name: repo.name,
             full_name: repo.full_name,
@@ -1202,24 +1204,24 @@ const Projects = () => {
             is_fork: repo.is_fork,
             owner: repo.full_name.split("/")[0],
             repository: repo.name,
-            source: repo.source || "github" as const,
-            status:
+            source:  repo.source || "github" as const,
+            status: 
               repo.latest_scan?.status === "running"
                 ? ("scanning" as const)
                 : repo.latest_scan?.status === "completed"
-                ? ("completed" as const)
+                ?  ("completed" as const)
                 : repo.latest_scan?.status === "failed"
                 ? ("failed" as const)
                 : ("pending" as const),
             lastScan: repo.latest_scan?.completed_at
-              ? new Date(repo.latest_scan.completed_at).toLocaleDateString()
+              ? new Date(repo.latest_scan. completed_at).toLocaleDateString()
               : null,
             vulnerabilities: repo.vulnerabilities
               ? {
                   total: repo.vulnerabilities.total,
-                  critical: repo.vulnerabilities.critical,
+                  critical: repo. vulnerabilities.critical,
                   high: repo.vulnerabilities.high,
-                  medium: repo.vulnerabilities.medium,
+                  medium: repo. vulnerabilities.medium,
                   low: repo.vulnerabilities.low,
                 }
               : null,
@@ -1229,9 +1231,9 @@ const Projects = () => {
             scanDuration: repo.latest_scan?.scan_duration,
             created_at: repo.created_at,
             updated_at: repo.updated_at,
-            latest_scan: repo.latest_scan ? {           
-              ...repo.latest_scan,                       
-              scan_type: repo.latest_scan.scan_type      
+            latest_scan:  repo.latest_scan ?  {           
+              ... repo.latest_scan,                       
+              scan_type: repo. latest_scan.scan_type      
             } : undefined,                                
             security_score: repo.security_score,
             code_coverage: repo.code_coverage,
@@ -1246,7 +1248,7 @@ const Projects = () => {
             project.latest_scan?.status === "running" ||
             project.latest_scan?.status === "pending"
           ) {
-            startScanPolling(project.latest_scan.id, project.id);
+            startScanPolling(project.latest_scan. id, project.id);
           }
         });
       } else {
@@ -1306,22 +1308,22 @@ const Projects = () => {
                       latest_scan: {
                         id: scanData.id,
                         status: scanData.status,
-                        scan_type: scanData.scan_type,
+                        scan_type: scanData. scan_type,
                         started_at: scanData.started_at,
                         completed_at: scanData.completed_at,
                         scan_duration: scanData.scan_duration,
                       },
-                      status:
+                      status: 
                         scanData.status === "completed"
                           ? ("completed" as const)
                           : scanData.status === "failed"
                           ? ("failed" as const)
                           : ("scanning" as const),
-                      vulnerabilities:
+                      vulnerabilities: 
                         scanData.total_vulnerabilities !== undefined
                           ? {
                               total: scanData.total_vulnerabilities,
-                              critical: scanData.critical_count,
+                              critical:  scanData.critical_count,
                               high: scanData.high_count,
                               medium: scanData.medium_count,
                               low: scanData.low_count,
@@ -1333,7 +1335,7 @@ const Projects = () => {
                       scanDuration: scanData.scan_duration,
                       lastScan: scanData.completed_at
                         ? new Date(scanData.completed_at).toLocaleDateString()
-                        : null,
+                        :  null,
                     }
                   : project
               )
@@ -1343,7 +1345,7 @@ const Projects = () => {
               clearInterval(pollInterval);
               setPollIntervals((prev) => {
                 const newMap = new Map(prev);
-                newMap.delete(scanId);
+                newMap. delete(scanId);
                 return newMap;
               });
               setScanningProjects((prev) => {
@@ -1356,7 +1358,7 @@ const Projects = () => {
             clearInterval(pollInterval);
             setPollIntervals((prev) => {
               const newMap = new Map(prev);
-              newMap.delete(scanId);
+              newMap. delete(scanId);
               return newMap;
             });
             setScanningProjects((prev) => {
@@ -1369,7 +1371,7 @@ const Projects = () => {
           clearInterval(pollInterval);
           setPollIntervals((prev) => {
             const newMap = new Map(prev);
-            newMap.delete(scanId);
+            newMap. delete(scanId);
             return newMap;
           });
           setScanningProjects((prev) => {
@@ -1403,7 +1405,7 @@ const Projects = () => {
     [clearScanPolling]
   );
 
-  const handleStartScan = async (projectId: number) => {
+  const handleStartScan = async (projectId:  number) => {
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
     
@@ -1416,7 +1418,7 @@ const Projects = () => {
     
     setShowScanMethodModal(false);
     
-    const projectId = selectedProjectForScan.id;
+    const projectId = selectedProjectForScan. id;
     
     if (scanningProjects.has(projectId)) {
       return;
@@ -1435,7 +1437,6 @@ const Projects = () => {
       
       console.log('🚀 Starting scan with config:', requestBody);
       
-      // ✅ FIX: Removed /unified from endpoint
       const response = await fetch(
         `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/start`,
         {
@@ -1460,9 +1461,9 @@ const Projects = () => {
                   ...project,
                   latest_scan: {
                     id: data.scan_id,
-                    status: "pending",
+                    status:  "pending",
                     scan_type: "custom",
-                    started_at: new Date().toISOString(),
+                    started_at:  new Date().toISOString(),
                   },
                   status: "scanning" as const,
                 }
@@ -1474,9 +1475,9 @@ const Projects = () => {
       } else {
         const errorData = await response.json();
         console.error('❌ Scan failed:', errorData);
-        setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start scan');
+        setError(typeof errorData. detail === 'string' ? errorData.detail : 'Failed to start scan');
         setScanningProjects((prev) => {
-          const newSet = new Set(prev);
+                    const newSet = new Set(prev);
           newSet.delete(projectId);
           return newSet;
         });
@@ -1497,16 +1498,16 @@ const Projects = () => {
   const handleStopScan = async (projectId: number) => {
     try {
       const project = projects.find((p) => p.id === projectId);
-      if (!project?.latest_scan?.id) return;
+      if (!project?. latest_scan?. id) return;
 
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${project.latest_scan.id}/stop`,
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
+        }/api/v1/scans/${project.latest_scan. id}/stop`,
         {
           method: "POST",
-          headers: {
+          headers:  {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
@@ -1522,13 +1523,13 @@ const Projects = () => {
         });
 
         setProjects((prevProjects) =>
-          prevProjects.map((p) =>
+          prevProjects. map((p) =>
             p.id === projectId
               ? {
                   ...p,
                   status: "failed" as const,
                   latest_scan: {
-                    ...p.latest_scan!,
+                    ... p.latest_scan! ,
                     status: "stopped",
                   },
                 }
@@ -1544,7 +1545,7 @@ const Projects = () => {
   const handleDeleteProject = async (projectId: number) => {
     try {
       const project = projects.find((p) => p.id === projectId);
-      if (project?.latest_scan?.id) {
+      if (project?. latest_scan?.id) {
         clearScanPolling(project.latest_scan.id);
       }
       setScanningProjects((prev) => {
@@ -1556,7 +1557,7 @@ const Projects = () => {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
         }/api/v1/repositories/${projectId}`,
         {
           method: "DELETE",
@@ -1616,11 +1617,11 @@ const Projects = () => {
             p.id === projectId
               ? {
                   ...p,
-                  description:
-                    updatedRepo.repository?.description || p.description,
-                  default_branch:
+                  description: 
+                    updatedRepo.repository?. description || p.description,
+                  default_branch: 
                     updatedRepo.repository?.default_branch || p.default_branch,
-                  language: updatedRepo.repository?.language || p.language,
+                  language:  updatedRepo.repository?.language || p.language,
                   updated_at: new Date().toISOString(),
                 }
               : p
@@ -1667,7 +1668,7 @@ const Projects = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showImportDropdown) {
         const target = event.target as Element;
-        if (!target.closest('.relative')) {
+        if (! target.closest('.relative')) {
           setShowImportDropdown(false);
         }
       }
@@ -1679,52 +1680,52 @@ const Projects = () => {
     };
   }, [showImportDropdown]);
 
-  const handleImportRepositories = async (repos: Repository[]) => {  // ✅ Changed parameter type
-  try {
-    const token = localStorage.getItem("access_token");
-    
-    console.log("Importing repositories:", repos);
-    
-    const response = await fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/import`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          repositories: repos  // ✅ Use the passed repository objects directly
-        }),
+  const handleImportRepositories = async (repos: Repository[]) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      
+      console.log("Importing repositories:", repos);
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/import`,
+        {
+          method: "POST",
+          headers:  {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON. stringify({
+            repositories: repos
+          }),
+        }
+      );
+
+      if (! response.ok) {
+        const errorData = await response.text();
+        console.error("Import error:", errorData);
+        throw new Error(`Failed to import repositories: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Import error:", errorData);
-      throw new Error(`Failed to import repositories: ${response.status}`);
+      const result = await response.json();
+      console.log("Import successful:", result);
+      await fetchProjects();
+    } catch (error) {
+      console.error("Error importing repositories:", error);
+      throw error;
     }
-
-    const result = await response.json();
-    console.log("Import successful:", result);
-    await fetchProjects();
-  } catch (error) {
-    console.error("Error importing repositories:", error);
-    throw error;
-  }
-};
+  };
 
   const handleImportBitbucketRepositories = async (repoIds: string[]) => {
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
         `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
+          import.meta.env. VITE_API_URL || "http://localhost:8000"
         }/api/v1/repositories/bitbucket/import`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization:  `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -1749,7 +1750,7 @@ const Projects = () => {
   };
 
   const stats = {
-    total: projects.length,
+    total:  projects.length,
     active: projects.filter(
       (p) => p.status === "active" || p.status === "completed"
     ).length,
@@ -1774,31 +1775,32 @@ const Projects = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
-            <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
+            <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
-              <div className="p-8 border-b theme-border">
+              <div className="p-8 border-b border-gray-200 dark:border-white/20">
                 <div className="flex items-center space-x-2 text-sm mb-4">
-                  <span className="font-medium theme-text">SecureThread</span>
-                  <ChevronRight size={16} className="theme-text-muted" />
-                  <span className="font-medium theme-text">Projects</span>
+                  <span className="font-medium text-gray-900 dark:text-white">SecureThread</span>
+                  <ChevronRight size={16} className="text-gray-500 dark:text-white/60" />
+                  <span className="font-medium text-gray-900 dark:text-white">Projects</span>
                 </div>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 dark: text-white mb-2">
                       Projects
                     </h1>
-                    <p className="theme-text-secondary">
+                    <p className="text-gray-700 dark:text-white/80">
                       Manage and monitor your security projects
                     </p>
                   </div>
                   <div className="mt-6 lg:mt-0 relative">
                     <Button
                       onClick={handleImportClick}
-                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                      style={{ color: 'white' }}
+                      className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
                     >
-                      {getAuthProvider() ? (
+                      {getAuthProvider() ?  (
                         <>
                           {getProviderIcon(getAuthProvider())}
                           Import from {getProviderName(getAuthProvider())}
@@ -1812,20 +1814,20 @@ const Projects = () => {
                     </Button>
                     
                     {showImportDropdown && (
-                      <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                      <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-white/20 py-2 z-50">
                         <button
                           onClick={() => handleProviderSelection('github')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark: text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
                         >
                           <Github className="w-4 h-4" />
                           <span>Import from GitHub</span>
                         </button>
                         <button
                           onClick={() => handleProviderSelection('bitbucket')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                            <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
                           </svg>
                           <span>Import from Bitbucket</span>
                         </button>
@@ -1836,37 +1838,37 @@ const Projects = () => {
               </div>
 
               {/* Stats Section */}
-              <div className="p-8 border-b theme-border">
+              <div className="p-8 border-b border-gray-200 dark: border-white/20">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                   <div className="text-center">
-                    <div className="text-3xl font-bold theme-text mb-1">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
                       {stats.total}
                     </div>
-                    <div className="text-white/70 font-medium">
+                    <div className="text-gray-600 dark:text-white/70 font-medium">
                       Total Projects
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-green-400 mb-1">
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
                       {stats.active}
                     </div>
-                    <div className="text-white/70 font-medium">
+                    <div className="text-gray-600 dark:text-white/70 font-medium">
                       Active
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-400 mb-1">
+                    <div className="text-3xl font-bold text-[#003D6B] dark:text-blue-400 mb-1">
                       {stats.scanning}
                     </div>
-                    <div className="text-white/70 font-medium">
+                    <div className="text-gray-600 dark:text-white/70 font-medium">
                       Scanning
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-red-400 mb-1">
-                      {stats.failed}
+                    <div className="text-3xl font-bold text-red-600 dark: text-red-400 mb-1">
+                      {stats. failed}
                     </div>
-                    <div className="text-white/70 font-medium">
+                    <div className="text-gray-600 dark:text-white/70 font-medium">
                       Failed
                     </div>
                   </div>
@@ -1874,19 +1876,19 @@ const Projects = () => {
               </div>
 
               {/* Filters Section */}
-              <div className="p-8 border-b theme-border">
+              <div className="p-8 border-b border-gray-200 dark: border-white/20">
                 <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-white/50 w-4 h-4" />
                     <Input
                       placeholder="Search projects..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
+                      className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder: text-gray-500 dark:placeholder:text-white/50"
                     />
                   </div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
+                    <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1899,7 +1901,7 @@ const Projects = () => {
                     </SelectContent>
                   </Select>
                   <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text">
+                    <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
                       <SelectValue placeholder="Filter by source" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1916,32 +1918,33 @@ const Projects = () => {
               <div className="p-8">
                 {loading ? (
                   <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
-                    <p className="theme-text">Loading projects...</p>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-gray-900 dark:text-white">Loading projects...</p>
                   </div>
                 ) : error ? (
                   <div className="text-center py-12">
-                    <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold theme-text mb-2">
+                    <AlertTriangle className="w-16 h-16 text-red-600 dark:text-red-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                       Error Loading Projects
                     </h3>
-                    <p className="text-red-400 mb-6">{error}</p>
+                    <p className="text-red-600 dark:text-red-400 mb-6">{error}</p>
                     <Button
                       onClick={fetchProjects}
-                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                      style={{ color: 'white' }}
+                      className="bg-[#003D6B] hover: bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
                     >
                       Try Again
                     </Button>
                   </div>
                 ) : filteredProjects.length === 0 ? (
                   <div className="text-center py-12">
-                    <IconFolder className="w-16 h-16 text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold theme-text mb-2">
+                    <IconFolder className="w-16 h-16 text-gray-300 dark:text-white/30 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                       {projects.length === 0
                         ? "No Projects Yet"
                         : "No Projects Found"}
                     </h3>
-                    <p className="text-white/70 mb-6">
+                    <p className="text-gray-600 dark:text-white/70 mb-6">
                       {projects.length === 0
                         ? "Get started by importing your first repository."
                         : "Try adjusting your search or filter criteria."}
@@ -1949,12 +1952,13 @@ const Projects = () => {
                     {projects.length === 0 && (
                       <Button
                         onClick={handleImportClick}
-                        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                        style={{ color:  'white' }}
+                        className="bg-[#003D6B] hover:bg-[#002A4D] dark: bg-orange-500 dark: hover:bg-orange-600"
                       >
                         {authProvider === 'bitbucket' ? (
                           <>
                             <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-. 646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
                             </svg>
                             Import Repository
                           </>

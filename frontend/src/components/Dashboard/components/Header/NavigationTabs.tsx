@@ -9,8 +9,8 @@ interface NavigationTabsProps {
 
 const NavigationTabs: React.FC<NavigationTabsProps> = ({ selectedView, onViewChange }) => {
   const tabs = [
-    { key: 'overview' as const, label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
-    { key: 'security' as const, label: 'Security', icon: <Shield className="w-4 h-4" /> },
+    { key: 'overview' as const, label: 'Overview', icon:  <BarChart3 className="w-4 h-4" /> },
+    { key: 'security' as const, label:  'Security', icon: <Shield className="w-4 h-4" /> },
     { key: 'quality' as const, label: 'Code Quality', icon: <Code2 className="w-4 h-4" /> },
     { key: 'compliance' as const, label: 'Compliance', icon: <Award className="w-4 h-4" /> }
   ];
@@ -21,11 +21,12 @@ const NavigationTabs: React.FC<NavigationTabsProps> = ({ selectedView, onViewCha
         {tabs.map(tab => (
           <button
             key={tab.key}
-            onClick={() => onViewChange(tab.key)}
+            onClick={() => onViewChange(tab. key)}
             className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               selectedView === tab.key
-                ? 'bg-white/20 theme-text border border-white/30'
-                : 'text-white/70 hover:theme-text hover:bg-gray-100/80 dark:bg-white/10'
+                // UPDATED: Navy blue for active tab in light mode
+                ? 'bg-[#D6E6FF] text-[#003D6B] border border-[#003D6B]/30 dark:bg-white/20 dark:text-white dark:border-white/30'
+                :  'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/10'
             }`}
           >
             {tab.icon}

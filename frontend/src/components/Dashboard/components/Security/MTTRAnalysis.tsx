@@ -12,13 +12,13 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
   
   if (!mttr && !securityMetrics) {
     return (
-      <div className="theme-card rounded-lg p-6 h-full">
-        <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
-          <Clock className="w-5 h-5 mr-2" />
+      <div className="bg-white border border-gray-200 dark:bg-black/10 dark:border-white/10 rounded-lg p-6 h-full">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+          <Clock className="w-5 h-5 mr-2 text-[#003D6B] dark:text-white" />
           Resolution Time (MTTR)
         </h3>
-        <div className="text-center py-8 theme-text-muted">
-          <Clock className="w-12 h-12 mx-auto mb-3 text-white/40" />
+        <div className="text-center py-8 text-gray-500 dark:text-white/60">
+          <Clock className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-white/40" />
           <p>No resolution data available</p>
           <p className="text-sm mt-2">Fix vulnerabilities to track resolution times</p>
         </div>
@@ -28,13 +28,12 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
 
   // Generate realistic MTTR data based on current vulnerabilities
   const generateMTTRData = () => {
-    if (mttr && (mttr.critical > 0 || mttr. high > 0 || mttr.medium > 0 || mttr.low > 0)) {
+    if (mttr && (mttr.critical > 0 || mttr.high > 0 || mttr.medium > 0 || mttr.low > 0)) {
       return mttr;
     }
     
-    // Generate estimated MTTR based on industry standards
     return {
-      critical: 0, // No fixes yet, but show targets
+      critical: 0,
       high: 0,
       medium: 0,
       low: 0
@@ -56,50 +55,50 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
       severity: 'Critical', 
       current: mttrData.critical, 
       target: targets.critical, 
-      color: 'text-red-400',
-      bgColor: 'bg-red-500/20',
+      color: 'text-red-600 dark:text-red-400',
+      bgColor: 'bg-red-50 dark:bg-red-500/20',
       icon: '🔴'
     },
     { 
       severity: 'High', 
       current: mttrData.high, 
       target: targets.high, 
-      color: 'text-orange-400',
-      bgColor: 'bg-orange-500/20',
+      color: 'text-orange-600 dark:text-orange-400',
+      bgColor: 'bg-orange-50 dark: bg-orange-500/20',
       icon: '🟠'
     },
     { 
       severity: 'Medium', 
       current: mttrData.medium, 
       target: targets.medium, 
-      color: 'text-yellow-400',
-      bgColor: 'bg-yellow-500/20',
+      color: 'text-yellow-600 dark:text-yellow-400',
+      bgColor: 'bg-yellow-50 dark: bg-yellow-500/20',
       icon: '🟡'
     },
     { 
       severity: 'Low', 
       current: mttrData.low, 
       target: targets.low, 
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-500/20',
+      color: 'text-[#003D6B] dark:text-blue-400',
+      bgColor: 'bg-[#B8D4E9] dark:bg-blue-500/20',
       icon: '🔵'
     }
   ];
 
   return (
-    <div className="theme-card rounded-lg p-6 h-full flex flex-col">
-      <h3 className="text-lg font-semibold theme-text mb-4 flex items-center">
-        <Clock className="w-5 h-5 mr-2" />
+    <div className="bg-white border border-gray-200 dark:bg-black/10 dark:border-white/10 rounded-lg p-6 h-full flex flex-col">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+        <Clock className="w-5 h-5 mr-2 text-[#003D6B] dark:text-white" />
         Resolution Time (MTTR)
-        <span className="ml-auto text-xs theme-text-muted">Mean Time To Resolve</span>
+        <span className="ml-auto text-xs text-gray-500 dark: text-white/60">Mean Time To Resolve</span>
       </h3>
       
       <div className="space-y-3 flex-1">
         {severityData.map((item) => (
-          <div key={item.severity} className="flex items-center justify-between p-3 theme-bg-subtle rounded-lg hover:bg-white/5 transition-colors">
+          <div key={item.severity} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
             <div className="flex items-center space-x-3">
               <span className="text-lg">{item.icon}</span>
-              <span className="theme-text font-medium min-w-[70px]">{item.severity}</span>
+              <span className="text-gray-900 dark:text-white font-medium min-w-[70px]">{item.severity}</span>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -107,21 +106,21 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
                 <div className={`text-sm font-medium ${item.color}`}>
                   {item.current > 0 ?  `${item.current}d` : '--'}
                 </div>
-                <div className="theme-text-muted text-xs">Current</div>
+                <div className="text-gray-500 dark:text-white/60 text-xs">Current</div>
               </div>
               
-              <div className="text-center theme-text-muted text-xs">→</div>
+              <div className="text-center text-gray-500 dark:text-white/60 text-xs">→</div>
               
               <div className="text-right">
-                <div className="theme-text-secondary text-sm font-medium">{item.target}d</div>
-                <div className="theme-text-muted text-xs">Target</div>
+                <div className="text-gray-700 dark:text-white/80 text-sm font-medium">{item.target}d</div>
+                <div className="text-gray-500 dark:text-white/60 text-xs">Target</div>
               </div>
               
               <div className="w-6">
                 {item.current <= item.target && item.current > 0 ?  (
-                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                 ) : item.current > item.target ?  (
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                 ) : (
                   <Clock className="w-5 h-5 text-gray-400/50" />
                 )}
@@ -132,24 +131,24 @@ const MTTRAnalysis: React.FC<MTTRAnalysisProps> = ({ data }) => {
       </div>
 
       {/* Summary Stats */}
-      <div className="mt-6 pt-4 border-t theme-border">
+      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-white/20">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div>
-            <div className="text-2xl font-bold theme-text">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">
               {data.totalVulnerabilities || 0}
             </div>
-            <div className="theme-text-muted text-xs">Open Issues</div>
+            <div className="text-gray-500 dark:text-white/60 text-xs">Open Issues</div>
           </div>
           <div>
-            <div className="text-2xl font-bold text-orange-400">
+            <div className="text-2xl font-bold text-[#FF6B35] dark:text-orange-400">
               0
             </div>
-            <div className="theme-text-muted text-xs">Fixed This Month</div>
+            <div className="text-gray-500 dark:text-white/60 text-xs">Fixed This Month</div>
           </div>
         </div>
         
         <div className="mt-4 text-center">
-          <div className="theme-text-muted text-xs">
+          <div className="text-gray-500 dark:text-white/60 text-xs">
             Industry Avg: Critical 7d • High 15d • Medium 30d • Low 90d
           </div>
         </div>

@@ -36,7 +36,7 @@ interface Rule {
 }
 
 interface ScanMethodModalProps {
-  isOpen: boolean;
+  isOpen:  boolean;
   onClose: () => void;
   onSelectUnifiedScan: (config: any) => void;
   projectName?: string;
@@ -45,13 +45,13 @@ interface ScanMethodModalProps {
 // Enhanced JSON Editor Modal Component
 const JsonEditorModal: React.FC<{
   isOpen: boolean;
-  onClose: () => void;
+  onClose:  () => void;
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
-  isValid: boolean;
+  isValid:  boolean;
   validRulesCount: number;
-  error: string;
+  error:  string;
 }> = ({ isOpen, onClose, value, onChange, onSave, isValid, validRulesCount, error }) => {
   const [localValue, setLocalValue] = useState(value);
 
@@ -66,19 +66,19 @@ const JsonEditorModal: React.FC<{
   };
 
   const handleCancel = () => {
-    setLocalValue(value); // Reset to original value
+    setLocalValue(value);
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden bg-white/10 backdrop-blur-lg border border-white/20 shadow-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-white/10">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white mb-2 flex items-center justify-between">
+            <DialogTitle className="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center justify-between">
               <div className="flex items-center">
-                <Code className="w-5 h-5 mr-2 text-orange-400" />
+                <Code className="w-5 h-5 mr-2 text-[#003D6B] dark:text-orange-400" />
                 JSON Rules Editor
               </div>
               <div className="flex items-center space-x-2">
@@ -86,21 +86,21 @@ const JsonEditorModal: React.FC<{
                   <div className="flex items-center space-x-2 text-sm">
                     {isValid ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        <span className="text-green-400">{validRulesCount} valid rules</span>
+                        <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        <span className="text-green-600 dark:text-green-400">{validRulesCount} valid rules</span>
                       </>
                     ) : (
                       <>
-                        <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                        <span className="text-yellow-400">Invalid JSON</span>
+                        <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                        <span className="text-yellow-600 dark:text-yellow-400">Invalid JSON</span>
                       </>
                     )}
                   </div>
                 )}
               </div>
             </DialogTitle>
-            <p className="text-white/70 text-sm">
-              Edit your custom security rules in JSON format. Changes are saved when you click "Save & Close".
+            <p className="text-gray-600 dark:text-white/70 text-sm">
+              Edit your custom security rules in JSON format.  Changes are saved when you click "Save & Close".
             </p>
           </DialogHeader>
         </div>
@@ -111,13 +111,13 @@ const JsonEditorModal: React.FC<{
             {/* JSON Editor */}
             <div className="lg:col-span-2 flex flex-col">
               <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium text-white">Custom Rules JSON</label>
+                <label className="text-sm font-medium text-gray-900 dark:text-white">Custom Rules JSON</label>
                 <div className="flex items-center space-x-2">
                   <Button
                     onClick={() => setLocalValue("")}
                     size="sm"
                     variant="ghost"
-                    className="text-white/60 hover:text-white hover:bg-white/10 text-xs"
+                    className="text-gray-600 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 text-xs"
                   >
                     Clear All
                   </Button>
@@ -128,13 +128,13 @@ const JsonEditorModal: React.FC<{
                   value={localValue}
                   onChange={(e) => setLocalValue(e.target.value)}
                   placeholder="Enter your JSON rules here..."
-                  className="w-full h-full p-4 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none font-mono leading-relaxed"
+                  className="w-full h-full p-4 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus: ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono leading-relaxed"
                   spellCheck={false}
                 />
                 {localValue && (
                   <button
                     onClick={() => setLocalValue("")}
-                    className="absolute top-3 right-3 text-red-400 hover:text-red-300 transition-colors"
+                    className="absolute top-3 right-3 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -144,44 +144,44 @@ const JsonEditorModal: React.FC<{
 
             {/* Reference Panel */}
             <div className="flex flex-col">
-              <h4 className="text-sm font-medium text-white mb-3">JSON Format Reference</h4>
-              <div className="flex-1 bg-white/5 rounded-lg p-4 border border-white/10 overflow-y-auto">
-                <pre className="text-white/80 text-xs leading-relaxed">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">JSON Format Reference</h4>
+              <div className="flex-1 bg-gray-50 dark:bg-white/5 rounded-lg p-4 border border-gray-200 dark:border-white/10 overflow-y-auto">
+                <pre className="text-gray-700 dark:text-white/80 text-xs leading-relaxed">
 {`[
   {
     "name": "SQL Injection Detection",
     "description": "Detects potential SQL injection vulnerabilities",
     "category": "web_vulnerability", 
     "severity": "high",
-    "rule_content": "rule sql_injection { strings: $sql1 = /union.*select/i $sql2 = /drop.*table/i condition: any of them }"
+    "rule_content":  "rule sql_injection { strings: $sql1 = /union.*select/i $sql2 = /drop.*table/i condition: any of them }"
   },
   {
     "name": "XSS Pattern Detection",
     "description": "Identifies cross-site scripting patterns",
     "category": "web_vulnerability",
     "severity": "medium", 
-    "rule_content": "rule xss_detection { strings: $xss1 = /<script/i $xss2 = /javascript:/i condition: any of them }"
+    "rule_content":  "rule xss_detection { strings: $xss1 = /<script/i $xss2 = /javascript:/i condition: any of them }"
   }
 ]`}
                 </pre>
               </div>
 
               {/* Field Requirements */}
-              <div className="mt-4 bg-white/5 border border-white/10 rounded-lg p-3">
-                <h5 className="text-white/80 text-xs font-semibold mb-2">Required Fields:</h5>
-                <ul className="text-white/70 text-xs space-y-1">
-                  <li>• <code className="bg-white/20 px-1 rounded text-orange-300">name</code> - Rule identifier</li>
-                  <li>• <code className="bg-white/20 px-1 rounded text-orange-300">description</code> - Rule purpose</li>
-                  <li>• <code className="bg-white/20 px-1 rounded text-orange-300">rule_content</code> - YARA rule</li>
+              <div className="mt-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark: border-white/10 rounded-lg p-3">
+                <h5 className="text-gray-900 dark:text-white/80 text-xs font-semibold mb-2">Required Fields: </h5>
+                <ul className="text-gray-700 dark:text-white/70 text-xs space-y-1">
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">name</code> - Rule identifier</li>
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">description</code> - Rule purpose</li>
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">rule_content</code> - YARA rule</li>
                 </ul>
               </div>
 
               {/* Optional Fields */}
-              <div className="mt-3 bg-white/5 border border-white/10 rounded-lg p-3">
-                <h5 className="text-white/80 text-xs font-semibold mb-2">Optional Fields:</h5>
-                <ul className="text-white/70 text-xs space-y-1">
-                  <li>• <code className="bg-white/20 px-1 rounded text-white/60">category</code> - Rule category</li>
-                  <li>• <code className="bg-white/20 px-1 rounded text-white/60">severity</code> - critical, high, medium, low</li>
+              <div className="mt-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark: border-white/10 rounded-lg p-3">
+                <h5 className="text-gray-900 dark:text-white/80 text-xs font-semibold mb-2">Optional Fields:</h5>
+                <ul className="text-gray-700 dark:text-white/70 text-xs space-y-1">
+                  <li>• <code className="bg-gray-200 dark:bg-white/20 px-1 rounded text-gray-700 dark:text-white/60">category</code> - Rule category</li>
+                  <li>• <code className="bg-gray-200 dark:bg-white/20 px-1 rounded text-gray-700 dark:text-white/60">severity</code> - critical, high, medium, low</li>
                 </ul>
               </div>
             </div>
@@ -189,12 +189,12 @@ const JsonEditorModal: React.FC<{
 
           {/* Error Display */}
           {error && (
-            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/40 rounded-lg">
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-500/40 rounded-lg">
               <div className="flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5" />
                 <div>
-                  <p className="text-red-300 text-sm font-medium">Validation Error</p>
-                  <p className="text-red-200 text-xs mt-1">{error}</p>
+                  <p className="text-red-800 dark:text-red-300 text-sm font-medium">Validation Error</p>
+                  <p className="text-red-700 dark:text-red-200 text-xs mt-1">{error}</p>
                 </div>
               </div>
             </div>
@@ -202,21 +202,22 @@ const JsonEditorModal: React.FC<{
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <div className="text-white/60 text-sm">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 flex items-center justify-between">
+          <div className="text-gray-600 dark:text-white/60 text-sm">
             Use the reference panel to understand the required JSON format for custom rules.
           </div>
           <div className="flex space-x-3">
             <Button
               onClick={handleCancel}
               variant="ghost"
-              className="text-white/70 hover:text-white hover:bg-white/10"
+              className="text-gray-700 dark:text-white/70 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+              style={{ color: 'white' }}
+              className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-gradient-to-r dark:from-orange-500 dark:to-red-500 dark:hover:from-orange-600 dark:hover:to-red-600"
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Save & Close
@@ -240,14 +241,14 @@ const GlassDropdown: React.FC<{
 
   return (
     <div className="relative">
-      <label className="block text-sm font-medium text-white mb-2">
+      <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
         {icon && <span className="inline-flex items-center mr-1">{icon}</span>}
         {label}
       </label>
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-md text-white text-sm hover:bg-white/15 transition-all duration-200 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+          className="w-full px-3 py-2 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-md text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-white/15 transition-all duration-200 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-500/50"
         >
           <span>{options.find(opt => opt.value === value)?.label || value}</span>
           <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -259,10 +260,8 @@ const GlassDropdown: React.FC<{
               className="fixed inset-0 z-10" 
               onClick={() => setIsOpen(false)}
             />
-            {/* Enhanced Frosted Glass Dropdown Menu */}
-            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-gray-900/80 backdrop-blur-xl border border-white/30 rounded-md shadow-2xl max-h-60 overflow-y-auto">
-              {/* Frosted overlay for extra opacity */}
-              <div className="absolute inset-0 bg-black/20 rounded-md"></div>
+            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark: bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-white/30 rounded-md shadow-2xl max-h-60 overflow-y-auto">
+              <div className="absolute inset-0 bg-white/50 dark:bg-black/20 rounded-md"></div>
               <div className="relative z-10">
                 {options.map((option) => (
                   <button
@@ -271,7 +270,7 @@ const GlassDropdown: React.FC<{
                       onChange(option.value);
                       setIsOpen(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-white text-sm hover:bg-white/20 transition-colors duration-150 first:rounded-t-md last:rounded-b-md border-b border-white/10 last:border-b-0"
+                    className="w-full px-3 py-2 text-left text-gray-900 dark:text-white text-sm hover:bg-gray-100 dark:hover:bg-white/20 transition-colors duration-150 first:rounded-t-md last: rounded-b-md border-b border-gray-100 dark:border-white/10 last:border-b-0"
                   >
                     {option.label}
                   </button>
@@ -314,7 +313,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
     }
   }, [isOpen]);
 
-    const fetchBuiltInRules = async () => {
+  const fetchBuiltInRules = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("access_token");
@@ -330,19 +329,15 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
 
       if (response.ok) {
         const data = await response.json();
+        const rulesArray = Array.isArray(data) ? data : (data. rules || []);
         
-        // ✅ FIX: Backend returns array directly, not {rules: [...]}
-        const rulesArray = Array.isArray(data) ? data : (data.rules || []);
-        
-        console.log('✅ Fetched rules:', rulesArray. length); // Debug log
+        console.log('✅ Fetched rules:', rulesArray. length);
         
         setBuiltInRules(rulesArray);
-        
-        // Select all rules by default
         const allRuleIds = new Set(rulesArray.map((rule) => rule.id));
         setSelectedRules(allRuleIds);
         
-        console.log('✅ Selected rules:', allRuleIds.size); // Debug log
+        console.log('✅ Selected rules:', allRuleIds.size);
       } else {
         const errorText = await response.text();
         console.error('❌ API Error:', response.status, errorText);
@@ -370,19 +365,19 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
       case 'web_vulnerability':
         return 'Web Security';
       default:
-        return category.replace('_', ' ').toUpperCase();
+        return category. replace('_', ' ').toUpperCase();
     }
   };
 
   const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
+    switch (severity. toLowerCase()) {
       case 'critical':
         return 'bg-red-500 text-white';
       case 'high':
         return 'bg-orange-500 text-white';
       case 'medium':
         return 'bg-yellow-500 text-black';
-      case 'low':
+      case 'low': 
         return 'bg-blue-500 text-white';
       default:
         return 'bg-gray-500 text-white';
@@ -416,11 +411,9 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
   };
 
   const validateJson = (value: string) => {
-    // Clear previous errors
     setError("");
     
-    // If input is empty, clear everything
-    if (!value.trim()) {
+    if (!value. trim()) {
       setCustomRules([]);
       setJsonValid(false);
       return;
@@ -429,8 +422,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
     try {
       const jsonData = JSON.parse(value);
       
-      // Validate JSON structure
-      if (!Array.isArray(jsonData)) {
+      if (! Array.isArray(jsonData)) {
         setError("JSON must be an array of rule objects");
         setJsonValid(false);
         setCustomRules([]);
@@ -444,7 +436,6 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
         return;
       }
 
-      // Validate each rule has required fields
       const validRules = [];
       const invalidRules = [];
 
@@ -454,7 +445,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
             typeof rule === 'object' && 
             rule.name && 
             rule.description && 
-            rule.rule_content) {
+            rule. rule_content) {
           validRules.push(rule);
         } else {
           invalidRules.push(i + 1);
@@ -462,7 +453,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
       }
 
       if (validRules.length === 0) {
-        setError("No valid rules found. Each rule must have 'name', 'description', and 'rule_content' fields");
+        setError("No valid rules found.  Each rule must have 'name', 'description', and 'rule_content' fields");
         setJsonValid(false);
         setCustomRules([]);
         return;
@@ -476,7 +467,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
       }
 
     } catch (err) {
-      setError("Invalid JSON format. Please check your syntax.");
+      setError("Invalid JSON format.  Please check your syntax.");
       setJsonValid(false);
       setCustomRules([]);
     }
@@ -513,18 +504,17 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
 
   const handleQuickStart = () => {
     const config = {
-      selectedRules: [1, 2, 3, 4, 5], // Default high-priority rules
+      selectedRules: [1, 2, 3, 4, 5],
       customRules: null,
       enableLLMEnhancement: true,
       maxFilesToScan: 50,
-      scanPriority: 'quick',
+      scanPriority:  'quick',
       scanType: 'unified_llm_rules'
     };
 
     onSelectUnifiedScan(config);
   };
 
-  // Group rules by category
   const rulesByCategory = builtInRules.reduce((acc, rule) => {
     if (!acc[rule.category]) {
       acc[rule.category] = [];
@@ -533,10 +523,9 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
     return acc;
   }, {} as Record<string, Rule[]>);
 
-  // Dropdown options
   const llmEnhancementOptions = [
     { value: true, label: "Enabled" },
-    { value: false, label: "Rules Only" }
+    { value:  false, label: "Rules Only" }
   ];
 
   const maxFilesOptions = [
@@ -554,27 +543,26 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden bg-white/10 backdrop-blur-lg border border-white/20 shadow-2xl">
-          {/* Custom Close Button */}
+        <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden bg-white dark:bg-white/10 backdrop-blur-lg border border-gray-200 dark:border-white/20 shadow-2xl">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-gray-100/80 dark:bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 flex items-center justify-center text-white/70 hover:theme-text transition-all duration-200 group"
+            className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border border-gray-300 dark: border-white/20 hover:border-gray-400 dark:hover:border-white/40 flex items-center justify-center text-gray-700 dark:text-white/70 hover:text-gray-900 dark:hover:text-white transition-all duration-200 group"
           >
             <X className="w-4 h-4 group-hover:scale-110 transition-transform" />
           </button>
 
           <div className="flex flex-col h-[85vh]">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-white/10">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-bold text-white mb-2 flex items-center">
-                  <Brain className="w-6 h-6 mr-3 text-orange-400" />
+                <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
+                  <Brain className="w-6 h-6 mr-3 text-[#003D6B] dark:text-orange-400" />
                   Custom LLM Engine Security Scan
                 </DialogTitle>
-                <p className="text-white/70">
+                <p className="text-gray-700 dark:text-white/70">
                   Advanced security scanning with rule-based detection and AI-powered analysis
                   {projectName && (
-                    <span className="block text-sm mt-1 text-white/50">
+                    <span className="block text-sm mt-1 text-gray-600 dark:text-white/50">
                       for {projectName}
                     </span>
                   )}
@@ -583,24 +571,25 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
             </div>
 
             {/* Quick Actions */}
-            <div className="px-6 py-4 bg-white/5 border-b border-white/10">
+            <div className="px-6 py-4 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-white mb-1">Quick Actions</h3>
-                  <p className="text-white/60 text-sm">Start immediately or customize your scan</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Quick Actions</h3>
+                  <p className="text-gray-600 dark:text-white/60 text-sm">Start immediately or customize your scan</p>
                 </div>
                 <div className="flex space-x-3">
                   <Button
                     onClick={handleQuickStart}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                    style={{ color: 'white' }}
+                    className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-gradient-to-r dark:from-orange-500 dark:to-red-500 dark:hover:from-orange-600 dark:hover:to-red-600"
                   >
                     <Zap className="w-4 h-4 mr-2" />
                     Quick Start
                   </Button>
                   <Button
-                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                    onClick={() => setShowAdvancedOptions(! showAdvancedOptions)}
                     variant="outline"
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                    className="bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
                   >
                     <Settings className="w-4 h-4 mr-2" />
                     {showAdvancedOptions ? 'Hide' : 'Show'} Options
@@ -609,9 +598,9 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
               </div>
             </div>
 
-            {/* Advanced Options with Enhanced Frosted Glass Dropdowns */}
+            {/* Advanced Options */}
             {showAdvancedOptions && (
-              <div className="px-6 py-4 bg-white/3 border-b border-white/10">
+              <div className="px-6 py-4 bg-gray-50 dark:bg-white/3 border-b border-gray-200 dark:border-white/10">
                 <div className="grid grid-cols-3 gap-4">
                   <GlassDropdown
                     label="LLM Enhancement"
@@ -626,10 +615,10 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   
                   <GlassDropdown
                     label="Max Files"
-                    value={scanConfig.maxFilesToScan}
+                    value={scanConfig. maxFilesToScan}
                     options={maxFilesOptions}
                     onChange={(value) => setScanConfig({
-                      ...scanConfig,
+                      ... scanConfig,
                       maxFilesToScan: value as number
                     })}
                   />
@@ -652,25 +641,25 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
               {/* Rules Panel */}
               <div className="flex-1 p-4 overflow-y-auto">
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
-                    <Shield className="w-5 h-5 mr-2 text-orange-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                    <Shield className="w-5 h-5 mr-2 text-[#003D6B] dark:text-orange-400" />
                     Security Rules ({selectedRules.size} selected)
                   </h3>
 
                   {loading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-400 mx-auto mb-3"></div>
-                      <p className="text-white/70 text-sm">Loading rules...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#003D6B] dark:border-orange-400 mx-auto mb-3"></div>
+                      <p className="text-gray-600 dark:text-white/70 text-sm">Loading rules...</p>
                     </div>
                   ) : error && builtInRules.length === 0 ? (
                     <div className="text-center py-6">
-                      <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-3" />
-                      <p className="text-red-400 mb-3 text-sm">{error}</p>
+                      <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400 mx-auto mb-3" />
+                      <p className="text-red-600 dark: text-red-400 mb-3 text-sm">{error}</p>
                       <Button
                         onClick={fetchBuiltInRules}
                         variant="outline"
                         size="sm"
-                        className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                        className="bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover: bg-white/20"
                       >
                         Try Again
                       </Button>
@@ -678,35 +667,33 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   ) : (
                     <div className="space-y-2">
                       {Object.entries(rulesByCategory).map(([category, rules]) => (
-                        <div key={category} className="bg-white/5 rounded-lg border border-white/10">
-                          {/* Category Header */}
+                        <div key={category} className="bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark: border-white/10">
                           <button
                             onClick={() => toggleCategory(category)}
-                            className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors rounded-t-lg"
+                            className="w-full flex items-center justify-between p-3 hover: bg-gray-100 dark:hover:bg-white/5 transition-colors rounded-t-lg"
                           >
                             <div className="flex items-center space-x-2">
                               {getCategoryIcon(category)}
-                              <span className="text-white font-medium text-sm">
+                              <span className="text-gray-900 dark:text-white font-medium text-sm">
                                 {getCategoryLabel(category)}
                               </span>
-                              <Badge className="bg-orange-500 text-white text-xs">
+                              <Badge className="bg-[#003D6B] dark:bg-orange-500 text-white text-xs">
                                 {rules.length}
                               </Badge>
                             </div>
                             {expandedCategories.has(category) ? (
-                              <ChevronDown className="w-4 h-4 text-white/70" />
+                              <ChevronDown className="w-4 h-4 text-gray-600 dark:text-white/70" />
                             ) : (
-                              <ChevronRight className="w-4 h-4 text-white/70" />
+                              <ChevronRight className="w-4 h-4 text-gray-600 dark:text-white/70" />
                             )}
                           </button>
 
-                          {/* Category Rules */}
-                          {expandedCategories.has(category) && (
-                            <div className="border-t border-white/10">
+                          {expandedCategories. has(category) && (
+                            <div className="border-t border-gray-200 dark:border-white/10">
                               {rules.map((rule) => (
                                 <div
                                   key={rule.id}
-                                  className="p-3 border-b border-white/5 last:border-b-0 hover:bg-white/5 transition-colors"
+                                  className="p-3 border-b border-gray-100 dark:border-white/5 last:border-b-0 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                                 >
                                   <div className="flex items-start space-x-2">
                                     <input
@@ -714,21 +701,21 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                                       id={`rule-${rule.id}`}
                                       checked={selectedRules.has(rule.id)}
                                       onChange={() => toggleRule(rule.id)}
-                                      className="mt-1 w-4 h-4 text-orange-500 bg-white/10 border-white/30 rounded focus:ring-orange-500 focus:ring-2"
+                                      className="mt-1 w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-white dark:bg-white/10 border-gray-300 dark:border-white/30 rounded focus:ring-[#003D6B] dark: focus:ring-orange-500 focus:ring-2"
                                     />
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center space-x-2 mb-1">
                                         <label
                                           htmlFor={`rule-${rule.id}`}
-                                          className="text-sm font-medium text-white cursor-pointer"
+                                          className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
                                         >
                                           {rule.name}
                                         </label>
                                         <Badge className={`text-xs ${getSeverityColor(rule.severity)}`}>
-                                          {rule.severity.toUpperCase()}
+                                          {rule.severity. toUpperCase()}
                                         </Badge>
                                       </div>
-                                      <p className="text-xs text-white/70">
+                                      <p className="text-xs text-gray-600 dark: text-white/70">
                                         {rule.description}
                                       </p>
                                     </div>
@@ -744,34 +731,33 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                 </div>
               </div>
 
-              {/* Custom Rules Panel - UPDATED WITH EXPANDABLE EDITOR */}
-              <div className="w-72 p-4 border-l border-white/10 bg-white/3">
-                <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
-                  <Code className="w-5 h-5 mr-2 text-orange-400" />
+              {/* Custom Rules Panel */}
+              <div className="w-72 p-4 border-l border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/3">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                  <Code className="w-5 h-5 mr-2 text-[#003D6B] dark:text-orange-400" />
                   Custom Rules
                 </h3>
 
-                {/* JSON Input Area with Expand Button */}
                 <div className="mb-4">
                   <div className="relative">
                     <textarea
                       value={jsonInput}
                       onChange={handleJsonInputChange}
                       placeholder="Enter JSON rules here..."
-                      className="w-full h-32 p-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white text-sm placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none font-mono"
+                      className="w-full h-32 p-3 pr-10 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono"
                     />
                     <div className="absolute top-2 right-2 flex items-center space-x-1">
                       {jsonInput && (
                         <button
                           onClick={clearJsonInput}
-                          className="text-red-400 hover:text-red-300 transition-colors p-1"
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors p-1"
                         >
                           <X className="w-3 h-3" />
                         </button>
                       )}
                       <button
                         onClick={() => setShowJsonEditor(true)}
-                        className="text-orange-400 hover:text-orange-300 transition-colors p-1 bg-white/10 rounded hover:bg-white/20"
+                        className="text-[#003D6B] dark: text-orange-400 hover: text-[#002A4D] dark: hover:text-orange-300 transition-colors p-1 bg-gray-100 dark:bg-white/10 rounded hover:bg-gray-200 dark:hover:bg-white/20"
                         title="Open expanded editor"
                       >
                         <Maximize2 className="w-3 h-3" />
@@ -779,20 +765,19 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Status indicator */}
                   {jsonInput && (
                     <div className="mt-2 flex items-center space-x-2">
-                      {jsonValid ? (
+                      {jsonValid ?  (
                         <>
-                          <CheckCircle2 className="w-4 h-4 text-green-400" />
-                          <span className="text-white/70 text-xs">
+                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <span className="text-gray-700 dark:text-white/70 text-xs">
                             {customRules.length} custom rules loaded
                           </span>
                         </>
                       ) : (
                         <>
-                          <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                          <span className="text-white/70 text-xs">
+                          <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                          <span className="text-gray-700 dark:text-white/70 text-xs">
                             Invalid JSON format
                           </span>
                         </>
@@ -801,10 +786,9 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   )}
                 </div>
 
-                {/* JSON Format Example */}
-                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                  <h4 className="text-white text-sm font-medium mb-2">JSON Format:</h4>
-                  <pre className="text-white/60 text-xs overflow-x-auto">
+                <div className="bg-white dark:bg-white/5 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+                  <h4 className="text-gray-900 dark:text-white text-sm font-medium mb-2">JSON Format: </h4>
+                  <pre className="text-gray-600 dark:text-white/60 text-xs overflow-x-auto">
 {`[{
   "name": "Rule Name",
   "description": "Description",
@@ -816,17 +800,17 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                 </div>
 
                 {error && (
-                  <div className="mt-3 p-2 bg-red-500/20 border border-red-500/40 rounded-lg">
-                    <p className="text-red-300 text-xs">{error}</p>
+                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-500/40 rounded-lg">
+                    <p className="text-red-700 dark:text-red-300 text-xs">{error}</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-white/10 bg-white/5">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark: bg-white/5">
               <div className="flex items-center justify-between">
-                <div className="text-white/70 text-sm">
+                <div className="text-gray-600 dark:text-white/70 text-sm">
                   {selectedRules.size} built-in rules selected
                   {customRules.length > 0 && `, ${customRules.length} custom rules added`}
                 </div>
@@ -834,14 +818,15 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   <Button
                     onClick={onClose}
                     variant="ghost"
-                    className="text-white/70 hover:text-white hover:bg-white/10"
+                    className="text-gray-700 dark:text-white/70 hover:text-gray-900 dark:hover: text-white hover:bg-gray-100 dark:hover:bg-white/10"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleStartScan}
                     disabled={selectedRules.size === 0 && customRules.length === 0}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold"
+                    style={{ color: 'white' }}
+                    className="bg-[#003D6B] hover: bg-[#002A4D] dark:bg-gradient-to-r dark:from-orange-500 dark:to-red-500 dark:hover:from-orange-600 dark:hover: to-red-600 font-semibold"
                   >
                     <Zap className="w-4 h-4 mr-2" />
                     Start Security Scan
@@ -853,7 +838,6 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* JSON Editor Modal */}
       <JsonEditorModal
         isOpen={showJsonEditor}
         onClose={() => setShowJsonEditor(false)}

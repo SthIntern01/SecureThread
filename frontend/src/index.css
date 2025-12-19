@@ -3,59 +3,59 @@
 @tailwind utilities;
 
 /* ========================================
-   APPLE-LEVEL DESIGN SYSTEM
-   Premium colors, shadows, borders
+   POC DESIGN SYSTEM - Navy & Light Blue Theme
+   Professional, Clean, Modern
    ======================================== */
 
 @layer base {
-  /* LIGHT MODE - Crisp, Clean, Professional */
+  /* LIGHT MODE - POC Design Colors */
   :root {
-    /* Brand colors */
-    --brand-black: 14 100% 1%;
-    --brand-orange: 18 89% 42%;
-    --brand-light: 0 0% 95%;
-    --brand-gray: 0 0% 39%;
-    
-    /* Light mode - Strong contrast */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;  /* Almost black for readability */
+    /* Brand colors - POC Palette */
+    --brand-black: 210 100% 21%;     /* #003D6B - Navy Blue */
+    --brand-orange: 16 100% 61%;     /* #FF6B35 - Coral/Orange accent */
+    --brand-light: 207 57% 85%;      /* #B8D4E9 - Light Blue */
+    --brand-gray: 205 14% 52%;       /* #7A8B99 - Medium Gray */
+
+    /* Light mode - Strong contrast with navy/gray scheme */
+    --background: 0 0% 100%;         /* White */
+    --foreground: 0 0% 22%;          /* #373737 - Dark Gray for text */
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 9%;
+    --card-foreground: 0 0% 22%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 9%;
+    --popover-foreground: 0 0% 22%;
 
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 210 100% 21%;         /* #003D6B - Navy */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
+    --secondary: 207 57% 85%;        /* #B8D4E9 - Light Blue */
+    --secondary-foreground: 210 100% 21%;
 
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 40%;  /* Stronger gray */
+    --muted: 210 20% 92%;            /* Very light blue-gray */
+    --muted-foreground: 205 14% 52%; /* #7A8B99 - Medium gray */
 
-    --accent: 18 89% 42%;
+    --accent: 16 100% 61%;           /* #FF6B35 - Orange */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 85%;  /* Stronger borders */
-    --input: 0 0% 85%;
-    --ring: 18 89% 42%;
+    --border: 206 23% 72%;           /* #A8B5C1 - Light Gray border */
+    --input: 206 23% 72%;
+    --ring: 210 100% 21%;            /* Navy focus ring */
 
     --radius: 0.5rem;
 
     /* Sidebar stays dark */
     --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 18 89% 42%;
+    --sidebar-primary: 16 100% 61%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 18 89% 42%;
+    --sidebar-ring: 16 100% 61%;
   }
 
   /* DARK MODE - Original Rich Colors */
@@ -64,7 +64,7 @@
     --brand-orange: 18 89% 42%;
     --brand-light: 0 0% 95%;
     --brand-gray: 0 0% 39%;
-    
+
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
@@ -113,7 +113,6 @@
     @apply bg-background text-foreground antialiased;
   }
 
-  /* Strong text rendering for Apple-quality */
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
   }
@@ -150,6 +149,37 @@ html, body {
   animation: aurora 60s linear infinite;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.5); opacity: 0.6; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes logo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -163,17 +193,6 @@ html, body {
 
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
 }
 
 .card {
@@ -191,21 +210,139 @@ html, body {
   box-sizing: border-box;
 }
 
-/* Custom scrollbar - Apple style */
+@layer utilities {
+  /* Navy Blue Backgrounds (Primary) */
+  .bg-navy-50 {
+    background-color: hsl(207 57% 95%);
+  }
+  
+  .bg-navy-100 {
+    background-color: hsl(207 57% 85%); /* #B8D4E9 - Your brand light */
+  }
+  
+  .bg-navy-200 {
+    background-color: hsl(207 57% 75%);
+  }
+  
+  .bg-navy-700 {
+    background-color: hsl(210 100% 28%);
+  }
+  
+  .bg-navy-800 {
+    background-color: hsl(210 100% 21%); /* #003D6B - Your brand primary */
+  }
+  
+  .bg-navy-900 {
+    background-color: hsl(210 100% 15%);
+  }
+  
+  /* Navy Text Colors */
+  .text-navy-50 {
+    color: hsl(207 57% 95%);
+  }
+  
+  .text-navy-100 {
+    color: hsl(207 57% 85%);
+  }
+  
+  .text-navy-700 {
+    color: hsl(210 100% 28%);
+  }
+  
+  .text-navy-800 {
+    color: hsl(210 100% 21%); /* #003D6B */
+  }
+  
+  .text-navy-900 {
+    color: hsl(210 100% 15%);
+  }
+  
+  /* Navy Borders */
+  .border-navy-200 {
+    border-color: hsl(207 57% 75%);
+  }
+  
+  .border-navy-300 {
+    border-color: hsl(206 23% 72%); /* Your existing border color */
+  }
+  
+  .border-navy-800 {
+    border-color: hsl(210 100% 21%);
+  }
+  
+  /* Coral/Orange Accent Colors */
+  .text-coral {
+    color: hsl(16 100% 61%); /* #FF6B35 */
+  }
+  
+  .bg-coral {
+    background-color: hsl(16 100% 61%);
+  }
+  
+  .bg-coral-50 {
+    background-color: hsl(16 100% 95%);
+  }
+  
+  .border-coral {
+    border-color: hsl(16 100% 61%);
+  }
+  
+  /* Light Blue Backgrounds */
+  .bg-light-blue {
+    background-color: hsl(207 57% 85%); /* #B8D4E9 */
+  }
+  
+  .bg-light-blue-50 {
+    background-color: hsl(207 57% 95%);
+  }
+  
+  .text-light-blue {
+    color: hsl(207 57% 85%);
+  }
+}
+
+/* ========================================
+   PREMIUM SCROLLBAR STYLING
+   ======================================== */
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom scrollbar for chat */
 .chat-messages::-webkit-scrollbar {
   width: 8px;
 }
 
 .chat-messages::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .dark .chat-messages::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
-}
-
-.chat-messages::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
 }
 
 .chat-messages::-webkit-scrollbar-thumb {
@@ -225,21 +362,26 @@ html, body {
   background: rgba(255, 255, 255, 0.5);
 }
 
-@keyframes ripple {
-  0% { transform: scale(0.5); opacity: 0.6; }
-  100% { transform: scale(2); opacity: 0; }
+/* ========================================
+   GLASSMORPHISM & MODERN EFFECTS
+   ======================================== */
+@layer utilities {
+  .glass {
+    @apply backdrop-blur-md bg-white/80 dark:bg-gray-900/80;
+  }
+  
+  .glass-card {
+    @apply backdrop-blur-lg bg-white/70 dark:bg-gray-900/70 border border-gray-200/50 dark:border-gray-700/50;
+  }
 }
 
 /* ========================================
-   APPLE-LEVEL THEME OVERRIDES
-   Strong borders, clear containers, perfect contrast
+   LIGHT MODE OVERRIDES FOR DASHBOARD
    ======================================== */
 
-/* ============ TEXT COLORS ============ */
-
-/* Primary text - Strong black in light, white in dark */
+/* Primary text */
 .text-white {
-  color: rgb(17 24 39) !important;
+  @apply text-foreground;
 }
 
 .dark .text-white {
@@ -248,7 +390,7 @@ html, body {
 
 /* Secondary text variations */
 .text-white\/90 {
-  color: rgb(31 41 55) !important;
+  color: rgb(55 65 81) !important;
 }
 
 .dark .text-white\/90 {
@@ -256,7 +398,7 @@ html, body {
 }
 
 .text-white\/80 {
-  color: rgb(55 65 81) !important;
+  color: rgb(75 85 99) !important;
 }
 
 .dark .text-white\/80 {
@@ -264,14 +406,13 @@ html, body {
 }
 
 .text-white\/70 {
-  color: rgb(75 85 99) !important;
+  color: rgb(107 114 128) !important;
 }
 
 .dark .text-white\/70 {
   color: rgb(255 255 255 / 0.7) !important;
 }
 
-/* Muted text - Still readable */
 .text-white\/60 {
   color: rgb(107 114 128) !important;
 }
@@ -281,7 +422,7 @@ html, body {
 }
 
 .text-white\/50 {
-  color: rgb(107 114 128) !important;
+  color: rgb(156 163 175) !important;
 }
 
 .dark .text-white\/50 {
@@ -296,9 +437,7 @@ html, body {
   color: rgb(255 255 255 / 0.4) !important;
 }
 
-/* ============ CONTAINERS & CARDS ============ */
-
-/* Main card containers - Apple-style with strong borders */
+/* Containers & Cards */
 .bg-black\/20 {
   background-color: rgb(255 255 255) !important;
   border: 1.5px solid rgb(209 213 219) !important;
@@ -321,7 +460,6 @@ html, body {
   border-color: rgb(255 255 255 / 0.05) !important;
 }
 
-/* Glass effect containers - Premium look */
 .bg-white\/10 {
   background-color: rgb(255 255 255 / 0.95) !important;
   border: 1px solid rgb(229 231 235) !important;
@@ -344,17 +482,13 @@ html, body {
 
 .bg-white\/5 {
   background-color: rgb(249 250 251) !important;
-  border: 1px solid rgb(243 244 246) !important;
 }
 
 .dark .bg-white\/5 {
   background-color: rgb(255 255 255 / 0.05) !important;
-  border-color: rgb(255 255 255 / 0.05) !important;
 }
 
-/* ============ BORDERS ============ */
-
-/* Strong, visible borders in light mode */
+/* Borders */
 .border-white\/10 {
   border-color: rgb(209 213 219) !important;
 }
@@ -379,9 +513,7 @@ html, body {
   border-color: rgb(255 255 255 / 0.3) !important;
 }
 
-/* ============ MAIN DASHBOARD CONTAINER ============ */
-
-/* Premium glass effect with strong definition */
+/* Main Dashboard */
 .bg-white\/10.backdrop-blur-lg {
   background-color: rgb(255 255 255 / 0.98) !important;
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
@@ -394,60 +526,42 @@ html, body {
   box-shadow: none !important;
 }
 
-/* ============ BADGES - Vibrant in light mode ============ */
-
+/* Badges */
 .bg-red-500\/20.text-red-300 {
   background-color: rgb(254 226 226) !important;
   color: rgb(153 27 27) !important;
-  border-color: rgb(248 113 113) !important;
 }
 
 .dark .bg-red-500\/20.text-red-300 {
   background-color: rgb(239 68 68 / 0.2) !important;
   color: rgb(252 165 165) !important;
-  border-color: rgb(239 68 68 / 0.3) !important;
 }
 
 .bg-green-500\/20.text-green-300 {
   background-color: rgb(220 252 231) !important;
   color: rgb(20 83 45) !important;
-  border-color: rgb(74 222 128) !important;
 }
 
 .dark .bg-green-500\/20.text-green-300 {
   background-color: rgb(34 197 94 / 0.2) !important;
   color: rgb(134 239 172) !important;
-  border-color: rgb(34 197 94 / 0.3) !important;
 }
 
 .bg-purple-500\/20.text-purple-300 {
   background-color: rgb(243 232 255) !important;
   color: rgb(88 28 135) !important;
-  border-color: rgb(192 132 252) !important;
 }
 
 .dark .bg-purple-500\/20.text-purple-300 {
   background-color: rgb(168 85 247 / 0.2) !important;
   color: rgb(216 180 254) !important;
-  border-color: rgb(168 85 247 / 0.3) !important;
 }
 
-.bg-orange-500\/20.text-orange-300 {
-  background-color: rgb(255 237 213) !important;
-  color: rgb(154 52 18) !important;
-  border-color: rgb(251 146 60) !important;
-}
-
-.dark .bg-orange-500\/20.text-orange-300 {
-  background-color: rgb(249 115 22 / 0.2) !important;
-  color: rgb(253 186 116) !important;
-  border-color: rgb(249 115 22 / 0.3) !important;
-}
-
+/* Blue Badge - Use Brand Navy/Light Blue */
 .bg-blue-500\/20.text-blue-300 {
-  background-color: rgb(219 234 254) !important;
-  color: rgb(30 64 175) !important;
-  border-color: rgb(96 165 250) !important;
+  background-color: hsl(207 57% 90%) !important; /* Light blue background */
+  color: hsl(210 100% 21%) !important;           /* Navy text */
+  border-color: hsl(210 100% 21% / 0.3) !important;
 }
 
 .dark .bg-blue-500\/20.text-blue-300 {
@@ -456,10 +570,24 @@ html, body {
   border-color: rgb(59 130 246 / 0.3) !important;
 }
 
+/* Orange Badge - Use Coral accent */
+.bg-orange-500\/20.text-orange-300 {
+  background-color: hsl(16 100% 95%) !important; /* Very light coral */
+  color: hsl(16 100% 45%) !important;            /* Darker coral */
+  border-color: hsl(16 100% 61% / 0.4) !important;
+}
+
+.dark .bg-orange-500\/20.text-orange-300 {
+  background-color: rgb(249 115 22 / 0.2) !important;
+  color: rgb(253 186 116) !important;
+  border-color: rgb(249 115 22 / 0.3) !important;
+}
+
+/* Yellow Badge - Contrast adjustment */
 .bg-yellow-500\/20.text-yellow-300 {
   background-color: rgb(254 249 195) !important;
   color: rgb(133 77 14) !important;
-  border-color: rgb(250 204 21) !important;
+  border-color: rgb(234 179 8 / 0.4) !important;
 }
 
 .dark .bg-yellow-500\/20.text-yellow-300 {
@@ -468,9 +596,7 @@ html, body {
   border-color: rgb(234 179 8 / 0.3) !important;
 }
 
-/* ============ DROPDOWNS & MODALS ============ */
-
-/* Crisp dropdown menus */
+/* Dropdowns & Modals */
 .bg-black\/90.backdrop-blur-lg {
   background-color: rgb(255 255 255) !important;
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
@@ -482,22 +608,13 @@ html, body {
   border-color: rgb(255 255 255 / 0.1) !important;
 }
 
-/* ============ HOVER STATES ============ */
-
+/* Hover States */
 .hover\:bg-white\/10:hover {
   background-color: rgb(243 244 246) !important;
 }
 
 .dark .hover\:bg-white\/10:hover {
   background-color: rgb(255 255 255 / 0.1) !important;
-}
-
-.hover\:bg-white\/20:hover {
-  background-color: rgb(229 231 235) !important;
-}
-
-.dark .hover\:bg-white\/20:hover {
-  background-color: rgb(255 255 255 / 0.2) !important;
 }
 
 .hover\:text-white:hover {
@@ -508,21 +625,13 @@ html, body {
   color: rgb(255 255 255) !important;
 }
 
-/* ============ INPUT FIELDS & TEXTAREAS ============ */
-
-/* Make placeholder text visible */
+/* Input Fields */
 input::placeholder,
 textarea::placeholder {
   color: rgb(156 163 175) !important;
   opacity: 1;
 }
 
-.dark input::placeholder,
-.dark textarea::placeholder {
-  color: rgb(156 163 175) !important;
-}
-
-/* Input fields with strong borders */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -543,41 +652,20 @@ textarea {
   color: rgb(255 255 255) !important;
 }
 
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
-input[type="search"]:focus,
+input:focus,
 textarea:focus {
-  border-color: rgb(249 115 22) !important;
+  border-color: rgb(0 61 107) !important; /* Navy blue */
   outline: none !important;
-  box-shadow: 0 0 0 3px rgb(249 115 22 / 0.1) !important;
+  box-shadow: 0 0 0 3px rgb(0 61 107 / 0.1) !important;
 }
 
-.dark input[type="text"]:focus,
-.dark input[type="email"]:focus,
-.dark input[type="password"]:focus,
-.dark input[type="search"]:focus,
+.dark input:focus,
 .dark textarea:focus {
   border-color: rgb(249 115 22) !important;
   box-shadow: 0 0 0 3px rgb(249 115 22 / 0.2) !important;
 }
 
-/* ============ SUBTLE BACKGROUNDS ============ */
-
-/* Inner card backgrounds */
-.bg-white\/5.rounded-lg {
-  background-color: rgb(249 250 251) !important;
-  border: 1px solid rgb(243 244 246) !important;
-}
-
-.dark .bg-white\/5.rounded-lg {
-  background-color: rgb(255 255 255 / 0.05) !important;
-  border-color: rgb(255 255 255 / 0.05) !important;
-}
-
-/* ============ PREMIUM SHADOWS ============ */
-
-/* Add depth to elevated elements */
+/* Premium Shadows */
 .shadow-xl {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
 }
@@ -586,25 +674,72 @@ textarea:focus {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.2) !important;
 }
 
-.shadow-2xl {
-  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15) !important;
+/* ========================================
+   FORCE SOLID BUTTON BACKGROUNDS - SIGNIN PAGE
+   Override any transparency rules
+   ======================================== */
+
+/* GitHub Button - Force solid dark background */
+button[class*="bg-[#24292e]"],
+button[class*="bg-[#24292e]"]:not(:disabled) {
+  background-color: #24292e !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
 }
 
-.dark .shadow-2xl {
-  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4) !important;
+button[class*="bg-[#24292e]"]:hover:not(:disabled) {
+  background-color: #1a1e22 !important;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Google Button - Force solid white background */
+button[class*="bg-white"][class*="border-2"] {
+  background-color: #FFFFFF !important;
+  color: #1F2937 !important;
+  opacity: 1 !important;
+  border: 2px solid #D1D5DB !important;
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+button[class*="bg-white"][class*="border-2"]:hover:not(:disabled) {
+  background-color: #F9FAFB !important;
+}
+
+/* GitLab Button - Force solid coral background */
+button[class*="bg-[#FFA07A]"],
+button[class*="bg-[#FFA07A]"]:not(:disabled) {
+  background-color: #FFA07A !important;
+  color: #1F2937 !important;
+  opacity: 1 !important;
+}
+
+button[class*="bg-[#FFA07A]"]:hover:not(:disabled) {
+  background-color: #FF8C69 !important;
+}
+
+/* Bitbucket Button - Force solid blue background */
+button[class*="bg-[#0052CC]"],
+button[class*="bg-[#0052CC]"]:not(:disabled) {
+  background-color: #0052CC !important;
+  color: #FFFFFF !important;
+  opacity: 1 !important;
+}
+
+button[class*="bg-[#0052CC]"]:hover:not(:disabled) {
+  background-color: #0043A8 !important;
+}
+
+/* Ensure button icons inherit the correct color */
+button[class*="bg-[#24292e]"] svg,
+button[class*="bg-[#0052CC]"] svg {
+  color: #FFFFFF !important;
+}
+
+button[class*="bg-[#FFA07A]"] svg,
+button[class*="bg-white"] svg {
+  color: currentColor !important;
+}
+
+/* Remove any backdrop filters that might cause transparency */
+button[class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

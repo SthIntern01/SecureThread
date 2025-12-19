@@ -18,7 +18,7 @@ interface OverviewViewProps {
   timeFilterOptions: TimeFilterOptions;
   timeFilter: TimeFilter;
   selectedRepository: number | 'all';
-  repositories: Repository[];
+  repositories:  Repository[];
 }
 
 const OverviewView: React.FC<OverviewViewProps> = ({ 
@@ -42,14 +42,14 @@ const OverviewView: React.FC<OverviewViewProps> = ({
     // Method 1: Use security metrics if available
     if (securityMetrics) {
       const breakdown = {
-        critical: securityMetrics.critical_vulnerabilities || 0,
+        critical: securityMetrics. critical_vulnerabilities || 0,
         high: securityMetrics.high_vulnerabilities || 0,
         medium: securityMetrics.medium_vulnerabilities || 0,
         low: securityMetrics.low_vulnerabilities || 0
       };
       
       console.log('📊 SECURITY METRICS BREAKDOWN:', breakdown);
-      const total = breakdown.critical + breakdown.high + breakdown.medium + breakdown.low;
+      const total = breakdown. critical + breakdown.high + breakdown. medium + breakdown.low;
       
       if (total > 0) {
         return breakdown;
@@ -59,7 +59,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
     // Method 2: Use risk distribution from vulnerability trends
     if (vulnerabilityTrends?.top_vulnerability_types) {
       const breakdown = {
-        critical: 0,
+        critical:  0,
         high: 0,
         medium: 0,
         low: 0
@@ -67,7 +67,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
       
       vulnerabilityTrends.top_vulnerability_types.forEach((vulnType: any) => {
         breakdown.critical += vulnType.critical || 0;
-        breakdown.high += vulnType.high || 0;
+        breakdown. high += vulnType.high || 0;
         breakdown.medium += vulnType.medium || 0;
         breakdown.low += vulnType.low || 0;
       });
@@ -86,7 +86,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
       const breakdown = {
         critical: riskDistribution.critical || 0,
         high: riskDistribution.high || 0,
-        medium: riskDistribution.medium || 0,
+        medium: riskDistribution. medium || 0,
         low: riskDistribution.low || 0
       };
       
@@ -100,7 +100,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
       const breakdown = {
         critical: vulnerabilityTypes.filter(v => v.severity === 'critical').reduce((sum, v) => sum + v.count, 0),
         high: vulnerabilityTypes.filter(v => v.severity === 'high').reduce((sum, v) => sum + v.count, 0),
-        medium: vulnerabilityTypes.filter(v => v.severity === 'medium').reduce((sum, v) => sum + v.count, 0),
+        medium: vulnerabilityTypes. filter(v => v.severity === 'medium').reduce((sum, v) => sum + v.count, 0),
         low: vulnerabilityTypes.filter(v => v.severity === 'low').reduce((sum, v) => sum + v.count, 0)
       };
       
@@ -121,7 +121,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
         low: remaining - Math.floor(remaining * 0.9) - Math.floor(remaining * 0.08) // Rest are low
       };
       
-      console.log('📊 PROPORTIONAL BREAKDOWN:', breakdown);
+      console. log('📊 PROPORTIONAL BREAKDOWN:', breakdown);
       console.log('📊 BREAKDOWN TOTAL:', breakdown.critical + breakdown.high + breakdown.medium + breakdown.low);
       return breakdown;
     }
@@ -131,7 +131,7 @@ const OverviewView: React.FC<OverviewViewProps> = ({
     return {
       critical: 0,
       high: 0,
-      medium: 0,
+      medium:  0,
       low: 0
     };
   };
@@ -145,7 +145,8 @@ const OverviewView: React.FC<OverviewViewProps> = ({
   return (
     <div className="grid lg:grid-cols-3 gap-0">
       {/* Left Side - Security Overview */}
-      <div className="lg:col-span-2 p-6 border-r theme-border">
+      {/* UPDATED:  Light mode uses light gray border, Dark mode keeps theme-border */}
+      <div className="lg:col-span-2 p-6 border-r border-gray-200 dark:border-white/20">
         <SecurityOverview 
           data={data}
           userInfo={userInfo}
@@ -170,9 +171,9 @@ const OverviewView: React.FC<OverviewViewProps> = ({
         <div className="mb-6">
           <SecurityAlertsPieChart 
             critical={vulnBreakdown.critical}
-            high={vulnBreakdown.high}
+            high={vulnBreakdown. high}
             medium={vulnBreakdown.medium}
-            low={vulnBreakdown.low}
+            low={vulnBreakdown. low}
             totalVulnerabilities={data.totalVulnerabilities}
             rawSecurityMetrics={data.advancedMetrics?.codeQualityMetrics}
             vulnerabilityTrends={data.advancedMetrics?.vulnerabilityTrends}

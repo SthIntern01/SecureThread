@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { useWorkspace } from "../contexts/WorkspaceContext";
 import logo from "../images/logo.png";
+import logoInverted from "../images/logo-inverted.png";
 import {
   IconDashboard,
   IconFolder,
@@ -28,6 +29,8 @@ interface AppSidebarProps {
 }
 
 const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
+  const { actualTheme } = useTheme();
+  
   return (
     <Link
       to="/"
@@ -35,9 +38,9 @@ const Logo = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         sidebarOpen ? "space-x-3 px-3" : "justify-center px-0"
       } py-3 text-sm font-normal transition-all duration-300`}
     >
-      <div className={`${sidebarOpen ? "w-12 h-12" : "w-10 h-10"} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
+      <div className={`${sidebarOpen ? "w-12 h-12" :  "w-10 h-10"} flex items-center justify-center flex-shrink-0 transition-all duration-300`}>
         <img
-          src={logo}
+          src={actualTheme === 'light' ? logoInverted : logo}
           alt="Secure Thread Logo"
           className="w-full h-full object-contain"
         />
@@ -56,13 +59,19 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const navigate = useNavigate();
   const { currentWorkspace, workspaces, switchWorkspace } = useWorkspace();
+  const { actualTheme } = useTheme(); //
+
+  // Conditional logic for theme-based colors
+  const isDark = actualTheme === 'dark'; //
+  const accentBgClass = isDark 
+    ? "bg-gradient-to-br from-accent to-accent/80" // Orange for dark mode
+    : "bg-[#007AFF]"; // Blue for light mode
 
   const handleWorkspaceSwitch = async (workspaceId: string) => {
     try {
       await switchWorkspace(workspaceId);
       setShowDropdown(false);
-      // Reload to refresh all data for the new workspace
-      window.location.reload();
+      window.location.reload(); //
     } catch (error) {
       console.error('Error switching workspace:', error);
     }
@@ -70,16 +79,16 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   const handleCreateWorkspace = () => {
     setShowDropdown(false);
-    navigate("/workspace/create");
+    navigate("/workspace/create"); //
   };
 
   const handleWorkspaceSettings = () => {
     setShowDropdown(false);
-    navigate("/workspace/settings");
+    navigate("/workspace/settings"); //
   };
 
   if (!currentWorkspace) {
-    return null;
+    return null; //
   }
 
   return (
@@ -89,11 +98,11 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         className={`flex items-center transition-all duration-200 ${
           sidebarOpen 
             ? 'w-full space-x-3 p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-[#252525] border border-neutral-800' 
-            : 'w-12 h-12 justify-center rounded-xl bg-gradient-to-br from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70 shadow-lg'
+            : `w-12 h-12 justify-center rounded-xl shadow-lg ${accentBgClass} hover:opacity-90`
         }`}
       >
-        <div className="w-10 h-10 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
-          <span className="theme-text font-bold text-base">
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md ${accentBgClass}`}>
+          <span className="text-white font-bold text-base">
             {currentWorkspace.name.charAt(0).toUpperCase()}
           </span>
         </div>
@@ -115,37 +124,28 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
       {showDropdown && sidebarOpen && (
         <>
-          {/* Backdrop to close dropdown when clicking outside */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowDropdown(false)}
-          />
-          
+          <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
           <div className="absolute top-full left-3 right-3 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 max-h-[400px] overflow-y-auto">
-            {/* Current Workspace */}
             <div className="px-4 py-2 border-b border-gray-200">
               <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Current Workspace</p>
             </div>
             <div className="px-4 py-2.5 bg-gray-50 flex items-center justify-between">
               <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-8 h-8 bg-gradient-to-br from-accent to-accent/80 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="theme-text font-semibold text-sm">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${accentBgClass}`}>
+                  <span className="text-white font-semibold text-sm">
                     {currentWorkspace.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-gray-900 text-sm font-medium truncate">
-                    {currentWorkspace.name}
-                  </p>
+                  <p className="text-gray-900 text-sm font-medium truncate">{currentWorkspace.name}</p>
                   <p className="text-gray-500 text-xs">
                     {currentWorkspace.repository_count} {currentWorkspace.repository_count === 1 ? 'repository' : 'repositories'}
                   </p>
                 </div>
               </div>
-              <Check className="w-5 h-5 text-accent flex-shrink-0" />
+              <Check className={`w-5 h-5 flex-shrink-0 ${isDark ? 'text-accent' : 'text-[#007AFF]'}`} />
             </div>
 
-            {/* Other Workspaces */}
             {workspaces.filter(w => w.id !== currentWorkspace.id).length > 0 && (
               <>
                 <div className="px-4 py-2 border-t border-gray-200 mt-2">
@@ -165,33 +165,21 @@ const WorkspaceSwitcher = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-gray-900 text-sm font-medium truncate">
-                          {workspace.name}
-                        </p>
-                        <p className="text-gray-500 text-xs">
-                          {workspace.repository_count} {workspace.repository_count === 1 ? 'repo' : 'repos'}
-                        </p>
+                        <p className="text-gray-900 text-sm font-medium truncate">{workspace.name}</p>
+                        <p className="text-gray-500 text-xs">{workspace.repository_count} repos</p>
                       </div>
                     </button>
                   ))}
               </>
             )}
 
-            {/* Actions */}
             <div className="border-t border-gray-200 mt-2 pt-2">
-              <button
-                onClick={handleCreateWorkspace}
-                className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
-              >
-                <Plus className="w-5 h-5 text-gray-700 flex-shrink-0" />
+              <button onClick={handleCreateWorkspace} className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 text-left">
+                <Plus className="w-5 h-5 text-gray-700" />
                 <span className="text-gray-900 text-sm font-medium">Create New Workspace</span>
               </button>
-
-              <button
-                onClick={handleWorkspaceSettings}
-                className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left"
-              >
-                <Settings className="w-5 h-5 text-gray-700 flex-shrink-0" />
+              <button onClick={handleWorkspaceSettings} className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-100 text-left">
+                <Settings className="w-5 h-5 text-gray-700" />
                 <span className="text-gray-900 text-sm font-medium">Workspace Settings</span>
               </button>
             </div>

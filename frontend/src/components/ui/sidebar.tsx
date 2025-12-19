@@ -89,11 +89,11 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-brand-black/95 backdrop-blur-sm text-brand-light w-[280px] shrink-0 border-r border-brand-gray/20 overflow-hidden",
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-slate-50 dark:bg-brand-black/95 backdrop-blur-sm text-slate-600 dark:text-brand-light shrink-0 border-r border-slate-200 dark:border-brand-gray/20 overflow-hidden",
         className
       )}
       animate={{
-        width: animate ? (open ? "280px" : "70px") : "280px",
+        width: animate ? (open ? "280px" : "80px") : "280px",
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
@@ -114,13 +114,13 @@ export const MobileSidebar = ({
     <>
       <div
         className={cn(
-          "h-16 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-brand-black/95 backdrop-blur-sm w-full overflow-hidden"
+          "h-16 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-slate-50 dark:bg-brand-black/95 backdrop-blur-sm w-full overflow-hidden border-b border-slate-200 dark:border-brand-gray/20"
         )}
         {...props}
       >
         <div className="flex justify-end z-20 w-full">
           <IconMenu2
-            className="text-brand-light"
+            className="text-slate-800 dark:text-brand-light"
             onClick={() => setOpen(!open)}
           />
         </div>
@@ -135,12 +135,12 @@ export const MobileSidebar = ({
                 ease: "easeInOut",
               }}
               className={cn(
-                "fixed h-full w-full inset-0 bg-brand-black/95 backdrop-blur-sm text-brand-light p-10 z-[100] flex flex-col justify-between overflow-hidden",
+                "fixed h-full w-full inset-0 bg-slate-50 dark:bg-brand-black/95 backdrop-blur-sm text-slate-900 dark:text-brand-light p-10 z-[100] flex flex-col justify-between overflow-hidden",
                 className
               )}
             >
               <div
-                className="absolute right-10 top-10 z-50 text-brand-light"
+                className="absolute right-10 top-10 z-50 text-slate-800 dark:text-brand-light"
                 onClick={() => setOpen(!open)}
               >
                 <IconX />
@@ -167,34 +167,39 @@ export const SidebarLink = ({
     <a
       href={link.href}
       className={cn(
-        "flex items-center justify-between gap-2 group/sidebar py-3 px-3 rounded-lg cursor-pointer transition-colors",
+        "flex items-center justify-between gap-2 group/sidebar py-2.5 px-3 rounded-xl cursor-pointer transition-all duration-200",
         link.active 
-          ? "bg-accent text-accent-foreground" 
-          : "hover:bg-brand-gray/20 text-brand-light",
+          ? "bg-[#007AFF] dark:bg-accent text-white shadow-md shadow-blue-500/20 dark:shadow-orange-500/20" 
+          : "hover:bg-[#E6F2FF] dark:hover:bg-brand-gray/20 text-slate-600 dark:text-brand-light hover:text-[#007AFF] dark:hover:text-white",
         className
       )}
       {...props}
     >
       <div className="flex items-center gap-3">
-        {link.icon}
+        <span className={cn(link.active ? "text-white" : "text-slate-400 dark:text-brand-light/70 group-hover/sidebar:text-[#007AFF] dark:group-hover/sidebar:text-accent transition-colors")}>
+          {link.icon}
+        </span>
         <motion.span
           animate={{
             display: animate ? (open ? "inline-block" : "none") : "inline-block",
             opacity: animate ? (open ? 1 : 0) : 1,
           }}
-          className="text-sm font-medium group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+          className="text-sm font-semibold whitespace-pre inline-block !p-0 !m-0"
         >
           {link.label}
         </motion.span>
       </div>
       
-      {link.count && (
+      {link.count && open && (
         <motion.span
-          animate={{
-            display: animate ? (open ? "inline-block" : "none") : "inline-block",
-            opacity: animate ? (open ? 1 : 0) : 1,
-          }}
-          className="bg-accent text-accent-foreground text-xs px-2 py-1 rounded-full font-medium"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+            link.active 
+              ? "bg-white/20 text-white" 
+              : "bg-[#E6F2FF] text-[#007AFF] dark:bg-accent dark:text-white"
+          )}
         >
           {link.count}
         </motion.span>
@@ -215,16 +220,16 @@ export const SidebarSection = ({
   const { open, animate } = useSidebar();
   
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-1", className)}>
       {title && (
         <motion.div
           animate={{
             display: animate ? (open ? "block" : "none") : "block",
             opacity: animate ? (open ? 1 : 0) : 1,
           }}
-          className="px-3 py-2 border-t border-brand-gray/30"
+          className="px-3 py-2 mt-4"
         >
-          <span className="text-xs text-brand-light/60 font-medium uppercase tracking-wider">
+          <span className="text-[10px] text-slate-400 dark:text-brand-light/40 font-bold uppercase tracking-widest">
             {title}
           </span>
         </motion.div>

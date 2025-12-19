@@ -10,10 +10,10 @@ interface FilterControlsProps {
   timeFilterOptions: TimeFilterOptions;
   showTimeDropdown: boolean;
   showRepoDropdown: boolean;
-  onTimeFilterChange: (filter: TimeFilter) => void;
-  onRepositoryChange: (repoId: number | 'all') => void;
+  onTimeFilterChange: (filter:  TimeFilter) => void;
+  onRepositoryChange: (repoId:  number | 'all') => void;
   onToggleTimeDropdown: () => void;
-  onToggleRepoDropdown: () => void;
+  onToggleRepoDropdown:  () => void;
 }
 
 const FilterControls: React.FC<FilterControlsProps> = ({
@@ -36,14 +36,14 @@ const FilterControls: React.FC<FilterControlsProps> = ({
           variant="ghost"
           size="sm"
           onClick={(e) => {
-            e.preventDefault();
+            e. preventDefault();
             e.stopPropagation();
             onToggleTimeDropdown();
           }}
           className="text-gray-700 hover:text-gray-900 border border-gray-300 hover:bg-gray-100 dark:text-white/70 dark:hover:text-white dark:border-white/20 dark:hover:bg-white/10"
         >
           <Clock className="w-4 h-4 mr-2" />
-          {timeFilterOptions[timeFilter].label}
+          {timeFilterOptions[timeFilter]. label}
           <ChevronDown className="w-4 h-4 ml-2" />
         </Button>
         {showTimeDropdown && (
@@ -58,9 +58,9 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                 }}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                   timeFilter === key
-                    ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
-                } first:rounded-t-lg last:rounded-b-lg`}
+                    ? 'bg-[#D6E6FF] text-[#003D6B] font-medium dark:bg-white/20 dark:text-white'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
+                } first:rounded-t-lg last: rounded-b-lg`}
               >
                 {option.label}
               </button>
@@ -89,7 +89,7 @@ const FilterControls: React.FC<FilterControlsProps> = ({
           <ChevronDown className="w-4 h-4 ml-2" />
         </Button>
         {showRepoDropdown && (
-          <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto dark:bg-black/90 dark:backdrop-blur-lg dark:border-white/20">
+          <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto dark: bg-black/90 dark: backdrop-blur-lg dark:border-white/20">
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -98,8 +98,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
               }}
               className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                 selectedRepository === 'all'
-                  ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
+                  ? 'bg-[#D6E6FF] text-[#003D6B] font-medium dark:bg-white/20 dark:text-white'
+                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
               } rounded-t-lg`}
             >
               All Repositories ({repositories.length})
@@ -114,8 +114,8 @@ const FilterControls: React.FC<FilterControlsProps> = ({
                 }}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                   selectedRepository === repo.id
-                    ? 'bg-accent/10 text-accent dark:bg-white/20 dark:text-white'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'
+                    ?  'bg-[#D6E6FF] text-[#003D6B] font-medium dark:bg-white/20 dark:text-white'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover: text-white'
                 } last:rounded-b-lg`}
               >
                 <div className="truncate font-medium">{repo.name}</div>
