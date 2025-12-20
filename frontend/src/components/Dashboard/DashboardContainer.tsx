@@ -388,32 +388,42 @@ const DashboardContainer = () => {
       };
 
 const calculateRepositorySpecificMetrics = () => {
-
-   if (allRepos.length === 0) {
+  if (allRepos.length === 0) {
     console.log('🚫 EMPTY ACCOUNT - No repositories found');
     return {
-      securityScore: null,     // 🔧 NULL for empty accounts
+      securityScore: null,
       totalVulnerabilities: 0,
       criticalIssues: 0,
       totalFiles: 0,
       activeProjects: 0,
       totalProjects: 0,
-      activeScanningProjects: 0,
-      isEmpty: true            // 🔧 Flag for empty state UI
+      activeScanningProjects:  0,
+      isEmpty: true
     };
   }
 
   if (selectedRepository === 'all') {
-    // Use API totals when viewing all repositories
+    // ✅ FIXED: Extract API metrics with proper null handling
     const apiSecurityScore = transformedMetrics.codeQualityMetrics.overall_security_score;
+    const apiTotalVulns = transformedMetrics.codeQualityMetrics.total_vulnerabilities;
+    const apiCriticalVulns = transformedMetrics. codeQualityMetrics. critical_vulnerabilities;
+    const apiTotalFiles = transformedMetrics.codeQualityMetrics.total_files;
     
-    console.log('🔍 ALL REPOS - API Security Score:', apiSecurityScore);
+    console.log('🔍 ALL REPOS - EXTRACTING FROM API: ');
+    console.log('- API Security Score:', apiSecurityScore);
+    console.log('- API Total Vulnerabilities:', apiTotalVulns);
+    console.log('- API Critical Vulnerabilities:', apiCriticalVulns);
+    console.log('- API Total Files:', apiTotalFiles);
+    console.log('- Raw metrics object:', transformedMetrics. codeQualityMetrics);
     
     return {
-      securityScore: Math.round(apiSecurityScore || 100),
-      totalVulnerabilities: transformedMetrics.codeQualityMetrics.total_vulnerabilities || 0,
-      criticalIssues: transformedMetrics.codeQualityMetrics.critical_vulnerabilities || 0,
-      totalFiles: transformedMetrics.codeQualityMetrics.total_files || 0,
+      // ✅ FIXED: Only round if value exists, otherwise keep null
+      securityScore: apiSecurityScore !== null && apiSecurityScore !== undefined 
+        ? Math.round(apiSecurityScore) 
+        : null,
+      totalVulnerabilities: apiTotalVulns || 0,
+      criticalIssues: apiCriticalVulns || 0,
+      totalFiles: apiTotalFiles || 0,
       activeProjects: allRepos.filter((r: any) => r.status === "active" || r.status === "completed").length,
       totalProjects: allRepos.length,
       activeScanningProjects: allRepos.filter((r: any) => r.status === "scanning").length
@@ -434,10 +444,9 @@ const calculateRepositorySpecificMetrics = () => {
     }
 
     const latestRepoScan = selectedRepo.latest_scan;
-    const repoVulns = latestRepoScan?.total_vulnerabilities || 0;
+    const repoVulns = latestRepoScan?. total_vulnerabilities || 0;
     const repoCritical = latestRepoScan?.critical_count || 0;
     
-    // 🔧 FIX: Try multiple sources for security score
     let securityScore = 100;
     
     console.log('🔍 SINGLE REPO SECURITY SCORE SOURCES:');
@@ -446,50 +455,40 @@ const calculateRepositorySpecificMetrics = () => {
     console.log('- Repository security_score:', selectedRepo.security_score);
     console.log('- API overall_security_score:', transformedMetrics.codeQualityMetrics.overall_security_score);
     
-    // Priority order for security score sources:
-    // 1. Latest scan security score
-    if (latestRepoScan?.security_score !== undefined && latestRepoScan.security_score !== null) {
+    if (latestRepoScan?.security_score !== undefined && latestRepoScan. security_score !== null) {
       securityScore = latestRepoScan.security_score;
       console.log('✅ Using scan security score:', securityScore);
     }
-    // 2. Repository security score
     else if (selectedRepo.security_score !== undefined && selectedRepo.security_score !== null) {
       securityScore = selectedRepo.security_score;
       console.log('✅ Using repository security score:', securityScore);
     }
-    // 3. API security score for this repo
     else if (transformedMetrics.codeQualityMetrics.overall_security_score !== undefined && 
              transformedMetrics.codeQualityMetrics.overall_security_score !== null) {
-      securityScore = transformedMetrics.codeQualityMetrics.overall_security_score;
+      securityScore = transformedMetrics. codeQualityMetrics. overall_security_score;
       console.log('✅ Using API security score:', securityScore);
     }
-    // 4. Fallback: Calculate from vulnerabilities (only if no backend score available)
     else if (repoVulns > 0) {
       const repoHigh = latestRepoScan?.high_count || 0;
       const repoMedium = latestRepoScan?.medium_count || 0;
       const repoLow = latestRepoScan?.low_count || 0;
       
-      // Simple fallback calculation
       const deduction = (repoCritical * 25) + (repoHigh * 10) + (repoMedium * 5) + (repoLow * 1);
-      securityScore = Math.max(5, Math.min(100, 100 - deduction));
+      securityScore = Math. max(5, Math.min(100, 100 - deduction));
       console.log('⚠️ Using fallback calculation:', securityScore);
     }
 
     const calculatedMetrics = {
-      securityScore: Math.round(securityScore),
+      securityScore: Math. round(securityScore),
       totalVulnerabilities: repoVulns,
       criticalIssues: repoCritical,
-      totalFiles: latestRepoScan?.total_files_scanned || 0,
+      totalFiles: latestRepoScan?. total_files_scanned || 0,
       activeProjects: (selectedRepo.status === "active" || selectedRepo.status === "completed") ? 1 : 0,
       totalProjects: 1,
-      activeScanningProjects: selectedRepo.status === "scanning" ? 1 : 0
+      activeScanningProjects: selectedRepo.status === "scanning" ? 1 :  0
     };
 
-    console.log('🎯 FINAL SINGLE REPO METRICS:');
-    console.log('- Repository:', selectedRepo.name);
-    console.log('- Vulnerabilities:', calculatedMetrics.totalVulnerabilities);
-    console.log('- Security Score:', calculatedMetrics.securityScore, '%');
-    console.log('- Should NOT be 0% with vulnerabilities!');
+    console.log('🎯 FINAL SINGLE REPO METRICS:', calculatedMetrics);
 
     return calculatedMetrics;
   }

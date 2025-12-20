@@ -1,19 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, AlertTriangle, CheckCircle, AlertCircle, Lock, CreditCard, Building2, FileCheck, Globe } from "lucide-react";
-import { EnhancedDashboardData } from '../../types/dashboard.types';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { EnhancedDashboardData } from '../../types/dashboard. types';
 
 interface ComplianceScoresProps {
   data: EnhancedDashboardData;
 }
 
-const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
+const ComplianceScores: React. FC<ComplianceScoresProps> = ({ data }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [showChart, setShowChart] = useState(true);
   const complianceScores = data.advancedMetrics?.complianceScores;
+  
+  useEffect(() => {
+    setTimeout(() => setIsVisible(true), 100);
+  }, []);
   
   if (!complianceScores) {
     return (
-      <div className="bg-white border border-gray-200 dark: bg-black/10 dark: border-white/10 rounded-lg p-6 h-full">
+      <div className="bg-white border border-gray-200 dark: bg-black/10 dark:border-white/10 rounded-lg p-6 h-full">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-          <Shield className="w-5 h-5 mr-2 text-[#003D6B] dark:text-white" />
+          <Shield className="w-5 h-5 mr-2 text-[#003D6B] dark: text-white" />
           Compliance Standards
         </h3>
         <div className="text-center py-8 text-gray-500 dark:text-white/60">
@@ -30,7 +37,7 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
       key: 'owasp_top10',
       name: 'OWASP TOP 10',
       fullName: 'OWASP Top 10',
-      score: complianceScores. owasp_top10 || 0,
+      score: complianceScores.owasp_top10 || 0,
       description: 'Web Application Security',
       target: 85,
       icon: Lock,
@@ -40,11 +47,11 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
       key: 'pci_dss',
       name: 'PCI DSS',
       fullName: 'PCI DSS',
-      score: complianceScores.pci_dss || 0,
+      score:  complianceScores.pci_dss || 0,
       description: 'Payment Card Industry',
       target: 95,
       icon: CreditCard,
-      iconColor: 'text-[#003D6B] dark: text-blue-400'
+      iconColor: 'text-[#003D6B] dark:text-blue-400'
     },
     {
       key: 'soc2',
@@ -54,7 +61,7 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
       description: 'Service Organization Control',
       target: 90,
       icon: Building2,
-      iconColor: 'text-[#003D6B] dark: text-purple-400'
+      iconColor: 'text-[#003D6B] dark:text-purple-400'
     },
     {
       key: 'iso27001',
@@ -78,11 +85,19 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
     }
   ];
 
+  // Prepare radar chart data
+  const radarData = standards.map(std => ({
+    subject: std.name,
+    current: std.score,
+    target: std.target,
+    fullName: std.fullName
+  }));
+
   const getScoreColor = (score: number, target: number) => {
     if (score >= target) return 'text-green-600 dark:text-green-400';
     if (score >= target * 0.7) return 'text-yellow-600 dark:text-yellow-400';
     if (score >= target * 0.4) return 'text-orange-600 dark:text-orange-400';
-    return 'text-red-600 dark: text-red-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   const getProgressColor = (score: number, target: number) => {
@@ -107,24 +122,92 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
 
   const compliantCount = standards.filter(s => s.score >= s.target).length;
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-white/20 rounded-lg p-3 shadow-xl">
+          <p className="font-semibold text-gray-900 dark:text-white mb-2">{payload[0].payload.fullName}</p>
+          <p className="text-sm text-blue-600 dark:text-blue-400">
+            Current: <span className="font-bold">{payload[0].value}%</span>
+          </p>
+          <p className="text-sm text-green-600 dark:text-green-400">
+            Target: <span className="font-bold">{payload[1].value}%</span>
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="bg-white border border-gray-200 dark:bg-black/10 dark:border-white/10 rounded-lg p-6 h-full flex flex-col">
+    <div className={`bg-white border border-gray-200 dark: bg-black/10 dark: border-white/10 rounded-lg p-6 h-full flex flex-col transition-all duration-500 ${
+      isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+    }`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
           <Shield className="w-5 h-5 mr-2 text-[#003D6B] dark:text-blue-400" />
           Compliance Standards
         </h3>
-        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-          compliantCount >= 4 ? 'bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300' :
-          compliantCount >= 2 ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' : 
-          'bg-red-50 text-red-700 dark: bg-red-500/20 dark:text-red-300'
-        }`}>
-          {compliantCount}/{standards.length} Met
+        <div className="flex items-center gap-2">
+          <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+            compliantCount >= 4 ? 'bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300' :
+            compliantCount >= 2 ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' : 
+            'bg-red-50 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+          }`}>
+            {compliantCount}/{standards.length} Met
+          </div>
+          <button
+            onClick={() => setShowChart(!showChart)}
+            className="px-3 py-1 text-xs bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full transition-colors"
+          >
+            {showChart ? 'List View' : 'Chart View'}
+          </button>
         </div>
       </div>
       
-      <div className="space-y-4 flex-1">
+      {/* Radar Chart */}
+      {showChart && (
+        <div className="mb-6">
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="#374151" />
+              <PolarAngleAxis 
+                dataKey="subject" 
+                stroke="#9CA3AF"
+                style={{ fontSize: '11px' }}
+              />
+              <PolarRadiusAxis 
+                angle={90} 
+                domain={[0, 100]} 
+                stroke="#9CA3AF"
+                style={{ fontSize: '10px' }}
+              />
+              <Radar 
+                name="Current Score" 
+                dataKey="current" 
+                stroke="#3B82F6" 
+                fill="#3B82F6" 
+                fillOpacity={0.6}
+                animationDuration={1500}
+              />
+              <Radar 
+                name="Target Score" 
+                dataKey="target" 
+                stroke="#10B981" 
+                fill="#10B981" 
+                fillOpacity={0.3}
+                animationDuration={1500}
+              />
+              <Legend wrapperStyle={{ fontSize: '12px' }} />
+              <Tooltip content={<CustomTooltip />} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* List View */}
+      <div className="space-y-4 flex-1 overflow-auto">
         {standards.map((standard) => {
           const IconComponent = standard.icon;
           return (
@@ -143,7 +226,7 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
                   </div>
                 </div>
                 <div className="text-right ml-3">
-                  <div className={`text-2xl font-bold ${getScoreColor(standard.score, standard. target)}`}>
+                  <div className={`text-2xl font-bold ${getScoreColor(standard.score, standard.target)}`}>
                     {Math.round(standard.score)}%
                   </div>
                   <div className="text-gray-500 dark:text-white/60 text-xs">
@@ -153,7 +236,7 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
               </div>
               
               {/* Progress Bar */}
-              <div className="space-y-1. 5">
+              <div className="space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className={`font-medium ${getScoreColor(standard.score, standard.target)}`}>
                     {getStatus(standard.score, standard. target)}
@@ -165,7 +248,7 @@ const ComplianceScores: React.FC<ComplianceScoresProps> = ({ data }) => {
                 <div className="w-full bg-gray-200 dark:bg-white/5 rounded-full h-2 overflow-hidden">
                   <div 
                     className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(standard.score, standard.target)}`}
-                    style={{ width: `${Math.min(100, (standard.score / standard.target) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (standard.score / standard. target) * 100)}%` }}
                   ></div>
                 </div>
               </div>

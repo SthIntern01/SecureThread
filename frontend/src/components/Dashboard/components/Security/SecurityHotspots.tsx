@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, FileCode, Shield, Flame } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Badge } from "@/components/ui/badge";
 import { EnhancedDashboardData } from '../../types/dashboard.types';
 
@@ -8,11 +9,17 @@ interface SecurityHotspotsProps {
 }
 
 const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [showChart, setShowChart] = useState(true);
   const hotspots = data.advancedMetrics?.vulnerabilityTrends?.security_hotspots || [];
   
-  if (! hotspots || hotspots. length === 0) {
+  useEffect(() => {
+    setTimeout(() => setIsVisible(true), 400);
+  }, []);
+  
+  if (!hotspots || hotspots.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 dark:bg-black/10 dark:border-white/10 rounded-lg p-6">
+      <div className="bg-white border border-gray-200 dark: bg-black/10 dark: border-white/10 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark: text-white mb-4 flex items-center">
           <Flame className="w-5 h-5 mr-2 text-[#FF6B35] dark:text-orange-400" />
           Security Hotspots
@@ -52,30 +59,84 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
     return '📄';
   };
 
+  const getBarColor = (critical: number, high: number) => {
+    if (critical > 5) return '#EF4444';
+    if (critical > 0 || high > 10) return '#F97316';
+    if (high > 5) return '#EAB308';
+    return '#3B82F6';
+  };
+
   const totalCritical = hotspots.reduce((sum, h) => sum + h.critical, 0);
   const totalHigh = hotspots.reduce((sum, h) => sum + h.high, 0);
 
+  // Prepare chart data - top 8 hotspots
+  const chartData = hotspots.slice(0, 8).map(hotspot => ({
+    name: hotspot.file_path. split('/').pop() || hotspot.file_path,  // ✅ file_path
+    fullPath: hotspot.file_path,  // ✅ file_path
+    count: hotspot.count,
+    critical: hotspot. critical,
+    high: hotspot.high,
+    color: getBarColor(hotspot.critical, hotspot.high),
+    icon: getFileIcon(hotspot. file_path)  // ✅ file_path
+  }));
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]. payload;
+      return (
+        <div className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-white/20 rounded-lg p-3 shadow-xl max-w-xs">
+          <p className="font-semibold text-gray-900 dark:text-white mb-2 truncate">{data.icon} {data.name}</p>
+          <p className="text-xs text-gray-500 dark:text-white/60 mb-2 truncate">{data.fullPath}</p>
+          <p className="text-sm text-gray-600 dark:text-white/60">
+            Total Issues: <span className="font-bold">{data.count}</span>
+          </p>
+          {data.critical > 0 && (
+            <p className="text-sm text-red-600 dark: text-red-400">
+              Critical: <span className="font-bold">{data.critical}</span>
+            </p>
+          )}
+          {data.high > 0 && (
+            <p className="text-sm text-orange-600 dark:text-orange-400">
+              High: <span className="font-bold">{data.high}</span>
+            </p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="bg-white border border-gray-200 dark:bg-black/10 dark:border-white/10 rounded-lg p-6">
+    <div className={`bg-white border border-gray-200 dark: bg-black/10 dark: border-white/10 rounded-lg p-6 transition-all duration-500 ${
+      isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+    }`}>
       {/* Header with priority indicator */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
           <Flame className="w-5 h-5 mr-2 text-[#FF6B35] dark:text-orange-400" />
           Security Hotspots
           {totalCritical > 0 && (
-            <Badge className="ml-3 bg-red-50 text-red-700 border-red-300 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30 animate-pulse">
+            <Badge className="ml-3 bg-red-50 text-red-700 border-red-300 dark: bg-red-500/20 dark:text-red-300 dark:border-red-500/30 animate-pulse">
               {totalCritical} Critical
             </Badge>
           )}
         </h3>
-        <div className="text-sm text-gray-500 dark:text-white/60">
-          Showing top {Math.min(8, hotspots.length)} of {hotspots.length} files
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-gray-500 dark:text-white/60">
+            Showing top {Math.min(8, hotspots.length)} of {hotspots.length}
+          </div>
+          <button
+            onClick={() => setShowChart(!showChart)}
+            className="px-3 py-1 text-xs bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 rounded-full transition-colors"
+          >
+            {showChart ? 'Grid' : 'Chart'}
+          </button>
         </div>
       </div>
 
       {/* Priority Alert Banner */}
       {totalCritical > 0 && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 dark: bg-red-500/10 dark:border-red-500/30 rounded-lg flex items-start space-x-3">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 dark:bg-red-500/10 dark:border-red-500/30 rounded-lg flex items-start space-x-3">
           <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
           <div>
             <div className="text-red-700 dark:text-red-300 font-medium text-sm">High Priority Action Required</div>
@@ -86,9 +147,46 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
           </div>
         </div>
       )}
+
+      {/* Chart View */}
+      {showChart && (
+        <div className="mb-6">
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart 
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left:  120, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+              <XAxis 
+                type="number"
+                stroke="#9CA3AF"
+                style={{ fontSize: '11px' }}
+              />
+              <YAxis 
+                type="category"
+                dataKey="name"
+                stroke="#9CA3AF"
+                style={{ fontSize: '10px' }}
+                width={115}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar 
+                dataKey="count" 
+                radius={[0, 8, 8, 0]}
+                animationDuration={1500}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       
-      {/* Hotspots Grid - 2 columns for better readability */}
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* Grid View - Hotspots */}
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
         {hotspots.slice(0, 8).map((hotspot, index) => (
           <div 
             key={`${hotspot.file_path}-${index}`}
@@ -101,9 +199,9 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-2">
-                    <FileCode className="w-4 h-4 text-gray-500 dark:text-white/60" />
+                    <FileCode className="w-4 h-4 text-gray-500 dark:text-white/60 flex-shrink-0" />
                     <span className="text-gray-900 dark:text-white font-medium truncate" title={hotspot.file_path}>
-                      {hotspot. file_path. split('/').pop() || hotspot.file_path}
+                      {hotspot.file_path. split('/').pop() || hotspot.file_path}
                     </span>
                   </div>
                   <div className="text-gray-500 dark:text-white/60 text-xs truncate mb-3" title={hotspot.file_path}>
@@ -119,7 +217,7 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
                       </Badge>
                     )}
                     {hotspot.high > 0 && (
-                      <Badge className="bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-500/20 dark: text-orange-300 dark: border-orange-500/30">
+                      <Badge className="bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/30">
                         {hotspot.high} high
                       </Badge>
                     )}
@@ -129,7 +227,7 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
               
               <div className="text-right ml-3">
                 <div className="text-gray-900 dark:text-white font-bold text-2xl">{hotspot.count}</div>
-                <div className="text-gray-500 dark: text-white/60 text-xs">issues</div>
+                <div className="text-gray-500 dark:text-white/60 text-xs">issues</div>
               </div>
             </div>
           </div>
@@ -137,13 +235,13 @@ const SecurityHotspots: React.FC<SecurityHotspotsProps> = ({ data }) => {
       </div>
 
       {/* Enhanced Summary Section */}
-      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/20">
+      <div className="pt-6 border-t border-gray-200 dark:border-white/20">
         <div className="grid grid-cols-4 gap-4 text-center mb-4">
           <div>
-            <div className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="text-xl font-bold text-gray-900 dark: text-white">
               {hotspots.length}
             </div>
-            <div className="text-gray-500 dark: text-white/60 text-sm">Files at Risk</div>
+            <div className="text-gray-500 dark:text-white/60 text-sm">Files at Risk</div>
           </div>
           <div>
             <div className="text-xl font-bold text-red-600 dark:text-red-400">
