@@ -16,7 +16,6 @@ import Solved from "./pages/Solved";
 import AIChat from "./pages/AIChat";
 import SignIn from "./pages/SignIn";
 import Settings from "./pages/Settings";
-import SignUp from "./pages/SignUp";
 import Feedback from "./pages/Feedback"; 
 import Help from "./pages/Help";
 import GitHubCallback from "./pages/GitHubCallback";
@@ -45,7 +44,6 @@ const App = () => (
               <Routes>
                 {/* Public routes */}
                 <Route path="/signin" element={<SignIn />} />
-                <Route path="/signup" element={<SignUp />} />
                 <Route path="/auth/github/callback" element={<GitHubCallback />} />
                 <Route path="/auth/gitlab/callback" element={<GitLabCallback />} />
                 <Route path="/auth/bitbucket/callback" element={<BitbucketCallback />} />

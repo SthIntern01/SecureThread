@@ -1,73 +1,103 @@
-# Welcome to your Lovable project
+# SecureThread Frontend
 
-## Project info
+Modern React + TypeScript frontend for SecureThread VMS (Vulnerability Management System).
 
-**URL**: https://lovable.dev/projects/c187e1f2-4070-4c19-81b8-043618d19d91
+## 🚀 Tech Stack
 
-## How can I edit this code?
+- **React 18** - UI Library
+- **TypeScript** - Type safety
+- **Vite** - Build tool & dev server
+- **Tailwind CSS** - Styling
+- **shadcn/ui** - Component library
+- **TanStack Query** - Data fetching
+- **React Router** - Routing
 
-There are several ways of editing your application.
+## 🛠️ Development Setup
 
-**Use Lovable**
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c187e1f2-4070-4c19-81b8-043618d19d91) and start prompting.
+### Installation
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+# Clone the repository
+git clone https://github.com/SthIntern01/SecureThread.git
 
-**Use your preferred IDE**
+# Navigate to frontend
+cd SecureThread/frontend
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+# Install dependencies
+npm install
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+# Set up environment variables
+cp .env. example .env
+# Edit .env with your API URL and OAuth credentials
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 🏗️ Project Structure
 
-**Use GitHub Codespaces**
+```
+frontend/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── contexts/       # React Context providers (Auth, Theme, Workspace)
+│   ├── hooks/          # Custom React hooks
+│   ├── lib/            # Utility functions
+│   ├── pages/          # Page components (routes)
+│   ├── services/       # API service layers
+│   ├── App.tsx         # Root component with routing
+│   ├── main.tsx        # App entry point
+│   └── index.css       # Global styles & Tailwind
+├── public/             # Static assets
+├── index.html          # HTML template
+└── vite.config.ts      # Vite configuration
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🔐 Authentication
 
-## What technologies are used for this project?
+SecureThread supports multiple OAuth providers:
+- GitHub
+- GitLab  
+- Bitbucket
+- Google
 
-This project is built with:
+## 📦 Key Features
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **Multi-workspace support** - Manage multiple teams/projects
+- **Repository scanning** - Automated vulnerability detection
+- **AI-powered chat** - Get security recommendations
+- **Dark/Light theme** - Customizable UI
+- **Real-time notifications** - Toast & Sonner alerts
 
-## How can I deploy this project?
+## 🧪 Available Scripts
 
-Simply open [Lovable](https://lovable.dev/projects/c187e1f2-4070-4c19-81b8-043618d19d91) and click on Share -> Publish.
+```bash
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
+```
 
-## Can I connect a custom domain to my Lovable project?
+## 🌐 Environment Variables
 
-Yes, you can!
+```env
+VITE_API_URL=http://localhost:8000
+VITE_GITHUB_CLIENT_ID=your_github_client_id
+VITE_GITLAB_CLIENT_ID=your_gitlab_client_id
+VITE_BITBUCKET_CLIENT_ID=your_bitbucket_client_id
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📄 License
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+[Add your license here]
+
+## 🤝 Contributing
+
+[Add contribution guidelines]
