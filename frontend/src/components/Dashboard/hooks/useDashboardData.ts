@@ -260,7 +260,7 @@ export const useDashboardData = () => {
   try {
     const token = localStorage.getItem("access_token");
     
-    const url = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/custom/`;
+    const url = `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/list/all`;
     
     const response = await fetch(url, {
       headers: {

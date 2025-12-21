@@ -88,7 +88,7 @@ const SimpleScanDetailsModal: React.FC<SimpleScanDetailsModalProps> = ({
       let response = await fetch(
         `${
           import.meta.env. VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${scanId}/detailed`,
+        }/api/v1/custom-scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -101,7 +101,7 @@ const SimpleScanDetailsModal: React.FC<SimpleScanDetailsModalProps> = ({
         response = await fetch(
           `${
             import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/scans/${scanId}`,
+          }/api/v1/custom-scans/${scanId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -125,7 +125,7 @@ const SimpleScanDetailsModal: React.FC<SimpleScanDetailsModalProps> = ({
           const vulnResponse = await fetch(
             `${
               import.meta.env. VITE_API_URL || "http://localhost:8000"
-            }/api/v1/scans/${scanId}/vulnerabilities`,
+            }/api/v1/custom-scans/${scanId}/vulnerabilities`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -188,7 +188,7 @@ const SimpleScanDetailsModal: React.FC<SimpleScanDetailsModalProps> = ({
     try {
       const token = localStorage. getItem("access_token");
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/${scanId}/report/pdf? report_type=executive`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/report/pdf? report_type=executive`,
         {
           method: "GET",
           headers:  {

@@ -8,7 +8,7 @@ from app.api.v1 import (
     auth,
     workspace,
     repositories,
-    scans,
+    # scans,  # ❌ REMOVED - Merged into custom_scans
     gitlab_auth,
     ai_chat,
     google_auth,
@@ -17,9 +17,9 @@ from app.api.v1 import (
     teams,
     metrics,
     scan_rules,
-    custom_scans,
+    custom_scans,  # ✅ This now contains ALL scan functionality
     projects,
-    github_integration  # ✅ ADD THIS LINE
+    github_integration
 )
 
 # Set up logging
@@ -43,15 +43,16 @@ api_router.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 
 # Feature routers
 api_router.include_router(repositories.router, prefix="/repositories", tags=["repositories"])
-# Fixed syntax error below (removed space in scans.router)
-api_router.include_router(scans.router, prefix="/scans", tags=["scans"])
+
+# ✅ Unified scan router - handles all scanning (rule-based with language filtering)
+api_router.include_router(custom_scans.router, prefix="/custom-scans", tags=["scans"])
+
 api_router.include_router(ai_chat.router, prefix="/ai-chat", tags=["ai-chat"])
 api_router.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
 api_router.include_router(scan_rules.router, prefix="/scan-rules", tags=["scan-rules"])
-api_router.include_router(custom_scans.router, prefix="/custom-scans", tags=["custom-scans"])
 
-# ✅ ADD THIS LINE - GitHub Integration for PR creation
+# GitHub Integration for PR creation
 api_router.include_router(github_integration.router, prefix="/github", tags=["GitHub Integration"])
 
 logger.info("✅ All routers included successfully")

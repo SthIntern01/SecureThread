@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings  # Keep only ONE import
 from app.api.v1.api import api_router
 from app.core.database import Base, engine
+from app.api.v1 import ai
 
 # Debug print to verify settings
 print(f"DEBUG: CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
@@ -28,6 +29,7 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
 
 @app.get("/")
 async def root():

@@ -11,6 +11,7 @@ import {
 import { EtherealBackground } from "../components/ui/ethereal-background";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Search,
@@ -450,63 +451,63 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
 
           {vulnerabilities.length > 0 && (
             <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+              {/* Header */}
               <div className="p-4 border-b border-gray-200">
                 <h3 className="font-semibold text-gray-900">
                   Vulnerabilities ({vulnerabilities.length})
                 </h3>
               </div>
+              
+              {/* Vulnerability List - NO BUTTONS */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {vulnerabilities.map((vuln) => (
+                {vulnerabilities. map((vuln) => (
                   <div
                     key={vuln.id}
-                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm"
+                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer"
+                    onClick={() => {
+                      if (vuln.line_number) {
+                        setSelectedVuln(vuln. line_number);
+                      }
+                    }}
                   >
-                    <div
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (vuln.line_number) {  // Fixed: removed space after dot
-                          setSelectedVuln(vuln.line_number);  // Fixed: removed space after dot
-                        }
-                      }}
-                    >
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Badge
-                          className={`text-xs ${getSeverityColor(vuln.severity)}`}
-                        >
-                          {vuln.severity}
-                        </Badge>
-                        {vuln.line_number && (  // Fixed: removed space after dot
-                          <span className="text-xs text-gray-500">
-                            Line {vuln.line_number}
-                          </span>
-                        )}
-                      </div>
-                      <h4 className="font-semibold text-sm text-gray-900 mb-1">
-                        {vuln.title}
-                      </h4>
-                      <p className="text-xs text-gray-600 mb-2">
-                        {vuln.description}
-                      </p>
-                      <p className="text-xs text-blue-600 mb-3">
-                        <strong>Fix: </strong> {vuln.recommendation}
-                      </p>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Badge className={`text-xs ${getSeverityColor(vuln.severity)}`}>
+                        {vuln.severity}
+                      </Badge>
+                      {vuln.line_number && (
+                        <span className="text-xs text-gray-500">
+                          Line {vuln.line_number}
+                        </span>
+                      )}
                     </div>
-                    
-                    {/* Fix Code Button - NEW! */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onFixClick) {
-                          onFixClick(vuln);
-                        }
-                      }}
-                      className="w-full mt-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Code className="w-4 h-4" />
-                      Fix This Vulnerability
-                    </button>
+                    <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                      {vuln.title}
+                    </h4>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {vuln.description}
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      <strong>Fix:</strong> {vuln.recommendation}
+                    </p>
+                    {/* ❌ NO BUTTON HERE ANYMORE */}
                   </div>
                 ))}
+              </div>
+              
+              {/* ✅ ONE BUTTON AT THE BOTTOM FOR ALL VULNERABILITIES */}
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <button
+                  onClick={() => {
+                    // Fix ALL vulnerabilities in this file
+                    if (onFixClick && vulnerabilities.length > 0) {
+                      onFixClick(vulnerabilities[0]); // Pass first vuln (we'll fix all anyway)
+                    }
+                  }}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Code className="w-5 h-5" />
+                  Fix All {vulnerabilities.length} Vulnerabilities
+                </button>
               </div>
             </div>
           )}
@@ -515,6 +516,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
     </Dialog>
   );
 };
+
 
 const Logo = () => {
   return (
@@ -667,6 +669,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [contents, setContents] = useState<FileContent[]>([]);
+  const navigate = useNavigate();
   const [scanPollingInterval, setScanPollingInterval] =
     useState<NodeJS.Timeout | null>(null);
   const [latestScanData, setLatestScanData] = useState<any>(null);
@@ -837,7 +840,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
 
   const handleFileClick = (file: FileContent) => {
     if (isViewableFile(file.name)) {
-      fetchFileContent(file.path, file.name);
+      navigate(`/projects/${project.id}/files/${encodeURIComponent(file.path)}`);
     }
   };
 
@@ -869,7 +872,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         const response = await fetch(
           `${
             import.meta.env.VITE_API_URL || "http://localhost:8000"
-          }/api/v1/scans/${project.latest_scan.id}`,
+          }/api/v1/custom-scans/${project.latest_scan.id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -908,7 +911,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${project.latest_scan.id}/vulnerabilities`,
+        }/api/v1/custom-scans/${project.latest_scan.id}/vulnerabilities`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -932,7 +935,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${scanId}/detailed`,
+        }/api/v1/custom-scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1198,6 +1201,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     return a.name.localeCompare(b.name);
   });
 
+
   // ✅ NEW:  Get all vulnerable files across entire repository
 const allVulnerableFiles = React.useMemo(() => {
   const vulnFilePaths = new Set(vulnerabilities.map(v => v. file_path));
@@ -1369,8 +1373,8 @@ const allVulnerableFiles = React.useMemo(() => {
                     {allVulnerableFiles.map((file, index) => (
                       <div
                         key={`vuln-${file.path}-${index}`}
-                        onClick={() => fetchFileContent(file.path, file.name)}
-                        className="p-4 hover:bg-red-50 cursor-pointer transition-colors flex items-center justify-between"
+                        onClick={() => navigate(`/projects/${project.id}/files/${encodeURIComponent(file.path)}`)}  // ✅ NAVIGATE TO PAGE
+                        className="p-4 hover:bg-red-50 cursor-pointer"
                       >
                         <div className="flex items-center space-x-3 flex-1">
                           <div className="relative">

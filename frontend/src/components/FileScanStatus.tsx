@@ -103,7 +103,7 @@ const FileScanStatus:  React.FC<FileScanStatusProps> = ({
       const token = localStorage.getItem("access_token");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/${scanId}/detailed`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
