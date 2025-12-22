@@ -559,7 +559,20 @@ class GitHubService:
             return None
 
     def get_repository_tree(self, access_token: str, repo_full_name: str, tree_sha: str = None) -> Optional[Dict[str, Any]]:
-        """Get repository tree structure with recursive file discovery"""
+        """
+        Get repository tree structure with recursive file discovery
+        ✅ WITH TIMEOUT EXCEPTION HANDLING (like Snyk/SonarQube)
+        """
+
+        # ✅✅✅ ADD THESE LINES HERE ✅✅✅
+        import time
+        start_time = time.time()
+        print(f"\n{'='*80}")
+        print(f"🔧 GITHUB API CALLED at {time.strftime('%H:%M:%S')}")
+        print(f"   Repository: {repo_full_name}")
+        print(f"{'='*80}\n")
+        # ✅✅✅ END OF NEW LINES ✅✅✅
+
         try:
             headers = {
                 "Authorization": f"token {access_token}",
@@ -579,29 +592,71 @@ class GitHubService:
             url = f"https://api.github.com/repos/{repo_full_name}/git/trees/{tree_sha}?recursive=1"
             logger.info(f"Fetching repository tree from: {url}")
             
-            response = requests.get(url, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                tree_data = response.json()
-                logger.info(f"Successfully fetched tree with {len(tree_data.get('tree', []))} items")
-                return tree_data
-            elif response.status_code == 404:
-                logger.warning(f"Tree not found for {repo_full_name} with sha {tree_sha}, trying HEAD")
-                # Try with HEAD if the branch name doesn't work
-                url = f"https://api.github.com/repos/{repo_full_name}/git/trees/HEAD?recursive=1"
+            try:
+                # ✅ First attempt with timeout
                 response = requests.get(url, headers=headers, timeout=30)
+                
                 if response.status_code == 200:
                     tree_data = response.json()
-                    logger.info(f"Successfully fetched HEAD tree with {len(tree_data.get('tree', []))} items")
+
+                    # ✅✅✅ ADD THESE LINES HERE ✅✅✅
+                    elapsed = time.time() - start_time
+                    print(f"\n{'='*80}")
+                    print(f"✅ GITHUB API RESPONDED at {time.strftime('%H:%M:%S')}")
+                    print(f"Took: {elapsed:.2f} seconds")
+                    print(f"Items: {len(tree_data.get('tree', []))}")
+                    print(f"{'='*80}\n")
+                    # ✅✅✅ END OF NEW LINES ✅✅✅
+
+                    logger.info(f"Successfully fetched tree with {len(tree_data.get('tree', []))} items")
                     return tree_data
+                    
+                elif response.status_code == 404:
+                    logger.warning(f"Tree not found for {repo_full_name} with sha {tree_sha}, trying HEAD")
+                    # Try with HEAD if the branch name doesn't work
+                    url = f"https://api.github.com/repos/{repo_full_name}/git/trees/HEAD?recursive=1"
+                    
+                    try:
+                        response = requests.get(url, headers=headers, timeout=30)
+                        
+                        if response.status_code == 200:
+                            tree_data = response.json()
+
+                            # ✅✅✅ ADD THESE LINES HERE ✅✅✅
+                            elapsed = time.time() - start_time
+                            print(f"\n{'='*80}")
+                            print(f"✅ GITHUB API RESPONDED at {time.strftime('%H:%M:%S')}")
+                            print(f"Took: {elapsed:.2f} seconds")
+                            print(f"Items: {len(tree_data.get('tree', []))}")
+                            print(f"{'='*80}\n")
+                            # ✅✅✅ END OF NEW LINES ✅✅✅
+
+                            logger.info(f"Successfully fetched HEAD tree with {len(tree_data.get('tree', []))} items")
+                            return tree_data
+                        else:
+                            logger.error(f"Failed to fetch HEAD tree: {response.status_code} - {response.text}")
+                            return None
+                            
+                    except requests.exceptions.Timeout:
+                        logger.error(f"GitHub API timeout (30s) fetching HEAD tree for {repo_full_name}")
+                        return None
+                        
                 else:
-                    logger.error(f"Failed to fetch HEAD tree: {response.status_code} - {response.text}")
+                    logger.error(f"Failed to fetch repository tree: {response.status_code} - {response.text}")
                     return None
-            else:
-                logger.error(f"Failed to fetch repository tree: {response.status_code} - {response.text}")
+            
+            # ✅ CATCH TIMEOUT EXCEPTION (This was missing!)
+            except requests.exceptions.Timeout:
+                logger.error(f"GitHub API timeout (30s) fetching tree for {repo_full_name}")
+                return None
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Connection error fetching tree for {repo_full_name}: {e}")
+                return None
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error fetching tree for {repo_full_name}: {e}")
                 return None
                 
-        except Exception as e:
+        except Exception as e: 
             logger.error(f"Error fetching repository tree: {e}")
             return None
     

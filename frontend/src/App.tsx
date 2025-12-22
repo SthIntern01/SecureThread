@@ -29,6 +29,7 @@ import CreateWorkspace from "./pages/CreateWorkspace";
 import Profile from "./pages/Profile";
 import WorkspaceCallback from './pages/WorkspaceCallback';
 import SelectRepositories from './pages/SelectRepositories';
+import FileEditor from './pages/FileEditor';
 
 const queryClient = new QueryClient();
 
@@ -54,7 +55,6 @@ const App = () => (
                 <Route path="/workspace/callback" element={<WorkspaceCallback />} />
                 <Route path="/workspace/select-repositories" element={<SelectRepositories />} />
                 <Route path="/workspace-settings" element={<WorkspaceSettings />} />
-
                 {/* Protected routes */}
                 <Route
                   path="/"
@@ -88,7 +88,14 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                
+                <Route
+                  path="/projects/:repositoryId/files/*"
+                  element={
+                    <ProtectedRoute>
+                      <FileEditor />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/integrations"
                   element={

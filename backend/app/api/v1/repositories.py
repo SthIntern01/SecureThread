@@ -4,12 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Union, Optional
 from app.core.database import get_db
-from app. api.deps import get_current_active_user
+from app.api.deps import get_current_active_user
 from app.models.user import User
-from app.models. repository import Repository
+from app.models.repository import Repository
 from app.services.github_service import GitHubService
 from app.models.vulnerability import Scan
-from app.models.team_repository import TeamRepository  # ✅ Add this import
+from app.models.team_repository import TeamRepository
 from pydantic import BaseModel
 import logging
 from datetime import datetime, timedelta
@@ -27,7 +27,7 @@ class RepositoryResponse(BaseModel):
     id: int
     github_id: int
     name: str
-    full_name:  str
+    full_name: str
     description: str
     html_url: str
     clone_url: str
@@ -41,7 +41,7 @@ class RepositoryResponse(BaseModel):
         from_attributes = True
 
 
-@router. get("/github/available")
+@router.get("/github/available")
 async def get_available_github_repositories(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -56,22 +56,37 @@ async def get_available_github_repositories(
     github_service = GitHubService()
     repos = github_service.get_user_repositories(current_user.github_access_token)
     
-    # Get already imported repositories
-    imported_repo_ids = set(
-        repo.github_id for repo in db.query(Repository).filter(
-            Repository.owner_id == current_user.id,
-            Repository.github_id.isnot(None)
-        ).all()
-    )
+    # Get repositories already in the CURRENT workspace
+    active_workspace_id = current_user.active_team_id
     
-    # Mark which repositories are already imported
+    if active_workspace_id:
+        # Get repos in current workspace
+        workspace_repo_ids = set(
+            tr.repository.github_id for tr in db.query(TeamRepository).filter(
+                TeamRepository.team_id == active_workspace_id
+            ).join(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Repository.github_id.isnot(None)
+            ).all()
+        )
+    else:
+        # Fallback: get all user's repositories
+        workspace_repo_ids = set(
+            repo.github_id for repo in db.query(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Repository.github_id.isnot(None),
+                Repository.is_active == True
+            ).all()
+        )
+    
+    # Mark which repositories are already imported in THIS workspace
     for repo in repos:
-        repo["is_imported"] = repo["id"] in imported_repo_ids
+        repo["is_imported"] = repo["id"] in workspace_repo_ids
     
     return {"repositories": repos}
 
 
-@router. get("/github/search")
+@router.get("/github/search")
 async def search_github_repositories(
     query: str,
     current_user: User = Depends(get_current_active_user),
@@ -87,17 +102,32 @@ async def search_github_repositories(
     github_service = GitHubService()
     repos = github_service.search_public_repositories(current_user.github_access_token, query)
     
-    # Get already imported repositories
-    imported_repo_ids = set(
-        repo.github_id for repo in db.query(Repository).filter(
-            Repository.owner_id == current_user.id,
-            Repository.github_id.isnot(None)
-        ).all()
-    )
+    # Get repositories already in the CURRENT workspace
+    active_workspace_id = current_user.active_team_id
     
-    # Mark which repositories are already imported
+    if active_workspace_id:
+        # Get repos in current workspace
+        workspace_repo_ids = set(
+            tr.repository.github_id for tr in db.query(TeamRepository).filter(
+                TeamRepository.team_id == active_workspace_id
+            ).join(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Repository.github_id.isnot(None)
+            ).all()
+        )
+    else:
+        # Fallback: get all user's repositories
+        workspace_repo_ids = set(
+            repo.github_id for repo in db.query(Repository).filter(
+                Repository.owner_id == current_user.id,
+                Repository.github_id.isnot(None),
+                Repository.is_active == True
+            ).all()
+        )
+    
+    # Mark which repositories are already imported in THIS workspace
     for repo in repos:
-        repo["is_imported"] = repo["id"] in imported_repo_ids
+        repo["is_imported"] = repo["id"] in workspace_repo_ids
     
     return {"repositories": repos}
 
@@ -119,8 +149,8 @@ async def get_available_bitbucket_repositories(
     repos = bitbucket_service.get_user_repositories(current_user.bitbucket_access_token)
     
     logger.error(f"DEBUG: Found {len(repos)} repositories from Bitbucket API")
-    for repo in repos[: 3]:  # Log first 3 repos
-        logger.error(f"DEBUG: Repo:  {repo. get('name')} - ID: {repo.get('id')}")
+    for repo in repos[:3]:  # Log first 3 repos
+        logger.error(f"DEBUG: Repo: {repo.get('name')} - ID: {repo.get('id')}")
     
     # Get already imported repositories using bitbucket_id
     imported_repo_ids = set(
@@ -135,7 +165,7 @@ async def get_available_bitbucket_repositories(
     # Mark which repositories are already imported
     for repo in repos:
         repo["is_imported"] = repo["id"] in imported_repo_ids
-        logger.error(f"DEBUG:  {repo['name']} - is_imported: {repo['is_imported']}")
+        logger.error(f"DEBUG: {repo['name']} - is_imported: {repo['is_imported']}")
     
     return {"repositories": repos}
 
@@ -168,25 +198,66 @@ async def import_repositories(
         # Process all repositories in a single transaction
         for repo_data in repositories_data:
             try:
+                # ✅ FIX: Support both github_id and id fields
+                repo_github_id = repo_data.get("github_id") or repo_data.get("id")
+                
+                if not repo_github_id:
+                    logger.error(f"Repository {repo_data.get('name')} has no ID")
+                    failed_repos.append({
+                        "name": repo_data.get("name", "unknown"),
+                        "error": "No repository ID provided"
+                    })
+                    continue
+                
                 # Check if already imported
                 existing_repo = db.query(Repository).filter(
-                    Repository. github_id == repo_data["id"],
+                    Repository.github_id == repo_github_id,
                     Repository.owner_id == current_user.id
                 ).first()
                 
                 if existing_repo:
-                    logger.info(f"Repository {repo_data['name']} already imported")
-                    continue
+                    logger.info(f"Repository {repo_data['name']} already exists in database")
+                    
+                    # ✅ Check if it's in the current workspace
+                    if current_user.active_team_id:
+                        workspace_link = db.query(TeamRepository).filter(
+                            TeamRepository.team_id == current_user.active_team_id,
+                            TeamRepository.repository_id == existing_repo.id
+                        ).first()
+                        
+                        if workspace_link:
+                            # Already in workspace, skip
+                            logger.info(f"Repository {repo_data['name']} already in workspace")
+                            continue
+                        else:
+                            # ✅ Re-add to workspace
+                            logger.info(f"Re-adding repository {repo_data['name']} to workspace {current_user.active_team_id}")
+                            team_repo = TeamRepository(
+                                team_id=current_user.active_team_id,
+                                repository_id=existing_repo.id
+                            )
+                            db.add(team_repo)
+                            
+                            imported_repos.append({
+                                "id": existing_repo.id,
+                                "name": existing_repo.name,
+                                "full_name": existing_repo.full_name
+                            })
+                            continue
+                    else:
+                        # No workspace, skip
+                        logger.info(f"Repository {repo_data['name']} already imported (no workspace)")
+                        continue
                 
-                # Create new repository
+                # ✅ Create new repository with proper ID
                 new_repo = Repository(
-                    github_id=repo_data["id"],
+                    github_id=repo_github_id,  # ✅ Use the extracted ID
                     name=repo_data["name"],
                     full_name=repo_data["full_name"],
                     description=repo_data.get("description"),
                     html_url=repo_data["html_url"],
                     clone_url=repo_data["clone_url"],
-                    default_branch=repo_data. get("default_branch", "main"),
+                    default_branch=repo_data.get("default_branch", "main"),
                     language=repo_data.get("language"),
                     is_private=repo_data.get("is_private", False),
                     is_fork=repo_data.get("is_fork", False),
@@ -200,8 +271,7 @@ async def import_repositories(
                 if current_user.active_team_id:
                     team_repo = TeamRepository(
                         team_id=current_user.active_team_id,
-                        repository_id=new_repo.id,
-                        added_by=current_user.id
+                        repository_id=new_repo.id
                     )
                     db.add(team_repo)
                 
@@ -214,7 +284,7 @@ async def import_repositories(
                 logger.info(f"✅ Prepared repository for import: {new_repo.full_name}")
                 
             except Exception as e:
-                logger. error(f"❌ Error preparing repository {repo_data. get('name', 'unknown')}: {e}")
+                logger.error(f"❌ Error preparing repository {repo_data.get('name', 'unknown')}: {e}")
                 failed_repos.append({
                     "name": repo_data.get("name", "unknown"),
                     "error": str(e)
@@ -225,9 +295,9 @@ async def import_repositories(
             db.commit()
             logger.info(f"✅ Successfully committed {len(imported_repos)} repositories")
                 
-        except Exception as e: 
+        except Exception as e:
             db.rollback()
-            logger. error(f"❌ Error committing imports: {e}")
+            logger.error(f"❌ Error committing imports: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to save imported repositories: {str(e)}"
@@ -235,11 +305,11 @@ async def import_repositories(
         
         return {
             "message": f"Imported {len(imported_repos)} repositories",
-            "imported":  imported_repos,
+            "imported": imported_repos,
             "failed": failed_repos
         }
         
-    except Exception as e: 
+    except Exception as e:
         logger.error(f"Error in import_github_repositories: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -265,7 +335,7 @@ async def import_bitbucket_repositories(
     all_repos = bitbucket_service.get_user_repositories(current_user.bitbucket_access_token)
     
     # Keep as strings for Bitbucket (UUID format)
-    repo_ids = [str(rid) for rid in import_request. repository_ids]
+    repo_ids = [str(rid) for rid in import_request.repository_ids]
     
     # Filter repositories to import
     repos_to_import = [
@@ -275,7 +345,7 @@ async def import_bitbucket_repositories(
     
     imported_repos = []
     
-    for repo_data in repos_to_import: 
+    for repo_data in repos_to_import:
         # Check if repository already exists
         existing_repo = db.query(Repository).filter(
             Repository.bitbucket_id == repo_data["id"],
@@ -293,30 +363,30 @@ async def import_bitbucket_repositories(
                 default_branch=repo_data["default_branch"],
                 language=repo_data.get("language"),
                 is_private=repo_data["is_private"],
-                is_fork=repo_data. get("is_fork", False),
+                is_fork=repo_data.get("is_fork", False),
                 owner_id=current_user.id
             )
             db.add(new_repo)
-            db.flush()  # ✅ Get the ID
+            db.flush()  # Get the ID
             
-            # ✅ Add to active workspace if exists
-            if current_user. active_team_id:
+            # Add to active workspace if exists
+            if current_user.active_team_id:
                 team_repo = TeamRepository(
                     team_id=current_user.active_team_id,
                     repository_id=new_repo.id,
-                    added_by=current_user. id
+                    added_by=current_user.id
                 )
-                db. add(team_repo)
+                db.add(team_repo)
             
             imported_repos.append(new_repo)
     
     db.commit()
     
     return {
-        "message":  f"Successfully imported {len(imported_repos)} repositories",
+        "message": f"Successfully imported {len(imported_repos)} repositories",
         "imported_repositories": [
             {
-                "id":  repo.id,
+                "id": repo.id,
                 "name": repo.name,
                 "full_name": repo.full_name
             }
@@ -336,15 +406,15 @@ async def get_user_repositories(
     
     logger.info(f"🎯 REPO API CALLED - User: {current_user.id}, RepoID: {repository_id}")
     
-    # ✅ Get active workspace
+    # Get active workspace
     active_workspace_id = current_user.active_team_id
     
     # Base query - user scoped
-    query = db. query(Repository).filter(
+    query = db.query(Repository).filter(
         Repository.owner_id == current_user.id
     )
     
-    # ✅ Add workspace filter
+    # Add workspace filter
     if active_workspace_id:
         # Get repository IDs for this workspace
         workspace_repo_ids = db.query(TeamRepository.repository_id).filter(
@@ -353,11 +423,11 @@ async def get_user_repositories(
         repo_ids = [r[0] for r in workspace_repo_ids]
         
         if not repo_ids:
-            logger. info(f"📦 No repositories in workspace {active_workspace_id}")
+            logger.info(f"📦 No repositories in workspace {active_workspace_id}")
             return {
                 "repositories": [],
                 "total_count": 0,
-                "user_id":  current_user.id,
+                "user_id": current_user.id,
                 "workspace_id": active_workspace_id
             }
         
@@ -366,9 +436,9 @@ async def get_user_repositories(
         logger.info(f"📦 Filtering by workspace {active_workspace_id} with {len(repo_ids)} repos")
     
     # Apply repository filter if specified
-    if repository_id: 
+    if repository_id:
         query = query.filter(Repository.id == repository_id)
-        logger.info(f"🎯 FILTERING BY REPOSITORY ID:  {repository_id}")
+        logger.info(f"🎯 FILTERING BY REPOSITORY ID: {repository_id}")
     
     repositories = query.all()
     logger.info(f"📊 REPOSITORIES FOUND: {len(repositories)}")
@@ -376,12 +446,12 @@ async def get_user_repositories(
     repo_list = []
     for repo in repositories:
         # Get latest scan for this repository
-        scan_query = db.query(Scan).filter(Scan.repository_id == repo. id)
+        scan_query = db.query(Scan).filter(Scan.repository_id == repo.id)
         
         # Apply time filter to scans if specified
-        if days_filter: 
+        if days_filter:
             cutoff_date = datetime.utcnow() - timedelta(days=days_filter)
-            scan_query = scan_query. filter(Scan.started_at >= cutoff_date)
+            scan_query = scan_query.filter(Scan.started_at >= cutoff_date)
         
         latest_scan = scan_query.order_by(Scan.started_at.desc()).first()
         
@@ -390,7 +460,7 @@ async def get_user_repositories(
             "github_id": repo.github_id,
             "bitbucket_id": repo.bitbucket_id,
             "gitlab_id": repo.gitlab_id,
-            "name": repo. name,
+            "name": repo.name,
             "full_name": repo.full_name,
             "description": repo.description,
             "html_url": repo.html_url,
@@ -401,9 +471,9 @@ async def get_user_repositories(
             "is_fork": repo.is_fork,
             "source": repo.source_type,
             "user_id": current_user.id,
-            "workspace_id":  active_workspace_id,  # ✅ Add workspace info
-            "created_at": repo.created_at. isoformat() if repo.created_at else None,
-            "updated_at":  repo.updated_at.isoformat() if repo.updated_at else None,
+            "workspace_id": active_workspace_id,  # Add workspace info
+            "created_at": repo.created_at.isoformat() if repo.created_at else None,
+            "updated_at": repo.updated_at.isoformat() if repo.updated_at else None,
             "latest_scan": None,
             "vulnerabilities": None,
             "security_score": None,
@@ -422,28 +492,28 @@ async def get_user_repositories(
             else:
                 repo_status = "active"
 
-            repo_data. update({
+            repo_data.update({
                 "latest_scan": {
                     "id": latest_scan.id,
                     "status": latest_scan.status,
                     "scan_type": latest_scan.scan_type or "standard",
                     "started_at": latest_scan.started_at.isoformat() if latest_scan.started_at else None,
-                    "completed_at":  latest_scan.completed_at. isoformat() if latest_scan.completed_at else None,
+                    "completed_at": latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
                     "scan_duration": latest_scan.scan_duration,
                     "total_vulnerabilities": latest_scan.total_vulnerabilities or 0,
                     "critical_count": latest_scan.critical_count or 0,
                     "high_count": latest_scan.high_count or 0,
-                    "medium_count": latest_scan. medium_count or 0,
+                    "medium_count": latest_scan.medium_count or 0,
                     "low_count": latest_scan.low_count or 0,
                     "total_files_scanned": latest_scan.total_files_scanned or 0,
                     "repository_id": repo.id,
                     "user_id": current_user.id
                 },
                 "vulnerabilities": {
-                    "total":  latest_scan.total_vulnerabilities or 0,
+                    "total": latest_scan.total_vulnerabilities or 0,
                     "critical": latest_scan.critical_count or 0,
                     "high": latest_scan.high_count or 0,
-                    "medium": latest_scan. medium_count or 0,
+                    "medium": latest_scan.medium_count or 0,
                     "low": latest_scan.low_count or 0
                 },
                 "security_score": latest_scan.security_score,
@@ -451,20 +521,20 @@ async def get_user_repositories(
                 "status": repo_status
             })
             
-            logger.info(f"📊 REPO {repo. name} - Latest scan vulnerabilities: {latest_scan.total_vulnerabilities}")
+            logger.info(f"📊 REPO {repo.name} - Latest scan vulnerabilities: {latest_scan.total_vulnerabilities}")
         else:
             repo_data["status"] = "active"
             logger.info(f"📊 REPO {repo.name} - No scans found")
         
-        repo_list. append(repo_data)
+        repo_list.append(repo_data)
     
     logger.info(f"🎯 REPO API RESULT - Total repos: {len(repo_list)}, Workspace: {active_workspace_id}")
     
     return {
-        "repositories":  repo_list,
+        "repositories": repo_list,
         "total_count": len(repo_list),
-        "user_id":  current_user.id,
-        "workspace_id": active_workspace_id  # ✅ Add workspace info
+        "user_id": current_user.id,
+        "workspace_id": active_workspace_id  # Add workspace info
     }
 
 
@@ -487,12 +557,12 @@ async def get_repository(
             detail="Repository not found"
         )
     
-    # ✅ Check workspace access
+    # Check workspace access
     active_workspace_id = current_user.active_team_id
-    if active_workspace_id: 
+    if active_workspace_id:
         workspace_repo = db.query(TeamRepository).filter(
             TeamRepository.team_id == active_workspace_id,
-            TeamRepository. repository_id == repo_id
+            TeamRepository.repository_id == repo_id
         ).first()
         
         if not workspace_repo:
@@ -510,7 +580,7 @@ async def remove_repository(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Remove repository from scanning - WORKSPACE SCOPED"""
+    """Remove repository from workspace - KEEPS repository data intact"""
     
     repository = db.query(Repository).filter(
         Repository.id == repo_id,
@@ -523,7 +593,7 @@ async def remove_repository(
             detail="Repository not found"
         )
     
-    # ✅ Check workspace access
+    # Check workspace access
     active_workspace_id = current_user.active_team_id
     if active_workspace_id:
         workspace_repo = db.query(TeamRepository).filter(
@@ -533,19 +603,28 @@ async def remove_repository(
         
         if not workspace_repo:
             raise HTTPException(
-                status_code=status. HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="Repository not in active workspace"
             )
+        
+        # Only remove from workspace, don't delete repository
+        db.delete(workspace_repo)
+        db.commit()
+        
+        logger.info(f"Repository {repo_id} removed from workspace {active_workspace_id}")
+        return {"message": "Repository removed from workspace successfully"}
     
-    db.delete(repository)
+    # If no workspace (shouldn't happen), mark as inactive instead of deleting
+    repository.is_active = False
     db.commit()
     
+    logger.info(f"Repository {repo_id} marked as inactive")
     return {"message": "Repository removed successfully"}
 
 
 @router.get("/{repo_id}/content")
 async def get_repository_content(
-    repo_id:  int,
+    repo_id: int,
     path: str = "",
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -564,12 +643,12 @@ async def get_repository_content(
             detail="Repository not found"
         )
     
-    # ✅ Check workspace access
+    # Check workspace access
     active_workspace_id = current_user.active_team_id
     if active_workspace_id:
         workspace_repo = db.query(TeamRepository).filter(
             TeamRepository.team_id == active_workspace_id,
-            TeamRepository. repository_id == repo_id
+            TeamRepository.repository_id == repo_id
         ).first()
         
         if not workspace_repo:
@@ -579,10 +658,10 @@ async def get_repository_content(
             )
     
     try:
-        if repository.source_type == "github": 
+        if repository.source_type == "github":
             if not current_user.github_access_token:
                 raise HTTPException(
-                    status_code=status. HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail="GitHub access token not found"
                 )
             
@@ -600,7 +679,7 @@ async def get_repository_content(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Bitbucket access token not found"
                 )
-            logger.info(f"Bitbucket token found: {current_user.bitbucket_access_token[: 10]}...")
+            logger.info(f"Bitbucket token found: {current_user.bitbucket_access_token[:10]}...")
 
             from app.services.bitbucket_services import BitbucketService
             bitbucket_service = BitbucketService()
@@ -613,7 +692,7 @@ async def get_repository_content(
                 logger.error(f"Failed to parse full_name '{repository.full_name}': {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid repository full_name format for Bitbucket:  {repository.full_name}"
+                    detail=f"Invalid repository full_name format for Bitbucket: {repository.full_name}"
                 )
             
             # Get repository content
@@ -641,17 +720,17 @@ async def get_repository_content(
         
         if content is None:
             raise HTTPException(
-                status_code=status. HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Repository content not found"
             )
         
         return {"content": content}
     
-    except HTTPException: 
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error fetching repository content for repo {repo_id}: {e}")
-        logger.error(f"Repository source:  {repository.source_type if repository else 'unknown'}")
+        logger.error(f"Repository source: {repository.source_type if repository else 'unknown'}")
         logger.error(f"Repository full_name: {repository.full_name if repository else 'unknown'}")
         logger.error(f"Path: {path}")
         logger.exception("Full traceback:")
@@ -680,7 +759,7 @@ async def sync_repository(
             detail="Repository not found"
         )
     
-    # ✅ Check workspace access
+    # Check workspace access
     active_workspace_id = current_user.active_team_id
     if active_workspace_id:
         workspace_repo = db.query(TeamRepository).filter(
@@ -690,7 +769,7 @@ async def sync_repository(
         
         if not workspace_repo:
             raise HTTPException(
-                status_code=status. HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="Repository not in active workspace"
             )
     
@@ -752,11 +831,11 @@ async def sync_repository(
         
         return {
             "message": "Repository synced successfully",
-            "repository":  {
-                "id": repository. id,
+            "repository": {
+                "id": repository.id,
                 "name": repository.name,
                 "full_name": repository.full_name,
-                "description": repository. description,
+                "description": repository.description,
                 "default_branch": repository.default_branch,
                 "language": repository.language,
                 "updated_at": repository.updated_at
@@ -764,12 +843,11 @@ async def sync_repository(
         }
     
     except Exception as e:
-        logger.error(f"Error syncing repository:  {e}")
+        logger.error(f"Error syncing repository: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync repository"
         )
-
 
 @router.get("/{repo_id}/file")
 async def get_file_content(
@@ -780,18 +858,18 @@ async def get_file_content(
 ):
     """Get specific file content from repository - WORKSPACE SCOPED"""
     
-    repository = db. query(Repository).filter(
+    repository = db.query(Repository).filter(
         Repository.id == repo_id,
         Repository.owner_id == current_user.id
     ).first()
     
     if not repository:
         raise HTTPException(
-            status_code=status. HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Repository not found"
         )
     
-    # ✅ Check workspace access
+    # Check workspace access
     active_workspace_id = current_user.active_team_id
     if active_workspace_id:
         workspace_repo = db.query(TeamRepository).filter(
@@ -806,7 +884,7 @@ async def get_file_content(
             )
     
     try:
-        if repository. source_type == "github": 
+        if repository.source_type == "github": 
             if not current_user.github_access_token:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -814,11 +892,20 @@ async def get_file_content(
                 )
             
             github_service = GitHubService()
+            
+            # ✅ Get RAW file content (not base64)
             file_content = github_service.get_file_content(
                 current_user.github_access_token,
-                repository. full_name,
+                repository.full_name,
                 file_path
             )
+            
+            # ✅ Return as plain text, not base64
+            return {
+                "content": file_content,  # Already decoded string
+                "encoding": "utf-8",
+                "file_path": file_path
+            }
             
         elif repository.source_type == "bitbucket":
             if not current_user.bitbucket_access_token:
@@ -837,23 +924,201 @@ async def get_file_content(
                 file_path,
                 repository.default_branch
             )
-        else:
+            
+            # ✅ Return as plain text
+            return {
+                "content": file_content,
+                "encoding": "utf-8",
+                "file_path": file_path
+            }
+        else: 
             raise HTTPException(
-                status_code=status. HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Repository source '{repository.source_type}' not supported"
             )
         
-        if file_content is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found"
-            )
-        
-        return {"content": file_content}
-    
-    except Exception as e:
+    except Exception as e: 
         logger.error(f"Error fetching file content: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch file content"
+            detail=f"Failed to fetch file content: {str(e)}"
+        )
+    
+@router.get("/{repo_id}/vulnerabilities")
+async def get_file_vulnerabilities(
+    repo_id: int,
+    file_path: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get vulnerabilities for a specific file"""
+    from app.models.vulnerability import Vulnerability, Scan
+    
+    # Get repository
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    
+    # Get latest scan
+    latest_scan = db.query(Scan).filter(
+        Scan.repository_id == repo_id,
+        Scan.status == "completed"
+    ).order_by(Scan.started_at.desc()).first()
+    
+    if not latest_scan:
+        return []
+    
+    # Get vulnerabilities for this file
+    vulnerabilities = db.query(Vulnerability).filter(
+        Vulnerability.scan_id == latest_scan.id,
+        Vulnerability.file_path == file_path
+    ).all()
+    
+    return [
+        {
+            "id": v.id,
+            "title": v.title,
+            "description": v.description,
+            "severity": v.severity,
+            "line_number": v.line_number,
+            "recommendation": v.recommendation,
+            "fix_suggestion": v.ai_explanation if v.ai_explanation else None
+        }
+        for v in vulnerabilities
+    ]
+
+@router.post("/ai/fix-file")
+async def get_ai_fix_for_file(
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get AI-generated fix for all vulnerabilities in a file"""
+    from app.services.llm_service import LLMService
+    
+    file_path = request.get("file_path")
+    content = request.get("content")
+    vulnerabilities = request.get("vulnerabilities", [])
+    
+    if not file_path or not content: 
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="file_path and content are required"
+        )
+    
+    try:
+        llm_service = LLMService()
+        
+        # Build prompt for AI
+        vuln_list = "\n".join([
+            f"- Line {v['line']}: {v['title']} ({v['severity']})"
+            for v in vulnerabilities
+        ])
+        
+        prompt = f"""Fix all security vulnerabilities in this code file. 
+
+File: {file_path}
+
+Vulnerabilities to fix:
+{vuln_list}
+
+Original Code:
+
+{content}
+
+Please provide the COMPLETE fixed code with all vulnerabilities resolved. Return ONLY the code, no explanations."""
+        
+        fixed_code = llm_service.get_completion(prompt)
+        
+        return {
+            "fixed_content": fixed_code,
+            "file_path": file_path
+        }
+        
+    except Exception as e: 
+        logger.error(f"Error getting AI fix: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate AI fix: {str(e)}"
+        )
+    
+@router.post("/{repo_id}/create-pr")
+async def create_fix_pull_request(
+    repo_id: int,
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Create a pull request with vulnerability fixes"""
+    
+    # Get repository
+    repository = db.query(Repository).filter(
+        Repository.id == repo_id,
+        Repository.owner_id == current_user.id
+    ).first()
+    
+    if not repository:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found"
+        )
+    
+    file_path = request.get("file_path")
+    new_content = request.get("new_content")
+    vulnerability_ids = request.get("vulnerability_ids", [])
+    
+    if not file_path or not new_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="file_path and new_content are required"
+        )
+    
+    try:
+        if repository.source_type == "github": 
+            if not current_user.github_access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="GitHub access token not found"
+                )
+            
+            github_service = GitHubService()
+            
+            # Create a new branch
+            branch_name = f"security-fix-{file_path.replace('/', '-')}-{int(datetime.utcnow().timestamp())}"
+            
+            # Create PR
+            pr_url = github_service.create_fix_pull_request(
+                current_user.github_access_token,
+                repository.full_name,
+                file_path,
+                new_content,
+                branch_name,
+                f"Fix security vulnerabilities in {file_path}",
+                f"This PR fixes {len(vulnerability_ids)} security vulnerabilities found in {file_path}"
+            )
+            
+            return {
+                "pr_url": pr_url,
+                "branch_name": branch_name,
+                "message": "Pull request created successfully"
+            }
+            
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"PR creation not supported for {repository.source_type}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error creating PR: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create pull request: {str(e)}"
         )

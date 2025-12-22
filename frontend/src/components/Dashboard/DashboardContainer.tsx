@@ -314,7 +314,7 @@ const DashboardContainer = () => {
       const [userResponse, reposResponse, scansResponse, metricsResponse] = await Promise.all([
         fetch(buildApiUrl('/api/v1/auth/me'), { headers }),
         fetch(buildApiUrl('/api/v1/repositories/'), { headers }),
-        fetch(buildApiUrl('/api/v1/scans/custom/'), { headers }),
+        fetch(buildApiUrl('/api/v1/custom-scans/list/all'), { headers }),
         fetch(buildApiUrl('/api/v1/metrics/security-overview'), { headers })
       ]);
 

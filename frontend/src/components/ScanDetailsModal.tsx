@@ -123,7 +123,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
       const response = await fetch(
         `${
           import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${scanId}/detailed`,
+        }/api/v1/custom-scans/${scanId}/detailed`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -358,7 +358,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/scans/${scanId}/report/pdf? report_type=comprehensive`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/report/pdf? report_type=comprehensive`,
         {
           method: "GET",
           headers:  {

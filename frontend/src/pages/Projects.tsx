@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,35 +124,36 @@ const ImportRepositoriesModal = ({
   onClose,
   onImport,
 }: {
-  isOpen:  boolean;
+  isOpen: boolean;
   onClose: () => void;
   onImport: (repos: Repository[]) => void;
 }) => {
-  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [myRepositories, setMyRepositories] = useState<Repository[]>([]);
+  const [publicRepositories, setPublicRepositories] = useState<Repository[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isSearchMode, setIsSearchMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchingPublic, setSearchingPublic] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setSelectedRepos([]);
-      fetchAvailableRepositories();
+      setSearchTerm("");
+      setPublicRepositories([]);
+      fetchMyRepositories();
     }
   }, [isOpen]);
 
-  const fetchAvailableRepositories = async () => {
+  // Fetch user's own repositories
+  const fetchMyRepositories = async () => {
     setLoading(true);
     setError("");
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        `${
-          import.meta.env. VITE_API_URL || "http://localhost:8000"
-        }/api/v1/repositories/github/available`,
+        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/available`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -163,12 +164,9 @@ const ImportRepositoriesModal = ({
 
       if (response.ok) {
         const data = await response.json();
-        setRepositories(data. repositories || []);
+        setMyRepositories(data.repositories || []);
       } else {
-        const errorData = await response.text();
-        setError(
-          `Failed to fetch repositories: ${response.status} ${response.statusText}`
-        );
+        setError(`Failed to fetch repositories: ${response.status}`);
       }
     } catch (error) {
       console.error("Error fetching repositories:", error);
@@ -178,59 +176,82 @@ const ImportRepositoriesModal = ({
     }
   };
 
-  const searchPublicRepositories = async (query: string) => {
-    if (!query || query.trim().length < 2) return;
+    // ✅ OPTIMIZED:  Real-time search with abort controller and caching
+  useEffect(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      setPublicRepositories([]);
+      setSearchingPublic(false);
+      return;
+    }
+
+    setSearchingPublic(true);
     
-    setLoading(true);
-    setError("");
-    try {
-      const token = localStorage. getItem("access_token");
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/search? query=${encodeURIComponent(query)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+    // ✅ Reduced debounce time from 500ms to 300ms
+    const timer = setTimeout(async () => {
+      // ✅ AbortController to cancel previous requests
+      const abortController = new AbortController();
+      
+      try {
+        const token = localStorage.getItem("access_token");
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/repositories/github/search?query=${encodeURIComponent(searchTerm)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            signal: abortController.signal, // ✅ Cancel old requests
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setPublicRepositories(data.repositories || []);
         }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setRepositories(data.repositories || []);
-        setIsSearchMode(true);
-      } else {
-        const errorData = await response.text();
-        setError(`Failed to search repositories: ${response. status} ${response.statusText}`);
+      } catch (error:  any) {
+        if (error.name !== 'AbortError') {
+          console.error("Error searching public repositories:", error);
+        }
+      } finally {
+        setSearchingPublic(false);
       }
-    } catch (error) {
-      console.error("Error searching repositories:", error);
-      setError("Network error occurred while searching repositories");
-    } finally {
-      setLoading(false);
-    }
-  };
+      
+      return () => abortController.abort();
+    }, 300); // ✅ Reduced from 500ms to 300ms
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      searchPublicRepositories(searchQuery);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const handleBackToMyRepos = () => {
-    setIsSearchMode(false);
-    setSearchQuery("");
-    setSearchTerm("");
-    fetchAvailableRepositories();
-  };
+  // ✅ OPTIMIZED: Filter with useMemo for better performance
+  const filteredMyRepos = React.useMemo(() => {
+    return myRepositories
+      .filter((repo) => !repo.is_imported)
+      .filter((repo) => {
+        const search = searchTerm.toLowerCase();
+        return (
+          repo.name.toLowerCase().includes(search) ||
+          repo.full_name.toLowerCase().includes(search) ||
+          repo.description?.toLowerCase().includes(search)
+        );
+      });
+  }, [myRepositories, searchTerm]);
+
+  const filteredPublicRepos = React.useMemo(() => {
+    const myRepoIds = new Set(myRepositories.map(r => r.id));
+    return publicRepositories
+      .filter((repo) => !repo.is_imported)
+      .filter((repo) => !myRepoIds.has(repo.id)); // Fast Set lookup
+  }, [publicRepositories, myRepositories]);
+
+  const allFilteredRepos = React.useMemo(() => {
+    return [...filteredMyRepos, ...filteredPublicRepos];
+  }, [filteredMyRepos, filteredPublicRepos]);
 
   const handleRepoToggle = (repoId: number) => {
     setSelectedRepos((prev) => {
-      const newSelection = prev.includes(repoId)
+      return prev.includes(repoId)
         ? prev.filter((id) => id !== repoId)
         : [...prev, repoId];
-      return newSelection;
     });
   };
 
@@ -239,11 +260,11 @@ const ImportRepositoriesModal = ({
 
     setImporting(true);
     try {
-      const selectedRepoData = repositories.filter(repo => 
+      // Get selected repos from both my repos and public repos
+      const allRepos = [...myRepositories, ...publicRepositories];
+      const selectedRepoData = allRepos.filter(repo => 
         selectedRepos.includes(repo.id)
       );
-      
-      console.log("Selected repositories for import:", selectedRepoData);
       
       await onImport(selectedRepoData);
       setSelectedRepos([]);
@@ -254,14 +275,6 @@ const ImportRepositoriesModal = ({
       setImporting(false);
     }
   };
-
-  const filteredRepos = repositories
-    .filter((repo) => !repo.is_imported)
-    .filter(
-      (repo) =>
-        repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        repo.description?. toLowerCase().includes(searchTerm. toLowerCase())
-    );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -274,11 +287,11 @@ const ImportRepositoriesModal = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-          {loading ?  (
+          {loading ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark: text-white/70">Loading repositories...</p>
+                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
               </div>
             </div>
           ) : error ? (
@@ -286,167 +299,195 @@ const ImportRepositoriesModal = ({
               <div>
                 <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-500 mx-auto mb-4" />
                 <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline" className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
+                <Button onClick={fetchMyRepositories} variant="outline" className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
                   Try Again
                 </Button>
               </div>
             </div>
           ) : (
             <>
-              <div className="space-y-3">
-                {! isSearchMode ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
-                      <Input
-                        placeholder="Search your repositories..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20"
-                      />
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsSearchMode(true)}
-                      className="whitespace-nowrap border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      Search Public Repos
-                    </Button>
-                    <div className="text-sm text-gray-600 dark:text-white/70 whitespace-nowrap">
-                      {selectedRepos.length} selected
-                    </div>
+              {/* ✅ SINGLE UNIFIED SEARCH */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search your repositories or type to search public repos..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20"
+                      autoFocus
+                    />
+                    {searchingPublic && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#003D6B] dark:border-orange-500"></div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleBackToMyRepos}
-                        className="whitespace-nowrap border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
-                      >
-                        ← My Repos
-                      </Button>
-                      <form onSubmit={handleSearchSubmit} className="flex-1 flex space-x-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
-                          <Input
-                            placeholder="Search public repositories (e.g., 'react authentication')"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e. target.value)}
-                            className="pl-10"
-                          />
-                        </div>
-                        <Button type="submit" disabled={!searchQuery.trim()} style={{ color: 'white' }} className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600">
-                          Search
-                        </Button>
-                      </form>
-                    </div>
-                    <div className="text-xs text-gray-600 dark:text-white/70">
-                      Searching public GitHub repositories.  Results sorted by stars.
-                    </div>
+                  <div className="text-sm text-gray-600 dark:text-white/70 whitespace-nowrap">
+                    {selectedRepos.length} selected
                   </div>
-                )}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-white/50">
+                  {searchTerm.length >= 2 ? (
+                    <>Showing your repos and public repos matching "{searchTerm}"</>
+                  ) : (
+                    <>Type 2+ characters to search public repositories</>
+                  )}
+                </div>
               </div>
 
+              {/* ✅ UNIFIED REPOSITORY LIST */}
               <div className="flex-1 overflow-y-auto border border-gray-200 dark:border-white/20 rounded-lg">
-                {filteredRepos.length === 0 ? (
+                {allFilteredRepos.length === 0 ? (
                   <div className="text-center py-8">
                     <Github className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-600 dark: text-white/70">
-                      {repositories.filter((r) => !r.is_imported).length === 0
-                        ? "All your repositories have been imported!"
-                        : "No repositories found matching your search. "}
+                    <p className="text-gray-600 dark:text-white/70">
+                      {searchTerm ? (
+                        <>No repositories found matching "{searchTerm}"</>
+                      ) : myRepositories.filter((r) => !r.is_imported).length === 0 ? (
+                        "All your repositories have been imported!"
+                      ) : (
+                        "Start typing to search"
+                      )}
                     </p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100 dark:divide-white/10">
-                    {filteredRepos.map((repo, index) => (
-                      <div
-                        key={`repo-${repo.github_id}-${index}`}
-                        className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="flex items-center mt-1">
-                            <input
-                              type="checkbox"
-                              id={`repo-checkbox-${repo.id}`}
-                              checked={selectedRepos.includes(repo.id)}
-                              onChange={(e) => {
-                                const repoId = repo.id;
-                                const isChecked = e.target. checked;
-
-                                setSelectedRepos((prevSelected) => {
-                                  let newSelected;
-                                  if (isChecked) {
-                                    newSelected = prevSelected.includes(repoId)
-                                      ? prevSelected
-                                      : [...prevSelected, repoId];
-                                  } else {
-                                    newSelected = prevSelected.filter(
-                                      (id) => id !== repoId
-                                    );
-                                  }
-                                  return newSelected;
-                                });
-                              }}
-                              className="w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-[#003D6B] dark: focus:ring-orange-500 focus:ring-2 cursor-pointer"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {repo. name}
-                              </h3>
-                              {isSearchMode && repo.owner && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  by {repo.owner}
-                                </span>
-                              )}
-                              {repo.is_private && (
-                                <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-white/10">
-                                  Private
-                                </Badge>
-                              )}
-                              {repo.is_fork && (
-                                <Badge variant="outline" className="text-xs border-gray-300 dark:border-white/30">
-                                  Fork
-                                </Badge>
-                              )}
-                              {repo.language && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300"
-                                >
-                                  {repo.language}
-                                </Badge>
-                              )}
-                            </div>
-                            {repo.description && (
-                              <p className="text-sm text-gray-600 dark:text-white/70 mb-2 line-clamp-2">
-                                {repo.description}
-                              </p>
-                            )}
-                            <div className="flex items-center text-xs text-gray-500 dark:text-white/60 space-x-4">
-                              <span>Branch: {repo.default_branch}</span>
-                              <span>
-                                Updated:{" "}
-                                {new Date(
-                                  repo.updated_at || ""
-                                ).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
+                    {/* My Repositories Section */}
+                    {filteredMyRepos.length > 0 && (
+                      <>
+                        <div className="p-3 bg-gray-50 dark:bg-white/5 sticky top-0 z-10">
+                          <h3 className="text-xs font-semibold text-gray-700 dark:text-white/70 uppercase tracking-wide">
+                            Your Repositories ({filteredMyRepos.length})
+                          </h3>
                         </div>
-                      </div>
-                    ))}
+                        {filteredMyRepos.map((repo, index) => (
+                          <div
+                            key={`my-repo-${repo.id}-${index}`}
+                            className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="flex items-center mt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRepos.includes(repo.id)}
+                                  onChange={() => handleRepoToggle(repo.id)}
+                                  className="w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-[#003D6B] dark:focus:ring-orange-500 focus:ring-2 cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {repo.name}
+                                  </h3>
+                                  {repo.is_private && (
+                                    <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-white/10">
+                                      Private
+                                    </Badge>
+                                  )}
+                                  {repo.is_fork && (
+                                    <Badge variant="outline" className="text-xs border-gray-300 dark:border-white/30">
+                                      Fork
+                                    </Badge>
+                                  )}
+                                  {repo.language && (
+                                    <Badge variant="secondary" className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300">
+                                      {repo.language}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {repo.description && (
+                                  <p className="text-sm text-gray-600 dark:text-white/70 mb-2 line-clamp-2">
+                                    {repo.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center text-xs text-gray-500 dark:text-white/60 space-x-4">
+                                  <span>Branch: {repo.default_branch}</span>
+                                  {repo.updated_at && (
+                                    <span>Updated: {new Date(repo.updated_at).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Public Repositories Section */}
+                    {filteredPublicRepos.length > 0 && (
+                      <>
+                        <div className="p-3 bg-blue-50 dark:bg-blue-500/10 sticky top-0 z-10">
+                          <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                            Public Repositories ({filteredPublicRepos.length})
+                          </h3>
+                        </div>
+                        {filteredPublicRepos.map((repo, index) => (
+                          <div
+                            key={`public-repo-${repo.id}-${index}`}
+                            className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="flex items-center mt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRepos.includes(repo.id)}
+                                  onChange={() => handleRepoToggle(repo.id)}
+                                  className="w-4 h-4 text-[#003D6B] dark:text-orange-500 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-[#003D6B] dark:focus:ring-orange-500 focus:ring-2 cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {repo.name}
+                                  </h3>
+                                  {repo.owner && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      by {repo.owner}
+                                    </span>
+                                  )}
+                                  {repo.is_private && (
+                                    <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-white/10">
+                                      Private
+                                    </Badge>
+                                  )}
+                                  {repo.is_fork && (
+                                    <Badge variant="outline" className="text-xs border-gray-300 dark:border-white/30">
+                                      Fork
+                                    </Badge>
+                                  )}
+                                  {repo.language && (
+                                    <Badge variant="secondary" className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300">
+                                      {repo.language}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {repo.description && (
+                                  <p className="text-sm text-gray-600 dark:text-white/70 mb-2 line-clamp-2">
+                                    {repo.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center text-xs text-gray-500 dark:text-white/60 space-x-4">
+                                  <span>Branch: {repo.default_branch}</span>
+                                  {repo.updated_at && (
+                                    <span>Updated: {new Date(repo.updated_at).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
 
+              {/* Footer */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-white/20">
                 <div className="text-sm text-gray-600 dark:text-white/70">
-                  {filteredRepos.length} repositories available for import
+                  {allFilteredRepos.length} repositories available
                 </div>
                 <div className="flex space-x-3">
                   <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
@@ -464,11 +505,7 @@ const ImportRepositoriesModal = ({
                         <span>Importing...</span>
                       </div>
                     ) : (
-                      `Import ${selectedRepos.length} ${
-                        selectedRepos.length === 1
-                          ? "Repository"
-                          : "Repositories"
-                      }`
+                      `Import ${selectedRepos.length} ${selectedRepos.length === 1 ? "Repository" : "Repositories"}`
                     )}
                   </Button>
                 </div>
@@ -1288,7 +1325,7 @@ const Projects = () => {
           const response = await fetch(
             `${
               import.meta.env.VITE_API_URL || "http://localhost:8000"
-            }/api/v1/scans/${scanId}`,
+            }/api/v1/custom-scans/${scanId}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -1504,7 +1541,7 @@ const Projects = () => {
       const response = await fetch(
         `${
           import.meta.env. VITE_API_URL || "http://localhost:8000"
-        }/api/v1/scans/${project.latest_scan. id}/stop`,
+        }/api/v1/custom-scans/${project.latest_scan. id}/stop`,
         {
           method: "POST",
           headers:  {
