@@ -265,7 +265,7 @@ const ImportRepositoriesModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-950/85 backdrop-blur-xl border-gray-200 dark:border-white/10 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2 text-gray-900 dark:text-white">
             <Github size={20} />
@@ -286,7 +286,7 @@ const ImportRepositoriesModal = ({
               <div>
                 <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-500 mx-auto mb-4" />
                 <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline" className="border-gray-300 dark:border-white/20">
+                <Button onClick={isSearchMode ? () => searchPublicRepositories(searchQuery) : fetchAvailableRepositories} variant="outline" className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
                   Try Again
                 </Button>
               </div>
@@ -308,7 +308,7 @@ const ImportRepositoriesModal = ({
                     <Button
                       variant="outline"
                       onClick={() => setIsSearchMode(true)}
-                      className="whitespace-nowrap border-gray-300 dark:border-white/20"
+                      className="whitespace-nowrap border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
                     >
                       Search Public Repos
                     </Button>
@@ -323,7 +323,7 @@ const ImportRepositoriesModal = ({
                         variant="outline"
                         size="sm"
                         onClick={handleBackToMyRepos}
-                        className="whitespace-nowrap border-gray-300 dark:border-white/20"
+                        className="whitespace-nowrap border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white"
                       >
                         ← My Repos
                       </Button>
@@ -449,7 +449,7 @@ const ImportRepositoriesModal = ({
                   {filteredRepos.length} repositories available for import
                 </div>
                 <div className="flex space-x-3">
-                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20">
+                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
                     Cancel
                   </Button>
                   <Button
@@ -605,7 +605,7 @@ const ImportBitbucketRepositoriesModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col bg-white dark:bg-gray-950/85 backdrop-blur-xl border-gray-200 dark:border-white/10 shadow-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2 text-gray-900 dark: text-white">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -628,7 +628,7 @@ const ImportBitbucketRepositoriesModal = ({
               <div>
                 <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-500 mx-auto mb-4" />
                 <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-                <Button onClick={fetchAvailableBitbucketRepositories} variant="outline" className="border-gray-300 dark:border-white/20">
+                <Button onClick={fetchAvailableBitbucketRepositories} variant="outline" className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
                   Try Again
                 </Button>
               </div>
@@ -723,7 +723,7 @@ const ImportBitbucketRepositoriesModal = ({
                   {filteredRepos.length} repositories available for import
                 </div>
                 <div className="flex space-x-3">
-                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20">
+                  <Button variant="outline" onClick={onClose} className="border-gray-300 dark:border-white/20 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white">
                     Cancel
                   </Button>
                   <Button
@@ -1020,7 +1020,7 @@ const ProjectCard = ({
         <Button
           size="sm"
           variant="outline"
-          className="w-full bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover: bg-gray-50 dark: hover:bg-white/20"
+          className="w-full bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 hover:text-gray-900 dark:hover:bg-white/20"
           onClick={() => onViewDetails(project)}
         >
           <Eye className="w-4 h-4 mr-2" />
@@ -1032,7 +1032,7 @@ const ProjectCard = ({
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-white dark: bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
+              className="flex-1 bg-white dark: bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 hover:text-gray-900 dark:hover:bg-white/20"
               onClick={() => onViewFileScanStatus(project)}
             >
               <FileText className="w-4 h-4 mr-1" />
@@ -1041,7 +1041,7 @@ const ProjectCard = ({
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 bg-white dark:bg-white/10 border-gray-300 dark: border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
+              className="flex-1 bg-white dark:bg-white/10 border-gray-300 dark: border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 hover:text-gray-900 dark:hover:bg-white/20"
               onClick={() => onViewScanDetails(project)}
             >
               <Activity className="w-4 h-4 mr-1" />
@@ -1891,7 +1891,7 @@ const Projects = () => {
                     <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="scanning">Scanning</SelectItem>
@@ -1904,7 +1904,7 @@ const Projects = () => {
                     <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
                       <SelectValue placeholder="Filter by source" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
                       <SelectItem value="all">All Sources</SelectItem>
                       <SelectItem value="github">GitHub</SelectItem>
                       <SelectItem value="gitlab">GitLab</SelectItem>

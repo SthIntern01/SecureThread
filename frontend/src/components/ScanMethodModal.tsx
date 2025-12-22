@@ -72,7 +72,7 @@ const JsonEditorModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-white/20 shadow-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden bg-white dark:!bg-white/5 dark:backdrop-blur-xl border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
           <DialogHeader>
@@ -128,7 +128,7 @@ const JsonEditorModal: React.FC<{
                   value={localValue}
                   onChange={(e) => setLocalValue(e.target.value)}
                   placeholder="Enter your JSON rules here..."
-                  className="w-full h-full p-4 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus: ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono leading-relaxed"
+                  className="w-full h-full p-4 bg-white dark:!bg-white/5 dark:backdrop-blur-sm border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono leading-relaxed"
                   spellCheck={false}
                 />
                 {localValue && (
@@ -145,7 +145,7 @@ const JsonEditorModal: React.FC<{
             {/* Reference Panel */}
             <div className="flex flex-col">
               <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">JSON Format Reference</h4>
-              <div className="flex-1 bg-gray-50 dark:bg-white/5 rounded-lg p-4 border border-gray-200 dark:border-white/10 overflow-y-auto">
+              <div className="flex-1 bg-gray-50 dark:!bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-4 overflow-y-auto">
                 <pre className="text-gray-700 dark:text-white/80 text-xs leading-relaxed">
 {`[
   {
@@ -167,17 +167,17 @@ const JsonEditorModal: React.FC<{
               </div>
 
               {/* Field Requirements */}
-              <div className="mt-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark: border-white/10 rounded-lg p-3">
+              <div className="mt-4 bg-gray-50 dark:!bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3">
                 <h5 className="text-gray-900 dark:text-white/80 text-xs font-semibold mb-2">Required Fields: </h5>
                 <ul className="text-gray-700 dark:text-white/70 text-xs space-y-1">
-                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">name</code> - Rule identifier</li>
-                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">description</code> - Rule purpose</li>
-                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark: text-orange-300">rule_content</code> - YARA rule</li>
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark:text-orange-300">name</code> - Rule identifier</li>
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark:text-orange-300">description</code> - Rule purpose</li>
+                  <li>• <code className="bg-[#D6E6FF] dark:bg-white/20 px-1 rounded text-[#003D6B] dark:text-orange-300">rule_content</code> - YARA rule</li>
                 </ul>
               </div>
 
               {/* Optional Fields */}
-              <div className="mt-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark: border-white/10 rounded-lg p-3">
+              <div className="mt-3 bg-gray-50 dark:!bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3">
                 <h5 className="text-gray-900 dark:text-white/80 text-xs font-semibold mb-2">Optional Fields:</h5>
                 <ul className="text-gray-700 dark:text-white/70 text-xs space-y-1">
                   <li>• <code className="bg-gray-200 dark:bg-white/20 px-1 rounded text-gray-700 dark:text-white/60">category</code> - Rule category</li>
@@ -202,7 +202,7 @@ const JsonEditorModal: React.FC<{
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:!bg-white/5 flex items-center justify-between">
           <div className="text-gray-600 dark:text-white/60 text-sm">
             Use the reference panel to understand the required JSON format for custom rules.
           </div>
@@ -248,7 +248,7 @@ const GlassDropdown: React.FC<{
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full px-3 py-2 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-md text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-white/15 transition-all duration-200 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-500/50"
+          className="w-full px-3 py-2 bg-white dark:!bg-white/5 dark:backdrop-blur-sm border border-gray-300 dark:border-white/20 rounded-md text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-white/10 transition-all duration-200 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-500/50"
         >
           <span>{options.find(opt => opt.value === value)?.label || value}</span>
           <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -260,8 +260,7 @@ const GlassDropdown: React.FC<{
               className="fixed inset-0 z-10" 
               onClick={() => setIsOpen(false)}
             />
-            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark: bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-white/30 rounded-md shadow-2xl max-h-60 overflow-y-auto">
-              <div className="absolute inset-0 bg-white/50 dark:bg-black/20 rounded-md"></div>
+            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-white/30 rounded-md shadow-2xl max-h-60 overflow-y-auto">
               <div className="relative z-10">
                 {options.map((option) => (
                   <button
@@ -543,7 +542,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden bg-white dark:bg-white/10 backdrop-blur-lg border border-gray-200 dark:border-white/20 shadow-2xl">
+        <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/20 shadow-2xl">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 border border-gray-300 dark: border-white/20 hover:border-gray-400 dark:hover:border-white/40 flex items-center justify-center text-gray-700 dark:text-white/70 hover:text-gray-900 dark:hover:text-white transition-all duration-200 group"
@@ -571,7 +570,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
             </div>
 
             {/* Quick Actions */}
-            <div className="px-6 py-4 bg-gray-50 dark:bg-white/5 border-b border-gray-200 dark:border-white/10">
+            <div className="px-6 py-4 bg-gray-50 dark:!bg-white/5 border-b border-gray-200 dark:border-white/10">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Quick Actions</h3>
@@ -588,8 +587,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   </Button>
                   <Button
                     onClick={() => setShowAdvancedOptions(! showAdvancedOptions)}
-                    variant="outline"
-                    className="bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/20"
+                    className="bg-white dark:!bg-white/10 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:!bg-white/20 hover:text-gray-900 transition-colors"
                   >
                     <Settings className="w-4 h-4 mr-2" />
                     {showAdvancedOptions ? 'Hide' : 'Show'} Options
@@ -600,7 +598,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
 
             {/* Advanced Options */}
             {showAdvancedOptions && (
-              <div className="px-6 py-4 bg-gray-50 dark:bg-white/3 border-b border-gray-200 dark:border-white/10">
+              <div className="px-6 py-4 bg-gray-50 dark:!bg-white/5 border-b border-gray-200 dark:border-white/10">
                 <div className="grid grid-cols-3 gap-4">
                   <GlassDropdown
                     label="LLM Enhancement"
@@ -667,17 +665,17 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   ) : (
                     <div className="space-y-2">
                       {Object.entries(rulesByCategory).map(([category, rules]) => (
-                        <div key={category} className="bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark: border-white/10">
+                        <div key={category} className="bg-gray-50 dark:!bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
                           <button
                             onClick={() => toggleCategory(category)}
-                            className="w-full flex items-center justify-between p-3 hover: bg-gray-100 dark:hover:bg-white/5 transition-colors rounded-t-lg"
+                            className="w-full flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors rounded-t-lg"
                           >
                             <div className="flex items-center space-x-2">
                               {getCategoryIcon(category)}
                               <span className="text-gray-900 dark:text-white font-medium text-sm">
                                 {getCategoryLabel(category)}
                               </span>
-                              <Badge className="bg-[#003D6B] dark:bg-orange-500 text-white text-xs">
+                              <Badge className="bg-[#003D6B] dark:bg-orange-500 text-xs" style={{ color: 'white' }}>
                                 {rules.length}
                               </Badge>
                             </div>
@@ -732,7 +730,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
               </div>
 
               {/* Custom Rules Panel */}
-              <div className="w-72 p-4 border-l border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/3">
+              <div className="w-72 p-4 border-l border-gray-200 dark:border-white/10 bg-gray-50 dark:!bg-white/5 dark:backdrop-blur-sm">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
                   <Code className="w-5 h-5 mr-2 text-[#003D6B] dark:text-orange-400" />
                   Custom Rules
@@ -744,7 +742,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                       value={jsonInput}
                       onChange={handleJsonInputChange}
                       placeholder="Enter JSON rules here..."
-                      className="w-full h-32 p-3 pr-10 bg-white dark:bg-white/10 border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono"
+                      className="w-full h-32 p-3 pr-10 bg-white dark:!bg-white/5 dark:backdrop-blur-sm border border-gray-300 dark:border-white/20 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-500 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#003D6B] dark:focus:ring-orange-400 focus:border-transparent resize-none font-mono"
                     />
                     <div className="absolute top-2 right-2 flex items-center space-x-1">
                       {jsonInput && (
@@ -786,7 +784,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
                   )}
                 </div>
 
-                <div className="bg-white dark:bg-white/5 rounded-lg p-3 border border-gray-200 dark:border-white/10">
+                <div className="bg-white dark:!bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg p-3">
                   <h4 className="text-gray-900 dark:text-white text-sm font-medium mb-2">JSON Format: </h4>
                   <pre className="text-gray-600 dark:text-white/60 text-xs overflow-x-auto">
 {`[{
@@ -808,7 +806,7 @@ const ScanMethodModal: React.FC<ScanMethodModalProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark: bg-white/5">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:!bg-white/5">
               <div className="flex items-center justify-between">
                 <div className="text-gray-600 dark:text-white/70 text-sm">
                   {selectedRules.size} built-in rules selected

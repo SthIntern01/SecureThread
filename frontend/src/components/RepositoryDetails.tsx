@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EtherealBackground } from "../components/ui/ethereal-background";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import AppSidebar from "../components/AppSidebar"; 
 import { useAuth } from "../contexts/AuthContext";
 import {
   ArrowLeft,
@@ -17,38 +17,18 @@ import {
   ChevronRight,
   File,
   Folder,
-  FolderOpen,
   Download,
   ExternalLink,
-  GitBranch,
-  Calendar,
-  User,
-  Star,
-  Eye,
-  GitFork,
   Code,
   FileText,
   Image as ImageIcon,
   Archive,
-  Settings,
   RefreshCw,
   Copy,
   Check,
 } from "lucide-react";
 import {
-  IconDashboard,
-  IconFolder,
-  IconUsers,
   IconBrandGithub,
-  IconCircleCheck,
-  IconMessageCircle,
-  IconSettings,
-  IconBook,
-  IconHelp,
-  IconUser,
-  IconBrandGitlab,
-  IconBrandDocker,
-  IconLogout,
 } from "@tabler/icons-react";
 import ScanDetailsModal from "./ScanDetailsModal";
 import { GitHubPATModal } from './GitHubPATModal';
@@ -245,8 +225,8 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
       <Dialog open={true} onOpenChange={onClose}>
         <DialogContent className="max-w-7xl h-[95vh] flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading file content...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-300">Loading file content...</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -255,20 +235,20 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl h-[95vh] flex flex-col p-0">
-        <div className="border-b border-gray-200 p-6 flex-shrink-0">
+      <DialogContent className="max-w-7xl h-[95vh] flex flex-col p-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+        <div className="border-b border-gray-200 dark:border-gray-800 p-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Code className="w-5 h-5 text-accent" />
+              <Code className="w-5 h-5 text-[#003D6B] dark:text-orange-500" />
               <div>
-                <DialogTitle className="text-lg font-semibold">
+                <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
                   {fileName}
                 </DialogTitle>
                 <div className="flex items-center space-x-2 mt-1">
                   <Badge className={`text-xs ${getLanguageColor(language)}`}>
                     {language || "text"}
                   </Badge>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
                     {lines.length} lines
                   </span>
                   {vulnerabilities.length > 0 && (
@@ -287,7 +267,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleCopy}
-                className="flex items-center space-x-1"
+                className="flex items-center space-x-1 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 {copied ? (
                   <>
@@ -308,15 +288,15 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
         <div className="flex-1 min-h-0 flex">
           <div className="flex-1 relative">
             <div
-              className="absolute inset-0 bg-gray-50 overflow-auto"
+              className="absolute inset-0 bg-gray-50 dark:bg-[#0d1117] overflow-auto"
               style={{
                 scrollbarWidth: "thin",
-                scrollbarColor: "#CBD5E1 #F1F5F9",
+                scrollbarColor: "#CBD5E1 #0d1117",
               }}
             >
               <div className="flex">
-                <div className="bg-gray-100 border-r border-gray-300 px-4 py-4 text-right select-none flex-shrink-0">
-                  <div className="font-mono text-sm text-gray-500 leading-6">
+                <div className="bg-gray-100 dark:bg-[#161b22] border-r border-gray-300 dark:border-gray-700 px-4 py-4 text-right select-none flex-shrink-0">
+                  <div className="font-mono text-sm text-gray-500 dark:text-gray-500 leading-6">
                     {lines.map((_, index) => {
                       const lineNumber = index + 1;
                       const lineVulns = vulnsByLine.get(lineNumber) || [];
@@ -351,7 +331,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                           )}
                           <span
                             className={
-                              hasVulns ? "text-red-600" : "text-gray-500"
+                              hasVulns ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-600"
                             }
                           >
                             {lineNumber}
@@ -363,7 +343,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                 </div>
 
                 <div className="flex-1 px-4 py-4">
-                  <pre className="font-mono text-sm leading-6 text-gray-800">
+                  <pre className="font-mono text-sm leading-6 text-gray-800 dark:text-gray-300">
                     {lines.map((line, index) => {
                       const lineNumber = index + 1;
                       const lineVulns = vulnsByLine.get(lineNumber) || [];
@@ -389,12 +369,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                           className={`relative group ${
                             hasVulns
                               ? highestSeverity === "critical"
-                                ? "bg-red-100 border-l-4 border-red-500"
+                                ? "bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500"
                                 : highestSeverity === "high"
-                                ? "bg-orange-100 border-l-4 border-orange-500"
+                                ? "bg-orange-100 dark:bg-orange-900/30 border-l-4 border-orange-500"
                                 : highestSeverity === "medium"
-                                ? "bg-yellow-100 border-l-4 border-yellow-500"
-                                : "bg-blue-100 border-l-4 border-blue-500"
+                                ? "bg-yellow-100 dark:bg-yellow-900/30 border-l-4 border-yellow-500"
+                                : "bg-blue-100 dark:bg-blue-900/30 border-l-4 border-blue-500"
                               : ""
                           } ${hasVulns ? "pl-2" : ""}`}
                           style={{ height: "24px", lineHeight: "24px" }}
@@ -408,12 +388,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                           </span>
 
                           {hasVulns && selectedVuln === lineNumber && (
-                            <div className="absolute left-full top-0 ml-2 z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-3 max-w-md">
+                            <div className="absolute left-full top-0 ml-2 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg p-3 max-w-md">
                               <div className="space-y-2">
                                 {lineVulns.map((vuln) => (
                                   <div
                                     key={vuln.id}
-                                    className="border-b border-gray-200 pb-2 last:border-b-0"
+                                    className="border-b border-gray-200 dark:border-gray-700 pb-2 last:border-b-0"
                                   >
                                     <div className="flex items-center space-x-2 mb-1">
                                       <Badge
@@ -423,14 +403,14 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                                       >
                                         {vuln.severity}
                                       </Badge>
-                                      <span className="font-semibold text-sm">
+                                      <span className="font-semibold text-sm text-gray-900 dark:text-white">
                                         {vuln.title}
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-600 mb-1">
+                                    <p className="text-xs text-gray-600 dark:text-gray-300 mb-1">
                                       {vuln.description}
                                     </p>
-                                    <p className="text-xs text-blue-600">
+                                    <p className="text-xs text-blue-600 dark:text-blue-400">
                                       <strong>Fix:</strong>{" "}
                                       {vuln.recommendation}
                                     </p>
@@ -449,9 +429,9 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
           </div>
 
           {vulnerabilities.length > 0 && (
-            <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="font-semibold text-gray-900">
+            <div className="w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 className="font-semibold text-gray-900 dark:text-white">
                   Vulnerabilities ({vulnerabilities.length})
                 </h3>
               </div>
@@ -459,13 +439,13 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                 {vulnerabilities.map((vuln) => (
                   <div
                     key={vuln.id}
-                    className="border border-gray-200 rounded-lg p-3 hover:shadow-sm"
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-sm dark:hover:bg-gray-800 transition-colors"
                   >
                     <div
                       className="cursor-pointer"
                       onClick={() => {
-                        if (vuln.line_number) {  // Fixed: removed space after dot
-                          setSelectedVuln(vuln.line_number);  // Fixed: removed space after dot
+                        if (vuln.line_number) {
+                          setSelectedVuln(vuln.line_number);
                         }
                       }}
                     >
@@ -475,24 +455,24 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                         >
                           {vuln.severity}
                         </Badge>
-                        {vuln.line_number && (  // Fixed: removed space after dot
-                          <span className="text-xs text-gray-500">
+                        {vuln.line_number && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
                             Line {vuln.line_number}
                           </span>
                         )}
                       </div>
-                      <h4 className="font-semibold text-sm text-gray-900 mb-1">
+                      <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-1">
                         {vuln.title}
                       </h4>
-                      <p className="text-xs text-gray-600 mb-2">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                         {vuln.description}
                       </p>
-                      <p className="text-xs text-blue-600 mb-3">
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">
                         <strong>Fix: </strong> {vuln.recommendation}
                       </p>
                     </div>
                     
-                    {/* Fix Code Button - NEW! */}
+                    {/* Fix Code Button - Styled for Navy/Orange themes */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -500,7 +480,7 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                           onFixClick(vuln);
                         }
                       }}
-                      className="w-full mt-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium transition-colors flex items-center justify-center gap-2"
+                      className="w-full mt-2 px-3 py-2 bg-[#003D6B] dark:bg-orange-500 text-white rounded-lg hover:bg-[#002A4D] dark:hover:bg-orange-600 text-xs font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       <Code className="w-4 h-4" />
                       Fix This Vulnerability
@@ -513,146 +493,6 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
         </div>
       </DialogContent>
     </Dialog>
-  );
-};
-
-const Logo = () => {
-  return (
-    <a
-      href="#"
-      className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal"
-    >
-      <span className="font-medium text-brand-light">SECURE THREAD</span>
-    </a>
-  );
-};
-
-const ResponsiveSidebar = ({
-  sidebarOpen,
-  setSidebarOpen,
-}: {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-}) => {
-  const { user, logout } = useAuth();
-  const [showLogout, setShowLogout] = useState(false);
-
-  const feedLinks = [
-    {
-      label: "Dashboard",
-      href: "/",
-      icon: <IconDashboard className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Projects",
-      href: "/projects",
-      icon: <IconFolder className="h-5 w-5 shrink-0" />,
-      active: true,
-    },
-    {
-      label: "Members",
-      href: "/members",
-      icon: <IconUsers className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-    {
-      label: "Integrations",
-      href: "/integrations",
-      icon: <IconBrandGithub className="h-5 w-5 shrink-0" />,
-      active: false,
-      count: "99+",
-    },
-    {
-      label: "Solved",
-      href: "/solved",
-      icon: <IconCircleCheck className="h-5 w-5 shrink-0" />,
-      active: false,
-    },
-  ];
-
-  const bottomLinks = [
-    {
-      label: "Feedback",
-      href: "#",
-      icon: <IconMessageCircle className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-      icon: <IconSettings className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Docs",
-      href: "#",
-      icon: <IconBook className="h-5 w-5 shrink-0" />,
-    },
-    {
-      label: "Help",
-      href: "#",
-      icon: <IconHelp className="h-5 w-5 shrink-0" />,
-    },
-  ];
-
-  const profileLink = {
-    label: user?.full_name || user?.github_username || "User",
-    href: "#",
-    icon: user?.avatar_url ? (
-      <img
-        src={user.avatar_url}
-        alt={user.full_name || user.github_username}
-        className="h-5 w-5 rounded-full shrink-0"
-      />
-    ) : (
-      <IconUser className="h-5 w-5 shrink-0" />
-    ),
-  };
-
-  const handleProfileClick = () => {
-    setShowLogout(!showLogout);
-  };
-
-  return (
-    <Sidebar open={sidebarOpen} setOpen={setSidebarOpen}>
-      <SidebarBody className="justify-between gap-10">
-        <div className="flex flex-1 flex-col">
-          <Logo />
-
-          <div className="mt-8 flex flex-col gap-2">
-            {feedLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="mt-auto flex flex-col gap-2">
-            {bottomLinks.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
-          </div>
-
-          <div className="pt-4 border-t border-brand-gray/30 relative">
-            <div onClick={handleProfileClick} className="cursor-pointer">
-              <SidebarLink link={profileLink} />
-            </div>
-
-            {showLogout && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowLogout(false);
-                  }}
-                  className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  <IconLogout className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </SidebarBody>
-    </Sidebar>
   );
 };
 
@@ -1198,34 +1038,32 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     return a.name.localeCompare(b.name);
   });
 
-  // ✅ NEW:  Get all vulnerable files across entire repository
-const allVulnerableFiles = React.useMemo(() => {
-  const vulnFilePaths = new Set(vulnerabilities.map(v => v. file_path));
-  return Array.from(vulnFilePaths).map(filePath => {
-    const fileVulns = vulnerabilities.filter(v => v.file_path === filePath);
-    const fileName = filePath.split('/').pop() || filePath;
-    const highestSeverity = fileVulns.reduce((max, vuln) => {
-      const severityOrder = { critical: 4, high: 3, medium:  2, low: 1 };
-      return severityOrder[vuln.severity] > severityOrder[max.severity] ? vuln : max;
+  const allVulnerableFiles = useMemo(() => {
+    const vulnFilePaths = new Set(vulnerabilities.map(v => v.file_path));
+    return Array.from(vulnFilePaths).map(filePath => {
+      const fileVulns = vulnerabilities.filter(v => v.file_path === filePath);
+      const fileName = filePath.split('/').pop() || filePath;
+      const highestSeverity = fileVulns.reduce((max, vuln) => {
+        const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+        return severityOrder[vuln.severity] > severityOrder[max.severity] ? vuln : max;
+      });
+      
+      return {
+        path: filePath,
+        name: fileName,
+        fullPath: filePath,
+        vulnerabilityCount: fileVulns.length,
+        highestSeverity: highestSeverity.severity,
+        vulnerabilities: fileVulns
+      };
+    }).sort((a, b) => {
+      const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      if (severityOrder[a.highestSeverity] !== severityOrder[b.highestSeverity]) {
+        return severityOrder[b.highestSeverity] - severityOrder[a.highestSeverity];
+      }
+      return b.vulnerabilityCount - a.vulnerabilityCount;
     });
-    
-    return {
-      path: filePath,
-      name: fileName,
-      fullPath: filePath,
-      vulnerabilityCount: fileVulns. length,
-      highestSeverity: highestSeverity.severity,
-      vulnerabilities: fileVulns
-    };
-  }).sort((a, b) => {
-    // Sort by severity first, then by count
-    const severityOrder = { critical: 4, high: 3, medium:  2, low: 1 };
-    if (severityOrder[a.highestSeverity] !== severityOrder[b.highestSeverity]) {
-      return severityOrder[b.highestSeverity] - severityOrder[a.highestSeverity];
-    }
-    return b.vulnerabilityCount - a. vulnerabilityCount;
-  });
-}, [vulnerabilities]);
+  }, [vulnerabilities]);
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
@@ -1236,7 +1074,7 @@ const allVulnerableFiles = React.useMemo(() => {
         sizing="fill"
       />
 
-      <ResponsiveSidebar
+      <AppSidebar
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
@@ -1245,42 +1083,42 @@ const allVulnerableFiles = React.useMemo(() => {
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center space-x-2 text-sm mb-4">
-              <span className="font-medium theme-text">SecureThread</span>
+              <span className="font-medium text-gray-900 dark:text-white">SecureThread</span>
               <ChevronRight size={16} className="text-gray-300" />
               <button
                 onClick={onBack}
-                className="font-medium theme-text hover:text-accent transition-colors"
+                className="font-medium text-gray-900 dark:text-white hover:text-[#003D6B] dark:hover:text-orange-400 transition-colors"
               >
                 Projects
               </button>
               <ChevronRight size={16} className="text-gray-300" />
-              <span className="font-medium theme-text">{project.name}</span>
+              <span className="font-medium text-gray-900 dark:text-white">{project.name}</span>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 shadow-lg">
+            <div className="bg-white/80 dark:bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 dark:border-white/10 shadow-lg">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={onBack}
-                    className="flex items-center space-x-2"
+                    className="flex items-center space-x-2 border-gray-200 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-[#003D6B] hover:!text-white dark:hover:bg-orange-500 dark:hover:!text-white transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     <span>Back to Projects</span>
                   </Button>
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <IconBrandGithub className="w-6 h-6 text-gray-600" />
-                      <h1 className="text-2xl font-bold text-brand-black">
+                      <IconBrandGithub className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                         {project.full_name}
                       </h1>
                       {project.is_private && (
-                        <Badge variant="secondary">Private</Badge>
+                        <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">Private</Badge>
                       )}
-                      {project.is_fork && <Badge variant="outline">Fork</Badge>}
+                      {project.is_fork && <Badge variant="outline" className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600">Fork</Badge>}
                     </div>
-                    <p className="text-brand-gray">{project.description}</p>
+                    <p className="text-gray-600 dark:text-gray-300">{project.description}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -1292,6 +1130,7 @@ const allVulnerableFiles = React.useMemo(() => {
                         setSelectedScanId(project.latest_scan!.id);
                         setShowScanModal(true);
                       }}
+                      className="border-gray-200 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-[#003D6B] hover:!text-white dark:hover:bg-orange-500 dark:hover:!text-white transition-colors"
                     >
                       <FileText className="w-4 h-4 mr-2" />
                       View Scan Report
@@ -1301,6 +1140,7 @@ const allVulnerableFiles = React.useMemo(() => {
                     variant="outline"
                     size="sm"
                     onClick={() => window.open(project.html_url, "_blank")}
+                    className="border-gray-200 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-[#003D6B] hover:!text-white dark:hover:bg-orange-500 dark:hover:!text-white transition-colors"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     View on {getVcsProviderName()}
@@ -1310,54 +1150,53 @@ const allVulnerableFiles = React.useMemo(() => {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
-                  <div className="text-lg font-semibold text-brand-black">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
                     {project.language || "N/A"}
                   </div>
-                  <div className="text-sm text-brand-gray">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     Primary Language
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-semibold text-brand-black">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
                     {project.default_branch}
                   </div>
-                  <div className="text-sm text-brand-gray">Default Branch</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Default Branch</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-semibold text-brand-black">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white">
                     {project.updated_at &&
                     project.updated_at !== "1970-01-01T00:00:00.000Z"
                       ? new Date(project.updated_at).toLocaleDateString()
                       : "Unknown"}
                   </div>
-                  <div className="text-sm text-brand-gray">Last Updated</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Last Updated</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-lg font-semibold text-brand-black capitalize">
+                  <div className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
                     {latestScanData?.status ||
                       project.latest_scan?.status ||
                       project.status}
                   </div>
-                  <div className="text-sm text-brand-gray">Scan Status</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Scan Status</div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
-              {/* ✅ NEW:  Vulnerable Files Section */}
+            <div className="bg-white/80 dark:bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-white/10 shadow-lg overflow-hidden">
               {allVulnerableFiles.length > 0 && (
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-red-200 shadow-lg overflow-hidden mb-6">
-                  <div className="p-4 bg-red-50 border-b border-red-200">
+                <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-red-200 dark:border-red-900/50 shadow-lg overflow-hidden mb-6">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-900/30">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                          <span className="text-red-600 font-bold text-lg">! </span>
+                        <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                          <span className="text-red-600 dark:text-red-400 font-bold text-lg">! </span>
                         </div>
                         <div>
-                          <h2 className="text-xl font-semibold text-red-900">
+                          <h2 className="text-xl font-semibold text-red-900 dark:text-red-200">
                             Files with Vulnerabilities
                           </h2>
-                          <p className="text-sm text-red-700">
+                          <p className="text-sm text-red-700 dark:text-red-300">
                             {allVulnerableFiles.length} file{allVulnerableFiles.length !== 1 ? 's' :  ''} contain{allVulnerableFiles.length === 1 ? 's' : ''} security issues
                           </p>
                         </div>
@@ -1365,16 +1204,16 @@ const allVulnerableFiles = React.useMemo(() => {
                     </div>
                   </div>
 
-                  <div className="max-h-64 overflow-y-auto divide-y divide-red-100">
+                  <div className="max-h-64 overflow-y-auto divide-y divide-red-100 dark:divide-red-900/20">
                     {allVulnerableFiles.map((file, index) => (
                       <div
                         key={`vuln-${file.path}-${index}`}
                         onClick={() => fetchFileContent(file.path, file.name)}
-                        className="p-4 hover:bg-red-50 cursor-pointer transition-colors flex items-center justify-between"
+                        className="p-4 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer transition-colors flex items-center justify-between"
                       >
                         <div className="flex items-center space-x-3 flex-1">
                           <div className="relative">
-                            <File className="w-5 h-5 text-red-600" />
+                            <File className="w-5 h-5 text-red-600 dark:text-red-400" />
                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
                               file.highestSeverity === 'critical' ?  'bg-red-600' :
                               file.highestSeverity === 'high' ? 'bg-orange-600' :
@@ -1384,7 +1223,7 @@ const allVulnerableFiles = React.useMemo(() => {
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center space-x-2">
-                              <span className="font-medium text-gray-900 truncate">
+                              <span className="font-medium text-gray-900 dark:text-white truncate">
                                 {file.name}
                               </span>
                               <Badge 
@@ -1398,12 +1237,12 @@ const allVulnerableFiles = React.useMemo(() => {
                                   file.highestSeverity === 'critical' ? 'bg-red-600' : 
                                   file.highestSeverity === 'high' ?  'bg-orange-600' :
                                   file.highestSeverity === 'medium' ? 'bg-yellow-600' : 'bg-blue-600'
-                                } theme-text`}
+                                } text-white`}
                               >
                                 {file.highestSeverity}
                               </Badge>
                             </div>
-                            <p className="text-xs text-gray-500 truncate mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
                               {file.fullPath}
                             </p>
                           </div>
@@ -1415,10 +1254,10 @@ const allVulnerableFiles = React.useMemo(() => {
                   </div>
                 </div>
               )}
-              <div className="p-4 border-b border-gray-200/50">
+              <div className="p-4 border-b border-gray-200/50 dark:border-white/10">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                   <div className="flex items-center space-x-4">
-                    <h2 className="text-xl font-semibold text-brand-black">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                       Repository Files
                     </h2>
                     <Button
@@ -1426,6 +1265,7 @@ const allVulnerableFiles = React.useMemo(() => {
                       size="sm"
                       onClick={() => fetchContents(currentPath)}
                       disabled={loading}
+                      className="border-gray-200 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-[#003D6B] hover:!text-white dark:hover:bg-orange-500 dark:hover:!text-white transition-colors"
                     >
                       <RefreshCw
                         className={`w-4 h-4 mr-2 ${
@@ -1441,7 +1281,7 @@ const allVulnerableFiles = React.useMemo(() => {
                       placeholder="Search files..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
+                      className="pl-10 w-64 bg-white dark:bg-white/5 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     />
                   </div>
                 </div>
@@ -1454,7 +1294,7 @@ const allVulnerableFiles = React.useMemo(() => {
                       )}
                       <button
                         onClick={() => navigateToPath(index)}
-                        className="text-sm text-brand-gray hover:text-brand-black transition-colors"
+                        className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                       >
                         {segment}
                       </button>
@@ -1466,31 +1306,32 @@ const allVulnerableFiles = React.useMemo(() => {
               <div className="max-h-96 overflow-y-auto">
                 {loading ? (
                   <div className="p-8 text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto mb-4"></div>
-                    <p className="text-brand-gray">Loading files...</p>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-gray-500 dark:text-gray-400">Loading files...</p>
                   </div>
                 ) : error ? (
                   <div className="p-8 text-center">
                     <File className="w-12 h-12 text-red-300 mx-auto mb-4" />
-                    <p className="text-red-600 mb-4">{error}</p>
+                    <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
                     <Button
                       onClick={() => fetchContents(currentPath)}
                       variant="outline"
+                      className="border-gray-200 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-[#003D6B] hover:!text-white dark:hover:bg-orange-500 dark:hover:!text-white transition-colors"
                     >
                       Try Again
                     </Button>
                   </div>
                 ) : sortedContents.length === 0 ? (
                   <div className="p-8 text-center">
-                    <Folder className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-brand-gray">
+                    <Folder className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">
                       {searchTerm
                         ? "No files match your search."
                         : "This directory is empty."}
                     </p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-gray-100 dark:divide-white/5">
                     {sortedContents.map((item, index) => {
                       const fileVulns = getVulnerabilityForFile(item.path);
                       const hasVulns = fileVulns.length > 0;
@@ -1512,9 +1353,9 @@ const allVulnerableFiles = React.useMemo(() => {
                                   ? fileVulns.length
                                   : 1;
                                 statusMessage = `Scanning OK, ${vulnCount} Vulnerabilities found`;
-                                statusColor = "text-red-600";
+                                statusColor = "text-red-600 dark:text-red-400";
                                 statusBadge = (
-                                  <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                  <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
                                     Scanning OK, {vulnCount} Vulnerabilities
                                     found
                                   </Badge>
@@ -1523,18 +1364,18 @@ const allVulnerableFiles = React.useMemo(() => {
                               case "scanned":
                                 if (hasVulns) {
                                   statusMessage = `Scanning OK, ${fileVulns.length} Vulnerabilities found`;
-                                  statusColor = "text-red-600";
+                                  statusColor = "text-red-600 dark:text-red-400";
                                   statusBadge = (
-                                    <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                    <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
                                       Scanning OK, {fileVulns.length}{" "}
                                       Vulnerabilities found
                                     </Badge>
                                   );
                                 } else {
                                   statusMessage = "Scanning OK File Safe";
-                                  statusColor = "text-green-600";
+                                  statusColor = "text-green-600 dark:text-green-400";
                                   statusBadge = (
-                                    <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                    <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800 text-xs">
                                       Scanning OK File Safe
                                     </Badge>
                                   );
@@ -1543,18 +1384,18 @@ const allVulnerableFiles = React.useMemo(() => {
                               case "skipped":
                                 statusMessage =
                                   "Scanning did not occur (API Constraints)";
-                                statusColor = "text-gray-600";
+                                statusColor = "text-gray-600 dark:text-gray-400";
                                 statusBadge = (
-                                  <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                  <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
                                     Scanning did not occur (API Constraints)
                                   </Badge>
                                 );
                                 break;
                               case "error":
                                 statusMessage = "Scan Failed";
-                                statusColor = "text-red-600";
+                                statusColor = "text-red-600 dark:text-red-400";
                                 statusBadge = (
-                                  <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                                  <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
                                     Scan Failed
                                   </Badge>
                                 );
@@ -1562,18 +1403,18 @@ const allVulnerableFiles = React.useMemo(() => {
                               default:
                                 statusMessage =
                                   "Scanning did not occur (API Constraints)";
-                                statusColor = "text-gray-600";
+                                statusColor = "text-gray-600 dark:text-gray-400";
                                 statusBadge = (
-                                  <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                                  <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
                                     Scanning did not occur (API Constraints)
                                   </Badge>
                                 );
                             }
                           } else if (hasVulns) {
                             statusMessage = `Scanning OK, ${fileVulns.length} Vulnerabilities found`;
-                            statusColor = "text-red-600";
+                            statusColor = "text-red-600 dark:text-red-400";
                             statusBadge = (
-                              <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                              <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
                                 Scanning OK, {fileVulns.length} Vulnerabilities
                                 found
                               </Badge>
@@ -1581,18 +1422,18 @@ const allVulnerableFiles = React.useMemo(() => {
                           } else {
                             statusMessage =
                               "Scanning did not occur (API Constraints)";
-                            statusColor = "text-gray-600";
+                            statusColor = "text-gray-600 dark:text-gray-400";
                             statusBadge = (
-                              <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                              <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
                                 Scanning did not occur (API Constraints)
                               </Badge>
                             );
                           }
                         } else if (currentScanStatus === "failed") {
                           statusMessage = "Scan Failed";
-                          statusColor = "text-red-600";
+                          statusColor = "text-red-600 dark:text-red-400";
                           statusBadge = (
-                            <Badge className="bg-red-100 text-red-800 border-red-200 text-xs">
+                            <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
                               Scan Failed
                             </Badge>
                           );
@@ -1601,17 +1442,17 @@ const allVulnerableFiles = React.useMemo(() => {
                           currentScanStatus === "pending"
                         ) {
                           statusMessage = "Scanning in progress...";
-                          statusColor = "text-blue-600";
+                          statusColor = "text-blue-600 dark:text-blue-400";
                           statusBadge = (
-                            <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-xs">
+                            <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-xs">
                               Scanning in progress...
                             </Badge>
                           );
                         } else {
                           statusMessage = "Not scanned";
-                          statusColor = "text-gray-600";
+                          statusColor = "text-gray-600 dark:text-gray-400";
                           statusBadge = (
-                            <Badge className="bg-gray-100 text-gray-800 border-gray-200 text-xs">
+                            <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
                               Not scanned
                             </Badge>
                           );
@@ -1630,17 +1471,17 @@ const allVulnerableFiles = React.useMemo(() => {
                           }}
                           className={`p-4 transition-colors ${
                             item.type === "dir" || isViewableFile(item.name)
-                              ? "cursor-pointer hover:bg-gray-50"
+                              ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
                               : "cursor-default"
                           } ${
                             hasVulns || fileStatus?.status === "vulnerable"
-                              ? "bg-red-50 border-l-4 border-red-400"
+                              ? "bg-red-50 dark:bg-red-900/10 border-l-4 border-red-400"
                               : fileStatus?.status === "scanned" && !hasVulns
-                              ? "bg-green-50 border-l-4 border-green-400"
+                              ? "bg-green-50 dark:bg-green-900/10 border-l-4 border-green-400"
                               : fileStatus?.status === "skipped"
-                              ? "bg-gray-50 border-l-4 border-gray-400"
+                              ? "bg-gray-50 dark:bg-gray-800/50 border-l-4 border-gray-400"
                               : fileStatus?.status === "error"
-                              ? "bg-red-50 border-l-4 border-red-400"
+                              ? "bg-red-50 dark:bg-red-900/10 border-l-4 border-red-400"
                               : ""
                           }`}
                         >
@@ -1648,7 +1489,7 @@ const allVulnerableFiles = React.useMemo(() => {
                             <div className="flex items-center space-x-3">
                               {getFileIcon(item.name, item.type, item.path)}
                               <div className="flex-1">
-                                <div className="font-medium text-brand-black flex items-center space-x-2">
+                                <div className="font-medium text-gray-900 dark:text-white flex items-center space-x-2">
                                   <span>{item.name}</span>
 
                                   {item.type === "file" && statusBadge}
@@ -1667,7 +1508,7 @@ const allVulnerableFiles = React.useMemo(() => {
                                 </div>
 
                                 {item.type === "file" && item.size && (
-                                  <div className="text-sm text-brand-gray">
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">
                                     {formatFileSize(item.size)}
                                   </div>
                                 )}
@@ -1684,13 +1525,13 @@ const allVulnerableFiles = React.useMemo(() => {
                                   fileStatus.reason &&
                                   fileStatus.status !== "scanned" &&
                                   item.type === "file" && (
-                                    <div className="text-xs text-brand-gray mt-1">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                       Reason: {fileStatus.reason}
                                     </div>
                                   )}
 
                                 {hasVulns && item.type === "file" && (
-                                  <div className="text-xs text-red-600 mt-1">
+                                  <div className="text-xs text-red-600 dark:text-red-400 mt-1">
                                     {fileVulns.filter(
                                       (v) => v.severity === "critical"
                                     ).length > 0 && (
@@ -1736,7 +1577,7 @@ const allVulnerableFiles = React.useMemo(() => {
                                 isViewableFile(item.name) && (
                                   <Badge
                                     variant="secondary"
-                                    className="text-xs"
+                                    className="text-xs bg-[#D6E6FF] text-[#003D6B] dark:bg-blue-500/20 dark:text-blue-300"
                                   >
                                     Viewable
                                   </Badge>
@@ -1749,6 +1590,7 @@ const allVulnerableFiles = React.useMemo(() => {
                                     e.stopPropagation();
                                     window.open(item.download_url, "_blank");
                                   }}
+                                  className="text-gray-500 dark:text-gray-400 hover:text-[#003D6B] dark:hover:text-orange-400"
                                 >
                                   <Download className="w-4 h-4" />
                                 </Button>

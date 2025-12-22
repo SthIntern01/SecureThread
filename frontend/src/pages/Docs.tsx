@@ -386,7 +386,7 @@ const Docs = () => {
                   {/* Step 1 */}
                   <div className="flex gap-4 items-start p-6 bg-white dark:bg-white/10 rounded-xl border border-gray-200 dark: border-white/20">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-[#003D6B] dark:bg-orange-500 flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 rounded-full bg-[#D6E6FF] text-[#003D6B] dark:bg-orange-500 dark:text-white flex items-center justify-center font-bold">
                         1
                       </div>
                     </div>
@@ -413,7 +413,7 @@ const Docs = () => {
                   {/* Step 2 */}
                   <div className="flex gap-4 items-start p-6 bg-white dark:bg-white/10 rounded-xl border border-gray-200 dark:border-white/20">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-[#003D6B] dark:bg-orange-500 flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 rounded-full bg-[#D6E6FF] text-[#003D6B] dark:bg-orange-500 dark:text-white flex items-center justify-center font-bold">
                         2
                       </div>
                     </div>
@@ -440,7 +440,7 @@ const Docs = () => {
                   {/* Step 3 */}
                   <div className="flex gap-4 items-start p-6 bg-white dark: bg-white/10 rounded-xl border border-gray-200 dark:border-white/20">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-[#003D6B] dark:bg-orange-500 flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 rounded-full bg-[#D6E6FF] text-[#003D6B] dark:bg-orange-500 dark:text-white flex items-center justify-center font-bold">
                         3
                       </div>
                     </div>
@@ -467,7 +467,7 @@ const Docs = () => {
                   {/* Step 4 */}
                   <div className="flex gap-4 items-start p-6 bg-white dark:bg-white/10 rounded-xl border border-gray-200 dark:border-white/20">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-[#003D6B] dark:bg-orange-500 flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 rounded-full bg-[#D6E6FF] text-[#003D6B] dark:bg-orange-500 dark:text-white flex items-center justify-center font-bold">
                         4
                       </div>
                     </div>
