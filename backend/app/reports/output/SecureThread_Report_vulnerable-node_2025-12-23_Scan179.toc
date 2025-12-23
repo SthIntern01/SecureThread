@@ -1,0 +1,33 @@
+\contentsline {section}{Severity Rating Legend}{ii}{Doc-Start}%
+\contentsline {section}{Abbreviations \& Acronyms}{iv}{Doc-Start}%
+\contentsline {section}{\numberline {0.1}Compliance \textbackslash {}\& Regulatory Mapping}{6}{section.0.1}%
+\contentsline {subsection}{\numberline {0.1.1}OWASP Top 10 2021 Coverage}{6}{subsection.0.1.1}%
+\contentsline {subsection}{\numberline {0.1.2}SANS Top 25 Most Dangerous Software Weaknesses}{7}{subsection.0.1.2}%
+\contentsline {subsection}{\numberline {0.1.3}PCI DSS v4.0 Requirements}{7}{subsection.0.1.3}%
+\contentsline {subsection}{\numberline {0.1.4}GDPR Article 32: Security of Processing}{8}{subsection.0.1.4}%
+\contentsline {subsection}{\numberline {0.1.5}Compliance Summary Dashboard}{8}{subsection.0.1.5}%
+\contentsline {section}{\numberline {0.2}Detailed Vulnerability Findings}{10}{section.0.2}%
+\contentsline {subsection}{\numberline {0.2.1}Critical Severity Issues (4 found)}{10}{subsection.0.2.1}%
+\contentsline {subsection}{\numberline {0.2.2}High Severity Issues (13 found)}{16}{subsection.0.2.2}%
+\contentsline {subsection}{\numberline {0.2.3}Medium Severity Issues (2 found)}{30}{subsection.0.2.3}%
+\contentsline {subsection}{\numberline {0.2.4}Low Severity Issues (1 found)}{32}{subsection.0.2.4}%
+\contentsline {section}{\numberline {0.3}Strategic Recommendations \textbackslash {}\& Remediation Roadmap}{32}{section.0.3}%
+\contentsline {subsection}{\numberline {0.3.1}Executive Action Plan: Top 5 Priorities}{32}{subsection.0.3.1}%
+\contentsline {subsection}{\numberline {0.3.2}Remediation Roadmap: Sprint Planning}{34}{subsection.0.3.2}%
+\contentsline {subsection}{\numberline {0.3.3}Quick Wins: Low Effort, High Impact}{34}{subsection.0.3.3}%
+\contentsline {subsection}{\numberline {0.3.4}Secure Coding Best Practices}{35}{subsection.0.3.4}%
+\contentsline {subsection}{\numberline {0.3.5}Recommended Security Tooling}{35}{subsection.0.3.5}%
+\contentsline {subsection}{\numberline {0.3.6}Security Metrics \textbackslash {}\& KPIs}{36}{subsection.0.3.6}%
+\contentsline {section}{\numberline {.1}Scanning Methodology}{37}{section.Alph0.1}%
+\contentsline {subsection}{\numberline {.1.1}Assessment Approach}{37}{subsection.Alph0.1.1}%
+\contentsline {subsection}{\numberline {.1.2}Scan Configuration}{37}{subsection.Alph0.1.2}%
+\contentsline {subsection}{\numberline {.1.3}Severity Classification}{38}{subsection.Alph0.1.3}%
+\contentsline {subsection}{\numberline {.1.4}False Positive Management}{38}{subsection.Alph0.1.4}%
+\contentsline {section}{\numberline {.2}Security Hotspots Analysis}{39}{section.Alph0.2}%
+\contentsline {subsection}{\numberline {.2.1}File{-}Level Hotspots}{39}{subsection.Alph0.2.1}%
+\contentsline {subsection}{\numberline {.2.2}Directory{-}Level Hotspots}{39}{subsection.Alph0.2.2}%
+\contentsline {section}{\numberline {.3}CWE Reference Guide}{40}{section.Alph0.3}%
+\contentsline {section}{\numberline {.4}Glossary of Terms}{41}{section.Alph0.4}%
+\contentsline {section}{\numberline {.5}References \textbackslash {}\& Resources}{42}{section.Alph0.5}%
+\contentsline {section}{\numberline {.6}Report Metadata \textbackslash {}\& Legal Disclaimer}{44}{section.Alph0.6}%
+\contentsfinish 

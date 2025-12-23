@@ -1,0 +1,5 @@
+\contentsline {section}{\numberline {0.1}Detailed Findings}{1}{section.0.1}%
+\contentsline {subsection}{\numberline {0.1.1}\textcolor {CriticalRed}{Critical Severity Vulnerabilities}}{1}{subsection.0.1.1}%
+\contentsline {subsection}{\numberline {0.1.2}\textcolor {HighOrange}{High Severity Vulnerabilities}}{4}{subsection.0.1.2}%
+\contentsline {subsection}{\numberline {0.1.3}\textcolor {MediumYellow}{Medium Severity Vulnerabilities}}{15}{subsection.0.1.3}%
+\contentsline {subsection}{\numberline {0.1.4}\textcolor {LowBlue}{Low Severity Vulnerabilities}}{16}{subsection.0.1.4}%

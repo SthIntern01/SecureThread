@@ -17,7 +17,7 @@ from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
 from app.models.scan_rule import ScanRule
 from app.services.custom_scanner_service import CustomScannerService
-from app.services.pdf_report_service import PDFReportService
+from app.services.latex_report_service import LaTeXReportService
 from fastapi.responses import StreamingResponse
 
 router = APIRouter()
@@ -1007,10 +1007,10 @@ async def export_scan_report_pdf(
     
     try:
         # Initialize PDF service
-        pdf_service = PDFReportService()
+        latex_service = LaTeXReportService()
         
         # Generate PDF
-        pdf_content = await pdf_service.generate_security_report(
+        pdf_content = await latex_service. generate_security_report(
             scan_id=scan_id,
             db=db,
             user=current_user,
