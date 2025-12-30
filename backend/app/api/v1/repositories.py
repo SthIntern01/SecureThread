@@ -944,55 +944,6 @@ async def get_file_content(
             detail=f"Failed to fetch file content: {str(e)}"
         )
     
-@router.get("/{repo_id}/vulnerabilities")
-async def get_file_vulnerabilities(
-    repo_id: int,
-    file_path: str,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get vulnerabilities for a specific file"""
-    from app.models.vulnerability import Vulnerability, Scan
-    
-    # Get repository
-    repository = db.query(Repository).filter(
-        Repository.id == repo_id,
-        Repository.owner_id == current_user.id
-    ).first()
-    
-    if not repository:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Repository not found"
-        )
-    
-    # Get latest scan
-    latest_scan = db.query(Scan).filter(
-        Scan.repository_id == repo_id,
-        Scan.status == "completed"
-    ).order_by(Scan.started_at.desc()).first()
-    
-    if not latest_scan:
-        return []
-    
-    # Get vulnerabilities for this file
-    vulnerabilities = db.query(Vulnerability).filter(
-        Vulnerability.scan_id == latest_scan.id,
-        Vulnerability.file_path == file_path
-    ).all()
-    
-    return [
-        {
-            "id": v.id,
-            "title": v.title,
-            "description": v.description,
-            "severity": v.severity,
-            "line_number": v.line_number,
-            "recommendation": v.recommendation,
-            "fix_suggestion": v.ai_explanation if v.ai_explanation else None
-        }
-        for v in vulnerabilities
-    ]
 
 @router.post("/ai/fix-file")
 async def get_ai_fix_for_file(
@@ -1057,7 +1008,8 @@ async def create_fix_pull_request(
     db: Session = Depends(get_db)
 ):
     """Create a pull request with vulnerability fixes"""
-    
+    from app.services.github_integration_service import GitHubIntegrationService
+
     # Get repository
     repository = db.query(Repository).filter(
         Repository.id == repo_id,
