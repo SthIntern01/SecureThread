@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle,
   ShieldCheck,
@@ -106,6 +107,8 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedVulns, setExpandedVulns] = useState<Set<number>>(new Set());
   const [fileStatusFilter, setFileStatusFilter] = useState("all");
+  const { toast } = useToast();
+  
 
   useEffect(() => {
     if (isOpen && scanId) {
@@ -114,16 +117,28 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
   }, [isOpen, scanId]);
 
   const fetchScanDetails = async () => {
-    if (!scanId) return;
+  if (!scanId) return;
 
-    setLoading(true);
-    setError("");
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:8000"
-        }/api/v1/custom-scans/${scanId}/detailed`,
+  setLoading(true);
+  setError("");
+  try {
+    const token = localStorage. getItem("access_token");
+    
+    // Try the detailed endpoint first
+    let response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/detailed`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // If detailed endpoint fails, try the basic endpoint
+    if (!response.ok) {
+      response = await fetch(
+        `${import.meta.env. VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -131,20 +146,32 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
           },
         }
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        setScanDetails(data);
-      } else {
-        setError("Failed to fetch scan details");
-      }
-    } catch (error) {
-      console.error("Error fetching scan details:", error);
-      setError("Network error occurred while fetching scan details");
-    } finally {
-      setLoading(false);
     }
-  };
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Handle different response structures
+      if (data.scan) {
+        // If API returns {scan: {... }, vulnerabilities: [...]}
+        setScanDetails({
+          ...data. scan,
+          vulnerabilities: data.vulnerabilities || [],
+        });
+      } else {
+        // If API returns scan data directly
+        setScanDetails(data);
+      }
+    } else {
+      setError("Failed to fetch scan details");
+    }
+  } catch (error) {
+    console.error("Error fetching scan details:", error);
+    setError("Network error occurred while fetching scan details");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -353,453 +380,129 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
   };
 
   const exportReportAsPDF = async () => {
-    if (!scanDetails) return;
+  if (!scanDetails) return;
 
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/report/pdf? report_type=comprehensive`,
-        {
-          method: "GET",
-          headers:  {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+  // Show loading toast
+  let progressToast = toast({
+    title:  "🔄 Generating PDF Report",
+    description: "Compiling your security report with LaTeX...",
+    duration: Infinity,
+  });
 
-      if (response.ok) {
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/${scanId}/report/pdf?report_type=comprehensive`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response. ok) {
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      if (total === 0) {
+        // If we can't track progress, just show simple message
+        progressToast.update({
+          id: progressToast.id,
+          title: "📥 Downloading PDF",
+          description: "Preparing your file.. .",
+        });
+        
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
+        const chunks: Uint8Array[] = [];  // ✅ Add type annotation
         a.href = url;
         a.download = `security-report-${repositoryName}-${scanDetails.id}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        
+        setTimeout(() => {
+          progressToast.dismiss();
+          toast({
+            title: "✅ PDF Downloaded! ",
+            description: `Security report saved successfully.`,
+            duration: 5000,
+          });
+        }, 1000);
+        
       } else {
-        console.warn("PDF API not available, using fallback method");
-        exportReportAsPDFLegacy();
-      }
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      exportReportAsPDFLegacy();
-    }
-  };
+        // Track download progress
+        const reader = response.body?. getReader();
+        const chunks:  Uint8Array[] = [];
+        let receivedLength = 0;
 
-  const exportReportAsPDFLegacy = () => {
-    if (!scanDetails) return;
-
-    const reportWindow = window.open("", "_blank");
-    if (!reportWindow) {
-      alert("Pop-up blocked. Please allow pop-ups and try again.");
-      return;
-    }
-
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Security Scan Report - ${repositoryName}</title>
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            line-height: 1.5;
-            color: #333;
-            background:  white;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #003D6B;
-        }
-        .header h1 {
-            color:  #1f2937;
-            margin: 0 0 10px 0;
-            font-size: 28px;
-        }
-        . header .subtitle {
-            color: #6b7280;
-            font-size: 16px;
-            margin:  5px 0;
-        }
-        .section {
-            margin-bottom: 30px;
-            page-break-inside: avoid;
-        }
-        .section h2 {
-            color: #1f2937;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-            font-size: 22px;
-        }
-        . stats-grid {
-            display: grid;
-            grid-template-columns:  repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom:  25px;
-        }
-        . stat-card {
-            background: #f8fafc;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 32px;
-            font-weight:  bold;
-            margin-bottom: 8px;
-            line-height: 1;
-        }
-        .stat-label {
-            font-size: 14px;
-            color: #64748b;
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        .critical { color: #dc2626; }
-        .high { color: #ea580c; }
-        .medium { color: #d97706; }
-        .low { color: #64748b; }
-        .green { color: #059669; }
-        .blue { color: #003D6B; }
-        .vulnerability {
-            background: #fafafa;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom:  20px;
-            page-break-inside: avoid;
-        }
-        .vuln-header {
-            display:  flex;
-            justify-content:  space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-        .vuln-title {
-            font-weight: bold;
-            color: #1f2937;
-            font-size: 18px;
-            margin-bottom: 6px;
-        }
-        . vuln-meta {
-            font-size: 14px;
-            color: #6b7280;
-            margin-bottom: 12px;
-        }
-        . vuln-description {
-            margin-bottom: 15px;
-            color: #374151;
-        }
-        .vuln-recommendation {
-            background: #E8F0FF;
-            border-left: 4px solid #003D6B;
-            padding:  15px;
-            margin-top: 15px;
-            border-radius: 0 6px 6px 0;
-        }
-        .badge {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size:  12px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .badge-critical {
-            background: #fee2e2;
-            color:  #991b1b;
-            border:  1px solid #fca5a5;
-        }
-        .badge-high {
-            background: #fed7aa;
-            color: #9a3412;
-            border: 1px solid #fdba74;
-        }
-        .badge-medium {
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #fcd34d;
-        }
-        .badge-low {
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #cbd5e1;
-        }
-        .alert {
-            background: #fef3c7;
-            border: 2px solid #f59e0b;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 25px;
-        }
-        . alert-title {
-            font-weight: bold;
-            color: #92400e;
-            margin-bottom: 8px;
-            font-size: 16px;
-        }
-        . scan-info {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom:  25px;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .info-label {
-            color: #6b7280;
-            font-weight: 500;
-        }
-        .info-value {
-            font-weight: bold;
-            color: #1f2937;
-        }
-        .code-snippet {
-            background: #1f2937;
-            color:  #f8fafc;
-            border-radius: 6px;
-            padding: 15px;
-            margin:  10px 0;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            overflow-x: auto;
-            border: 1px solid #374151;
-        }
-        . recommendations {
-            background: #E8F0FF;
-            border-radius: 8px;
-            padding: 25px;
-            border: 1px solid #003D6B;
-        }
-        .recommendations h3 {
-            color: #003D6B;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        .recommendations ol {
-            color: #374151;
-            line-height: 1.6;
-        }
-        .recommendations li {
-            margin-bottom: 8px;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 50px;
-            padding-top:  20px;
-            border-top:  2px solid #e5e7eb;
-            color: #6b7280;
-            font-size: 12px;
-        }
-        @media print {
-            body { margin: 0; padding: 15px; }
-            .section { page-break-inside: avoid; margin-bottom: 20px; }
-            .vulnerability { page-break-inside: avoid; margin-bottom: 15px; }
-            .stats-grid { grid-template-columns: repeat(4, 1fr); }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🛡️ Security Scan Report</h1>
-        <div class="subtitle"><strong>Repository:</strong> ${repositoryName}</div>
-        <div class="subtitle"><strong>Scan ID:</strong> ${scanDetails.id}</div>
-        <div class="subtitle"><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
-    </div>
-
-    <div class="section">
-        <h2>📊 Scan Overview</h2>
-        <div class="scan-info">
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="info-label">Status:</span>
-                    <span class="info-value">${scanDetails.status. toUpperCase()}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Duration:</span>
-                    <span class="info-value">${scanDetails.scan_duration || "N/A"}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Files Scanned:</span>
-                    <span class="info-value">${scanDetails.total_files_scanned}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Security Score:</span>
-                    <span class="info-value">${scanDetails.security_score?. toFixed(1) || "N/A"}/100</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Started:</span>
-                    <span class="info-value">${new Date(scanDetails.started_at).toLocaleString()}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Completed:</span>
-                    <span class="info-value">${scanDetails.completed_at ? new Date(scanDetails.completed_at).toLocaleString() : "N/A"}</span>
-                </div>
-            </div>
-        </div>
-        ${
-          scanDetails.scan_metadata?.scan_stopped_reason === "vulnerability_limit_reached"
-            ? `
-        <div class="alert">
-            <div class="alert-title">⚠️ Scan Limited</div>
-            <p>Scan stopped after finding ${scanDetails.scan_metadata. vulnerable_files_found} vulnerable files due to token constraints.  ${scanDetails.scan_metadata.files_skipped} files were not scanned for complete coverage.</p>
-            <p><strong>Total scannable files:</strong> ${scanDetails.scan_metadata.total_scannable_files}</p>
-        </div>
-        `
-            : ""
-        }
-    </div>
-
-    <div class="section">
-        <h2>🎯 Vulnerability Summary</h2>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number critical">${scanDetails.critical_count}</div>
-                <div class="stat-label">Critical</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number high">${scanDetails. high_count}</div>
-                <div class="stat-label">High</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number medium">${scanDetails.medium_count}</div>
-                <div class="stat-label">Medium</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number low">${scanDetails.low_count}</div>
-                <div class="stat-label">Low</div>
-            </div>
-        </div>
-    </div>
-
-    ${
-      scanDetails.vulnerabilities.length > 0
-        ? `
-    <div class="section">
-        <h2>🚨 Vulnerabilities Found (${scanDetails.total_vulnerabilities})</h2>
-        ${scanDetails.vulnerabilities
-          .map(
-            (vuln) => `
-        <div class="vulnerability">
-            <div class="vuln-header">
-                <div>
-                    <div class="vuln-title">${vuln.title}</div>
-                    <div class="vuln-meta">
-                        📁 ${vuln.file_path}${vuln.line_number ? ` (Line ${vuln.line_number})` : ""}
-                        • Category: ${vuln.category}
-                        ${vuln.risk_score ?  ` • Risk Score: ${vuln.risk_score.toFixed(1)}/10` : ""}
-                    </div>
-                </div>
-                <span class="badge badge-${vuln.severity}">${vuln.severity}</span>
-            </div>
-            <div class="vuln-description">${vuln.description}</div>
-            ${
-              vuln.code_snippet
-                ? `
-            <div class="code-snippet">
-                <strong>📄 Code Snippet:</strong><br>
-                <pre style="margin: 8px 0; white-space: pre-wrap; font-family: inherit;">${vuln.code_snippet}</pre>
-            </div>
-            `
-                : ""
-            }
-            <div class="vuln-recommendation">
-                <strong>💡 Recommendation:</strong> ${vuln.recommendation}
-                ${vuln.fix_suggestion ? `<br><br><strong>🔧 Fix: </strong> ${vuln.fix_suggestion}` : ""}
-            </div>
-        </div>
-        `
-          )
-          .join("")}
-    </div>
-    `
-        : `
-    <div class="section">
-        <h2>✅ No Vulnerabilities Found</h2>
-        <div style="text-align: center; color: #059669; font-size: 18px; padding: 30px;">
-            <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
-            <p><strong>Excellent! </strong> This scan didn't find any security vulnerabilities in the scanned files.</p>
-        </div>
-    </div>
-    `
-    }
-
-    <div class="section">
-        <div class="recommendations">
-            <h3>📋 Recommendations & Next Steps</h3>
-            ${
-              scanDetails.critical_count > 0
-                ?  `<p><strong>🔴 Critical Priority:</strong> ${scanDetails.critical_count} critical vulnerabilities require immediate attention.</p>`
-                : ""
-            }
-            ${
-              scanDetails.high_count > 0
-                ? `<p><strong>🟠 High Priority:</strong> ${scanDetails.high_count} high-severity vulnerabilities should be addressed soon.</p>`
-                : ""
-            }
-            ${
-              scanDetails.scan_metadata?. scan_stopped_reason === "vulnerability_limit_reached"
-                ?  `<p><strong>⚠️ Complete Coverage:</strong> Consider running additional targeted scans on the remaining ${scanDetails.scan_metadata.files_skipped} files for complete coverage.</p>`
-                : ""
-            }
-            <p><strong>📈 Security Improvement:</strong> Current score: ${scanDetails.security_score?.toFixed(1) || "N/A"}/100. Focus on fixing high-impact vulnerabilities to improve this score.</p>
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
             
-            <h4>Action Items:</h4>
-            <ol>
-                <li>Review and prioritize vulnerabilities by severity level</li>
-                <li>Implement fixes for critical and high-severity issues first</li>
-                <li>Update dependencies and libraries to latest secure versions</li>
-                ${
-                  scanDetails.scan_metadata?.scan_stopped_reason === "vulnerability_limit_reached"
-                    ? "<li>Run additional scans on remaining files for complete coverage</li>"
-                    : ""
-                }
-                <li>Run another scan after implementing fixes to verify improvements</li>
-                <li>Consider implementing automated security scanning in your CI/CD pipeline</li>
-            </ol>
-        </div>
-    </div>
+            if (done) break;
+            
+            chunks.push(value);
+            receivedLength += value.length;
+            
+            const percentComplete = Math.round((receivedLength / total) * 100);
+            
+            progressToast.update({
+              id: progressToast.id,
+              title: "📥 Downloading PDF",
+              description: `Progress: ${percentComplete}% (${(receivedLength / 1024 / 1024).toFixed(2)} MB)`,
+            });
+          }
+          
+          // Combine chunks into blob
+          const blob = new Blob(chunks);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `security-report-${repositoryName}-${scanDetails.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          progressToast.dismiss();
+          toast({
+            title: "✅ PDF Downloaded! ",
+            description: `Security report (${(total / 1024 / 1024).toFixed(2)} MB) saved successfully.`,
+            duration: 5000,
+          });
+        }
+      }
 
-    <div class="footer">
-        <p><strong>SecureThread Security Scanner</strong></p>
-        <p>Report generated on ${new Date().toLocaleString()}</p>
-        <p>This report contains sensitive security information.  Handle with care.</p>
-    </div>
-</body>
-</html>`;
+    } else {
+      progressToast.dismiss();
+      const errorText = await response.text();
+      
+      toast({
+        title: "❌ PDF Generation Failed",
+        description: errorText || "Please ensure MiKTeX is installed on the server.",
+        variant: "destructive",
+        duration: 7000,
+      });
+    }
+  } catch (error) {
+    progressToast.dismiss();
+    console.error("Error generating PDF:", error);
+    
+    toast({
+      title: "❌ Error Generating PDF",
+      description: error instanceof Error ? error.message : "Unknown error occurred.",
+      variant: "destructive",
+      duration: 7000,
+    });
+  }
+};
 
-    reportWindow.document.write(htmlContent);
-    reportWindow.document.close();
-
-    setTimeout(() => {
-      reportWindow.print();
-    }, 1000);
-  };
-
-  const exportReport = () => {
-    exportReportAsPDF();
-  };
+  
+  
 
   if (! isOpen) return null;
 
