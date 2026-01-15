@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import AppSidebar from "../components/AppSidebar";
 import RepositoryDetails from "../components/RepositoryDetails";
 import ScanDetailsModal from "../components/ScanDetailsModal"; 
+import ScanMethodModal from "../components/ScanMethodModal";
 import { useAuth } from "../contexts/AuthContext";
 import FileScanStatus from "../components/FileScanStatus";
 import {
@@ -2070,7 +2071,15 @@ const Projects = () => {
       />
 
       {/* Scan Method Modal */}
-      
+      <ScanMethodModal
+        isOpen={showScanMethodModal}
+        onClose={() => {
+          setShowScanMethodModal(false);
+          setSelectedProjectForScan(null);
+        }}
+        onSelectUnifiedScan={handleUnifiedScan}
+        projectName={selectedProjectForScan?.name}
+      />
 
     </div>
   );
