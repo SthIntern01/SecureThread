@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EtherealBackground } from '../components/ui/ethereal-background';
 import AppSidebar from '@/components/AppSidebar';
 import { useAuth } from "../contexts/AuthContext";
+import { SettingsSkeleton } from '@/components/skeletons/SettingsSkeleton';
 import { 
   ChevronRight, 
   Save, 
@@ -64,7 +65,13 @@ const Settings: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   
+  useEffect(() => {
+  const timer = setTimeout(() => setLoading(false), 700);
+  return () => clearTimeout(timer);
+}, []);
+
   const [settings, setSettings] = useState({
     // Account - use actual user data or fallbacks
     firstName: user?.full_name?.split(' ')[0] || 'Lora',  // Fixed: removed space before split
@@ -136,6 +143,10 @@ const Settings: React.FC = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
+            {loading ? (
+              <SettingsSkeleton />
+            ) : (
+              <>
             {/* Single unified container */}
             <div className="bg-gray-100/80 dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
               
@@ -645,6 +656,8 @@ const Settings: React.FC = () => {
               </div>
 
             </div>
+            </>
+            )}
           </div>
         </div>
       </div>

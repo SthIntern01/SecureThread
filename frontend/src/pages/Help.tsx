@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { EtherealBackground } from "../components/ui/ethereal-background";
 import AppSidebar from "@/components/AppSidebar";
 import { useAuth } from "../contexts/AuthContext";
+import { HelpSkeleton } from '@/components/skeletons/HelpSkeleton';
 import {
   ChevronRight,
   Search,
@@ -30,6 +31,12 @@ import {
 const Help = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+  const timer = setTimeout(() => setLoading(false), 700);
+  return () => clearTimeout(timer);
+}, []);
 
   const helpCategories = [
     {
@@ -144,6 +151,9 @@ const Help = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
+            {loading ? (
+              <HelpSkeleton />
+            ) : (
             <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
@@ -299,6 +309,7 @@ const Help = () => {
               </div>
 
             </div>
+            )}
           </div>
         </div>
       </div>

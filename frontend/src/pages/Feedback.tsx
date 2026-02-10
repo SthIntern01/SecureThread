@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { feedbackService, FeedbackData } from '../services/feedbackService';
 import AppSidebar from "../components/AppSidebar";
+import { FeedbackSkeleton } from '@/components/skeletons/FeedbackSkeleton';
 
 import {
   Dialog,
@@ -92,6 +93,12 @@ const Feedback = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [trackingId, setTrackingId] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+  const timer = setTimeout(() => setLoading(false), 600);
+  return () => clearTimeout(timer);
+}, []);
 
   const [formData, setFormData] = useState({
     type: "",
@@ -255,6 +262,10 @@ const Feedback = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
+          {loading ? (
+            <FeedbackSkeleton />
+          ) : (
+
             <div className="bg-white dark: bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
@@ -472,6 +483,7 @@ const Feedback = () => {
               </div>
 
             </div>
+            )}
           </div>
         </div>
       </div>

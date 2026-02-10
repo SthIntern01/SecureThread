@@ -8,6 +8,7 @@ import ScanDetailsModal from "../components/ScanDetailsModal";
 import ScanMethodModal from "../components/ScanMethodModal";
 import { useAuth } from "../contexts/AuthContext";
 import FileScanStatus from "../components/FileScanStatus";
+import { ProjectsSkeleton } from "@/components/skeletons/ProjectsSkeleton";
 import {
   Select,
   SelectContent,
@@ -288,12 +289,7 @@ const ImportRepositoriesModal = ({
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           {loading ? (
-            <div className="text-center py-8 flex-1 flex items-center justify-center">
-              <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
-              </div>
-            </div>
+            <ProjectsSkeleton />
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
@@ -654,12 +650,7 @@ const ImportBitbucketRepositoriesModal = ({
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           {loading ?  (
-            <div className="text-center py-8 flex-1 flex items-center justify-center">
-              <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
-              </div>
-            </div>
+            <ProjectsSkeleton />
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>

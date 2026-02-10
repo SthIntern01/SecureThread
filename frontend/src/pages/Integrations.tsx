@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { EtherealBackground } from '../components/ui/ethereal-background';
 import { Plus, Search, Settings, Check, AlertCircle, ChevronRight } from 'lucide-react';
 import AppSidebar from '../components/AppSidebar';
+import { IntegrationsSkeleton } from '@/components/skeletons/IntegrationsSkeleton';
 import {
   IconBrandGithub,
   IconBrandGitlab,
@@ -30,11 +31,14 @@ interface Integration {
 
 const IntegrationCard = ({ integration, onToggle }:  { integration: Integration; onToggle: (id: string) => void }) => {
   const [isConnected, setIsConnected] = useState(integration.status === 'connected');
-
+  
+  
   const handleToggle = () => {
     setIsConnected(!isConnected);
     onToggle(integration. id);
   };
+
+  
 
   return (
     <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-gray-200 dark:border-white/20 hover:border-gray-300 dark:hover:border-white/30 hover:bg-gray-50 dark:hover:bg-white/15 transition-all group">
@@ -148,6 +152,13 @@ const Integrations = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [loading, setLoading] = useState(true); 
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 600);
+    return () => clearTimeout(timer);
+  }, []);
+
 
   const integrations: Integration[] = [
     {
@@ -256,6 +267,10 @@ const Integrations = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-6 lg:p-10">
           <div className="max-w-7xl mx-auto">
+            {/* ← ADD THIS CONDITIONAL */}
+            {loading ? (
+              <IntegrationsSkeleton />
+            ) : (
             <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark: border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
@@ -387,6 +402,7 @@ const Integrations = () => {
               </div>
 
             </div>
+              )}
           </div>
         </div>
       </div>
