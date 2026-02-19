@@ -4,6 +4,7 @@ from app.config.settings import settings  # Keep only ONE import
 from app.api.v1.api import api_router
 from app.core.database import Base, engine
 from app.api.v1 import ai
+from app.api.v1 import slack_oauth  # ✅ ADD THIS
 
 # Debug print to verify settings
 print(f"DEBUG: CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
@@ -30,6 +31,7 @@ app.add_middleware(
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
+app.include_router(slack_oauth.router, prefix="/api/v1")  # ✅ ADD THIS
 
 @app.get("/")
 async def root():
@@ -45,4 +47,3 @@ async def debug_settings():
         "API_V1_STR": settings.API_V1_STR,
         "app_routes_count": len(app.routes)
     }
-    

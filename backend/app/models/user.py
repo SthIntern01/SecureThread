@@ -42,6 +42,16 @@ class User(Base):
     github_pat_encrypted = Column(Text, nullable=True)
     github_pat_created_at = Column(DateTime(timezone=True), nullable=True)
 
+     # Slack OAuth Integration
+    slack_user_id = Column(String(255), nullable=True)
+    slack_team_id = Column(String(255), nullable=True)
+    slack_bot_token = Column(Text, nullable=True)
+    slack_access_token = Column(Text, nullable=True)
+    slack_workspace_name = Column(String(255), nullable=True)
+    slack_channel_id = Column(String(255), nullable=True)
+    slack_channel_name = Column(String(255), nullable=True)
+    slack_connected_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -19,7 +19,8 @@ from app.api.v1 import (
     scan_rules,
     custom_scans,  # ✅ This now contains ALL scan functionality
     projects,
-    github_integration
+    github_integration,
+    slack_webhooks
 )
 
 # Set up logging
@@ -54,5 +55,7 @@ api_router.include_router(scan_rules.router, prefix="/scan-rules", tags=["scan-r
 
 # GitHub Integration for PR creation
 api_router.include_router(github_integration.router, prefix="/github", tags=["GitHub Integration"])
+
+api_router.include_router(slack_webhooks.router, prefix="/slack", tags=["slack"])
 
 logger.info("✅ All routers included successfully")

@@ -23,6 +23,7 @@ from app.models.vulnerability import Scan, Vulnerability
 from app.services.github_service import GitHubService
 from app.services.bitbucket_services import BitbucketService
 from app.services.llm_service import LLMService
+from app.services.slack_service import slack_service
 from app.services.rule_parser import rule_parser
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,10 @@ class CustomScannerService:
         # ✅ Vulnerability buffer for micro-batching
         self.vulnerability_buffer: List[Dict[str, Any]] = []
         self.buffer_lock = asyncio.Lock()
+        
+        # ✅ Alert limiting - track how many alerts sent per scan
+        self.critical_alerts_sent: Dict[int, int] = {}  # scan_id -> count
+        self.MAX_INDIVIDUAL_ALERTS = 3  # Only send first 3 individual alerts
 
     def _clone_repository(self, repo_url: str, access_token: str) -> Optional[str]:
         """
@@ -471,6 +476,41 @@ class CustomScannerService:
                             )
                             
                             vulnerabilities.append(vuln)
+                            
+                            # ✅ SEND SLACK ALERT FOR CRITICAL/HIGH (with limiting)
+                            if rule['severity'].lower() in ['critical', 'high']:
+                                # Check if we've already sent max alerts for this scan
+                                alerts_sent = self.critical_alerts_sent.get(scan_id, 0)
+                                
+                                if alerts_sent < self.MAX_INDIVIDUAL_ALERTS:
+                                    try:
+                                        # Get repository name
+                                        repo = self.db.query(Repository).filter(Repository.id == repository_id).first()
+                                        repo_name = repo.full_name if repo else "Unknown Repository"
+                                        
+                                        await slack_service.send_critical_vulnerability_alert(
+                                            vulnerability_title=rule['name'],
+                                            severity=rule['severity'],
+                                            repository_name=repo_name,
+                                            file_path=file_path,
+                                            line_number=line_number,
+                                            code_snippet=code_snippet[:500] if code_snippet else None,
+                                            description=rule['description'] or 'No description',
+                                            recommendation=f"Review and fix the {rule['category']} issue in {file_path}",
+                                            cwe_id=rule.get('cwe_id'),
+                                            owasp_category=rule.get('owasp_category')
+                                        )
+                                        
+                                        # Increment counter
+                                        self.critical_alerts_sent[scan_id] = alerts_sent + 1
+                                        logger.info(f"🚨 Sent Slack alert #{alerts_sent + 1} for {rule['severity']} vulnerability: {rule['name']}")
+                                        
+                                    except Exception as slack_error:
+                                        logger.error(f"Failed to send Slack alert: {slack_error}")
+                                elif alerts_sent == self.MAX_INDIVIDUAL_ALERTS:
+                                    # Log once when we hit the limit
+                                    logger.info(f"⏸️ Reached limit of {self.MAX_INDIVIDUAL_ALERTS} individual alerts. Remaining critical/high vulnerabilities will be in final summary.")
+                                    self.critical_alerts_sent[scan_id] = alerts_sent + 1  # Increment so this message only shows once
                         
                 except Exception as e:  
                     logger.warning(f"Error applying rule {rule.get('name', 'Unknown')} to {file_path}: {e}")
@@ -1470,6 +1510,41 @@ class CustomScannerService:
                 
                 self.db.add(vulnerability)
                 saved_count += 1
+                
+                # ✅ SEND SLACK ALERT FOR CRITICAL/HIGH (with limiting)
+                if vuln_data.get('severity', '').lower() in ['critical', 'high']:
+                    # Check if we've already sent max alerts for this scan
+                    alerts_sent = self.critical_alerts_sent.get(scan_id, 0)
+                    
+                    if alerts_sent < self.MAX_INDIVIDUAL_ALERTS:
+                        try:
+                            # Get repository name
+                            repo = self.db.query(Repository).filter(Repository.id == vuln_data.get('repository_id')).first()
+                            repo_name = repo.full_name if repo else "Unknown Repository"
+                            
+                            await slack_service.send_critical_vulnerability_alert(
+                                vulnerability_title=vuln_data.get('title', 'Unknown'),
+                                severity=vuln_data.get('severity', 'unknown'),
+                                repository_name=repo_name,
+                                file_path=vuln_data.get('file_path', 'Unknown'),
+                                line_number=vuln_data.get('line_number'),
+                                code_snippet=vuln_data.get('code_snippet'),
+                                description=vuln_data.get('description', 'No description'),
+                                recommendation=vuln_data.get('recommendation', 'Review this issue'),
+                                cwe_id=vuln_data.get('cwe_id'),
+                                owasp_category=vuln_data.get('owasp_category')
+                            )
+                            
+                            # Increment counter
+                            self.critical_alerts_sent[scan_id] = alerts_sent + 1
+                            logger.info(f"🚨 Sent Slack alert #{alerts_sent + 1} for {vuln_data.get('severity')} vulnerability")
+                            
+                        except Exception as slack_error:
+                            logger.error(f"Failed to send Slack alert: {slack_error}")
+                    elif alerts_sent == self.MAX_INDIVIDUAL_ALERTS:
+                        # Log once when we hit the limit
+                        logger.info(f"⏸️ Reached limit of {self.MAX_INDIVIDUAL_ALERTS} individual alerts. Remaining critical/high vulnerabilities will be in final summary.")
+                        self.critical_alerts_sent[scan_id] = alerts_sent + 1  # Increment so this message only shows once
                 
             except Exception as e:
                 logger.error(f"Failed to prepare vulnerability: {vuln_data.get('title', 'Unknown')} - {str(e)[:100]}")
