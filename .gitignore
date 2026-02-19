@@ -94,3 +94,6 @@ Thumbs.db
 test-results/
 logs/
 debug/
+
+
+backend/app/reports/output/
