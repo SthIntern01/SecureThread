@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config.settings import settings  # Keep only ONE import
+from app.config.settings import settings  
 from app.api.v1.api import api_router
 from app.core.database import Base, engine
 from app.api.v1 import ai
-from app.api.v1 import slack_oauth  # ✅ ADD THIS
+from app.api.v1 import slack_oauth
+from app.api.v1 import slack_interactions
 
 # Debug print to verify settings
 print(f"DEBUG: CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
@@ -32,6 +33,11 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
 app.include_router(slack_oauth.router, prefix="/api/v1")  # ✅ ADD THIS
+app.include_router(
+    slack_interactions.router,
+    prefix="/api/v1/slack",
+    tags=["slack-interactions"]
+)
 
 @app.get("/")
 async def root():

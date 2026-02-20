@@ -128,26 +128,33 @@ async def run_custom_scan_background(
         logger.info(f"🚀 Starting background scan for scan_id={scan_id}")
         logger.info(f"📋 Using {len(rules_data)} rules for scanning")
         
+        # ✅ GET USER OBJECT (needed for Slack notifications)
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.error(f"User {user_id} not found - cannot send Slack notifications")
+        
         # ✅ SEND SCAN STARTED NOTIFICATION
-        try:
-            # Get repository details
-            repository = db.query(Repository).filter(Repository.id == repository_id).first()
-            
-            if repository:
-                # Count rule types
-                user_custom_count = len([r for r in rules_data if r.get('user_id') == user_id])
-                global_count = len([r for r in rules_data if r.get('user_id') is None])
+        if user and user.slack_bot_token:
+            try:
+                # Get repository details
+                repository = db.query(Repository).filter(Repository.id == repository_id).first()
                 
-                await slack_service.send_scan_started_notification(
-                    scan_id=scan_id,
-                    repository_name=repository.full_name,
-                    rules_count=len(rules_data),
-                    user_custom_rules=user_custom_count,
-                    global_rules=global_count
-                )
-                logger.info(f"📢 Sent scan started notification to Slack")
-        except Exception as slack_error:
-            logger.error(f"Failed to send scan started notification: {slack_error}")
+                if repository:
+                    # Count rule types
+                    user_custom_count = len([r for r in rules_data if r.get('user_id') == user_id])
+                    global_count = len([r for r in rules_data if r.get('user_id') is None])
+                    
+                    await slack_service.send_scan_started_notification(
+                        user=user,  # ✅ ADD USER PARAMETER
+                        scan_id=scan_id,
+                        repository_name=repository.full_name,
+                        rules_count=len(rules_data),
+                        user_custom_rules=user_custom_count,
+                        global_rules=global_count
+                    )
+                    logger.info(f"📢 Sent scan started notification to Slack")
+            except Exception as slack_error:
+                logger.error(f"Failed to send scan started notification: {slack_error}")
         # ✅ END OF SCAN STARTED NOTIFICATION
         
         scanner_service = CustomScannerService(db)
@@ -165,27 +172,32 @@ async def run_custom_scan_background(
         logger.info(f"📊 Found {scan.total_vulnerabilities} vulnerabilities")
         
         # ✅ SEND SCAN COMPLETE NOTIFICATION
-        try:
-            # Get repository details
-            repository = db.query(Repository).filter(Repository.id == repository_id).first()
-            
-            if repository:
-                await slack_service.send_scan_complete_notification(
-                    scan_id=scan.id,
-                    repository_name=repository.full_name,
-                    status=scan.status,
-                    total_vulnerabilities=scan.total_vulnerabilities or 0,
-                    critical_count=scan.critical_count or 0,
-                    high_count=scan.high_count or 0,
-                    medium_count=scan.medium_count or 0,
-                    low_count=scan.low_count or 0,
-                    security_score=scan.security_score or 0.0,
-                    scan_duration=scan.scan_duration or "N/A",
-                    db_session=db
-                )
-                logger.info(f"📢 Slack notification sent for scan {scan_id}")
-        except Exception as slack_error:
-            logger.error(f"Failed to send Slack notification: {slack_error}")
+        if user and user.slack_bot_token:
+            try:
+                # Get repository details
+                repository = db.query(Repository).filter(Repository.id == repository_id).first()
+                
+                if repository:
+                    await slack_service.send_scan_complete_notification(
+                        user=user,  # ✅ ADD USER PARAMETER
+                        scan_id=scan.id,
+                        repository_id=repository.id,
+                        repository_name=repository.full_name,
+                        status=scan.status,
+                        total_vulnerabilities=scan.total_vulnerabilities or 0,
+                        critical_count=scan.critical_count or 0,
+                        high_count=scan.high_count or 0,
+                        medium_count=scan.medium_count or 0,
+                        low_count=scan.low_count or 0,
+                        security_score=scan.security_score or 0.0,
+                        scan_duration=scan.scan_duration or "N/A"
+                        # ✅ REMOVED db_session=db
+                    )
+                    logger.info(f"📢 Slack notification sent for scan {scan_id}")
+            except Exception as slack_error:
+                logger.error(f"Failed to send Slack notification: {slack_error}")
+        else:
+            logger.info(f"⏭️ User {user_id} doesn't have Slack connected - skipping notification")
     
     except Exception as e:
         logger.error(f"❌ Background scan {scan_id} failed: {e}", exc_info=True)

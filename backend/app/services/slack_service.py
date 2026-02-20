@@ -2,47 +2,55 @@
 
 import httpx
 import logging
-import os  # ✅ Add this import
+import os
 from typing import Optional, Dict, Any
 from datetime import datetime
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 class SlackService:
     """Service for sending notifications to Slack"""
     
     def __init__(self):
-        # ✅ Load from environment variable instead of hardcoding
-        self.webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+        # ✅ Global webhook (optional - for admin/system notifications)
+        self.global_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
         
-        # ✅ Optional: Add validation
-        if not self.webhook_url:
-            logger.warning("⚠️ SLACK_WEBHOOK_URL not set - Slack notifications disabled")
+        if self.global_webhook_url:
+            logger.info(f"✅ Global Slack webhook loaded: {self.global_webhook_url[:40]}...")
+        else:
+            logger.warning("⚠️ Global SLACK_WEBHOOK_URL not set")
     
-    async def send_message(self, text: str, blocks: Optional[list] = None) -> bool:
+    
+    async def send_message_to_webhook(
+        self, 
+        webhook_url: str, 
+        text: str, 
+        blocks: Optional[list] = None
+    ) -> bool:
         """
-        Send a message to Slack
+        Send message using webhook URL
         
         Args:
+            webhook_url: Slack webhook URL
             text: Plain text message (fallback)
             blocks: Rich formatting blocks (optional)
         
         Returns:
             True if successful, False otherwise
         """
-        # ✅ Check if webhook URL is configured
-        if not self.webhook_url:
-            logger.error("❌ Slack webhook URL not configured")
+        if not webhook_url:
+            logger.error("❌ Webhook URL not provided")
             return False
             
         try:
             payload = {"text": text}
-            
             if blocks:
                 payload["blocks"] = blocks
             
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(self.webhook_url, json=payload)
+                response = await client.post(webhook_url, json=payload)
                 
                 if response.status_code == 200:
                     logger.info(f"✅ Slack message sent successfully")
@@ -56,10 +64,177 @@ class SlackService:
             return False
     
     
-    
-    async def send_test_message(self) -> bool:
-        """Send a test message to verify Slack integration"""
+    async def send_message_with_bot_token(
+        self,
+        bot_token: str,
+        channel: str,
+        text: str,
+        blocks: Optional[list] = None
+    ) -> bool:
+        """
+        Send message using bot token (more powerful - can send to any channel)
         
+        Args:
+            bot_token: Slack bot token (from OAuth)
+            channel: Channel ID or name (e.g., "C1234567890" or "#security-alerts")
+            text: Plain text message
+            blocks: Rich formatting blocks (optional)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not bot_token or not channel:
+            logger.error("❌ Bot token or channel not provided")
+            return False
+        
+        try:
+            payload = {
+                "channel": channel,
+                "text": text,
+            }
+            if blocks:
+                payload["blocks"] = blocks
+            
+            headers = {
+                "Authorization": f"Bearer {bot_token}",
+                "Content-Type": "application/json"
+            }
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    json=payload,
+                    headers=headers
+                )
+                
+                data = response.json()
+                
+                if data.get("ok"):
+                    logger.info(f"✅ Slack message sent to {channel}")
+                    return True
+                else:
+                    error = data.get("error", "Unknown error")
+                    logger.error(f"❌ Slack API error: {error}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to send Slack message: {str(e)}")
+            return False
+    
+    
+    async def send_notification_to_user(
+        self,
+        user,
+        text: str,
+        blocks: Optional[list] = None
+    ) -> bool:
+        """
+        Send notification to a specific user's connected Slack workspace
+        
+        Args:
+            user: User model instance (must have slack_bot_token and slack_channel_id)
+            text: Plain text message
+            blocks: Rich formatting blocks (optional)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        # Check if user has Slack connected
+        if not user.slack_bot_token:
+            logger.warning(f"⚠️ User {user.id} doesn't have Slack connected - skipping notification")
+            return False
+        
+        # Get channel (use default channel from OAuth or fallback)
+        channel = user.slack_channel_id or "#general"
+        
+        logger.info(f"📤 Sending Slack notification to user {user.id} ({user.email})")
+        
+        return await self.send_message_with_bot_token(
+            bot_token=user.slack_bot_token,
+            channel=channel,
+            text=text,
+            blocks=blocks
+        )
+    
+
+    async def send_dm_to_user(
+        self,
+        user,
+        text: str,
+        blocks: Optional[list] = None
+    ) -> bool:
+        """
+        Send a Direct Message (DM) to a user's Slack account.
+        Opens a DM conversation and posts a message.
+        
+        Args:
+            user: User model instance (must have slack_bot_token and slack_user_id)
+            text: Plain text message
+            blocks: Rich formatting blocks (optional)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not user.slack_bot_token or not user.slack_user_id:
+            logger.warning(f"⚠️ User {user.id} doesn't have Slack connected properly")
+            return False
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {user.slack_bot_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Step 1: Open DM conversation with the user
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                conv_response = await client.post(
+                    "https://slack.com/api/conversations.open",
+                    headers=headers,
+                    json={"users": user.slack_user_id}
+                )
+                
+                conv_data = conv_response.json()
+                if not conv_data.get("ok"):
+                    logger.error(f"❌ Failed to open DM: {conv_data.get('error')}")
+                    return False
+                
+                dm_channel = conv_data["channel"]["id"]
+                logger.info(f"✅ Opened DM channel {dm_channel} for user {user.id}")
+                
+                # Step 2: Send message to DM
+                payload = {
+                    "channel": dm_channel,
+                    "text": text
+                }
+                if blocks:
+                    payload["blocks"] = blocks
+                
+                msg_response = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    headers=headers,
+                    json=payload
+                )
+                
+                msg_data = msg_response.json()
+                if msg_data.get("ok"):
+                    logger.info(f"✅ DM sent to user {user.id}")
+                    return True
+                else:
+                    logger.error(f"❌ Failed to send DM: {msg_data.get('error')}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to send DM: {e}")
+            return False
+    
+    async def send_test_message(self, user=None) -> bool:
+        """
+        Send a test message
+        
+        Args:
+            user: User model instance (optional). If provided, sends to user's Slack.
+                  Otherwise, uses global webhook.
+        """
         blocks = [
             {
                 "type": "header",
@@ -87,16 +262,31 @@ class SlackService:
             }
         ]
         
-        return await self.send_message(
-            text="🎉 SecureThread Bot is Connected!",
-            blocks=blocks
-        )
+        # If user provided, send to their Slack
+        if user:
+            return await self.send_notification_to_user(
+                user=user,
+                text="🎉 SecureThread Bot is Connected!",
+                blocks=blocks
+            )
+        # Otherwise use global webhook
+        elif self.global_webhook_url:
+            return await self.send_message_to_webhook(
+                webhook_url=self.global_webhook_url,
+                text="🎉 SecureThread Bot is Connected!",
+                blocks=blocks
+            )
+        else:
+            logger.error("❌ No Slack configuration available")
+            return False
 
 
     async def send_scan_complete_notification(
         self, 
+        user,  # ✅ Add user parameter
         scan_id: int,
         repository_name: str,
+        repository_id: int,
         status: str,
         total_vulnerabilities: int,
         critical_count: int,
@@ -104,24 +294,11 @@ class SlackService:
         medium_count: int,
         low_count: int,
         security_score: float,
-        scan_duration: str,
-        db_session
+        scan_duration: str
     ) -> bool:
         """
         Send notification when a security scan completes
-        
-        Args:
-            scan_id: ID of the completed scan
-            repository_name: Name of the scanned repository
-            status: Scan status (completed/failed)
-            total_vulnerabilities: Total number of vulnerabilities found
-            critical_count: Number of critical vulnerabilities
-            high_count: Number of high severity vulnerabilities
-            medium_count: Number of medium severity vulnerabilities
-            low_count: Number of low severity vulnerabilities
-            security_score: Security score (0-100)
-            scan_duration: Time taken for scan
-            db_session: Database session
+        NOW WITH INTERACTIVE BUTTONS! 🎉
         """
         try:
             # Determine emoji based on security score
@@ -197,19 +374,87 @@ class SlackService:
                 },
                 {
                     "type": "divider"
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {
-                            "type": "mrkdwn",
-                            "text": f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                        }
-                    ]
                 }
             ]
             
-            return await self.send_message(
+            # ✨ NEW: Add interactive action buttons
+            action_buttons = {
+                "type": "actions",
+                "elements": []
+            }
+            
+            if total_vulnerabilities > 0:
+                # Add "View Top N" buttons
+                action_buttons["elements"].extend([
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "🔍 View Top 3",
+                            "emoji": True
+                        },
+                        "action_id": "view_top_3",
+                        "value": str(scan_id),
+                        "style": "primary"
+                    },
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "🔟 View Top 10",
+                            "emoji": True
+                        },
+                        "action_id": "view_top_10",
+                        "value": str(scan_id)
+                    }
+                ])
+            
+            if critical_count > 0:
+                # Add "Critical Only" button
+                action_buttons["elements"].append({
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "🔴 Critical Only",
+                        "emoji": True
+                    },
+                    "action_id": "view_critical_only",
+                    "value": str(scan_id),
+                    "style": "danger"
+                })
+
+            # ✅ MOVED OUTSIDE the if block - always show "Open in App"
+            # Always add "Open in App" button (URL button)
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:8080")
+            action_buttons["elements"].append({
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "🌐 Open in App",
+                    "emoji": True
+                },
+                "url": f"{frontend_url}/projects/{repository_id}",  
+                "action_id": "open_in_app"
+            })
+            
+            # Only add action block if we have buttons
+            if action_buttons["elements"]:
+                blocks.append(action_buttons)
+            
+            # Add timestamp
+            blocks.append({
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    }
+                ]
+            })
+            
+            # ✅ Send to user's Slack
+            return await self.send_notification_to_user(
+                user=user,
                 text=f"Scan #{scan_id} completed for {repository_name}",
                 blocks=blocks
             )
@@ -221,6 +466,7 @@ class SlackService:
 
     async def send_critical_vulnerability_alert(
         self,
+        user,  # ✅ Add user parameter
         vulnerability_title: str,
         severity: str,
         repository_name: str,
@@ -232,21 +478,7 @@ class SlackService:
         cwe_id: Optional[str] = None,
         owasp_category: Optional[str] = None
     ) -> bool:
-        """
-        Send immediate alert when critical/high severity vulnerability is detected
-        
-        Args:
-            vulnerability_title: Title of the vulnerability
-            severity: Severity level (critical/high)
-            repository_name: Name of the repository
-            file_path: Path to vulnerable file
-            line_number: Line number where vulnerability was found
-            code_snippet: Code snippet showing the vulnerability
-            description: Detailed description
-            recommendation: Fix recommendation
-            cwe_id: CWE identifier
-            owasp_category: OWASP category
-        """
+        """Send immediate alert when critical/high severity vulnerability is detected"""
         try:
             # Determine emoji and color based on severity
             if severity.lower() == "critical":
@@ -314,14 +546,13 @@ class SlackService:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*Description:*\n{description[:500]}"  # Limit description length
+                        "text": f"*Description:*\n{description[:500]}"
                     }
                 }
             ]
             
             # Add code snippet if available
             if code_snippet:
-                # Limit code snippet to 500 characters for Slack
                 snippet = code_snippet[:500]
                 if len(code_snippet) > 500:
                     snippet += "\n... (truncated)"
@@ -371,7 +602,9 @@ class SlackService:
                 }
             ])
             
-            return await self.send_message(
+            # ✅ Send to user's Slack
+            return await self.send_notification_to_user(
+                user=user,
                 text=f"{severity_emoji} {severity_text} severity vulnerability found in {repository_name}: {vulnerability_title}",
                 blocks=blocks
             )
@@ -382,22 +615,14 @@ class SlackService:
 
     async def send_scan_started_notification(
         self,
+        user,  # ✅ Add user parameter
         scan_id: int,
         repository_name: str,
         rules_count: int,
         user_custom_rules: int,
         global_rules: int
     ) -> bool:
-        """
-        Send notification when a security scan starts
-        
-        Args:
-            scan_id: ID of the scan
-            repository_name: Name of the repository being scanned
-            rules_count: Total number of rules being used
-            user_custom_rules: Number of user's custom rules
-            global_rules: Number of global rules
-        """
+        """Send notification when a security scan starts"""
         try:
             blocks = [
                 {
@@ -439,7 +664,9 @@ class SlackService:
                 }
             ]
             
-            return await self.send_message(
+            # ✅ Send to user's Slack
+            return await self.send_notification_to_user(
+                user=user,
                 text=f"🔍 Scan #{scan_id} started for {repository_name}",
                 blocks=blocks
             )
@@ -447,9 +674,6 @@ class SlackService:
         except Exception as e:
             logger.error(f"Failed to send scan started notification: {str(e)}")
             return False
-
-
-
 
 
 # Singleton instance
