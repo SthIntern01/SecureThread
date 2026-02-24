@@ -63,6 +63,165 @@ def get_user_from_slack_identity(
     
     return user
 
+async def handle_generate_report(
+    payload: dict,
+    user: User,
+    db: Session
+):
+    """
+    User clicked "Generate Report" button.
+    Start PDF generation in background and send to Slack DM.
+    """
+    try:
+        # Extract scan_id from button value
+        scan_id = int(payload["actions"][0].get("value", 0))
+        
+        if not scan_id:
+            await slack_service.send_dm_to_user(
+                user=user,
+                text="❌ Unable to retrieve scan details."
+            )
+            return {}
+        
+        logger.info(f"📄 User {user.id} requested PDF report for scan {scan_id}")
+        
+        # Fetch scan
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan:
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ Scan #{scan_id} not found."
+            )
+            return {}
+        
+        # Get repository for authorization check
+        repository = db.query(Repository).filter(
+            Repository.id == scan.repository_id
+        ).first()
+        
+        if not repository:
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ Repository not found for scan #{scan_id}."
+            )
+            return {}
+        
+        # Authorization check
+        if repository.owner_id != user.id:
+            await slack_service.send_dm_to_user(
+                user=user,
+                text="❌ You don't have access to this scan report."
+            )
+            return {}
+        
+        # ✅ ACK immediately and start background PDF generation
+        import asyncio
+        asyncio.create_task(
+            _generate_and_upload_report(
+                user_id=user.id,
+                scan_id=scan_id,
+                repository_name=repository.full_name
+            )
+        )
+        
+        logger.info(f"✅ PDF generation queued for scan {scan_id}")
+        
+        # Return immediately (Slack ACK)
+        return {}
+        
+    except Exception as e:
+        logger.error(f"❌ Error handling generate report: {e}", exc_info=True)
+        await slack_service.send_dm_to_user(
+            user=user,
+            text="❌ An error occurred while generating the report."
+        )
+        return {}
+
+
+async def _generate_and_upload_report(
+    user_id: int,
+    scan_id: int,
+    repository_name: str
+):
+    """
+    Background task: Generate PDF report and upload to Slack.
+    Uses fresh DB session to avoid DetachedInstanceError.
+    """
+    from app.core.database import SessionLocal
+    from app.services.latex_report_service import LaTeXReportService
+    
+    db = SessionLocal()
+    
+    try:
+        # Get fresh user object from DB
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.error(f"❌ User {user_id} not found in background task")
+            return
+        
+        # Send "generating..." message
+        await slack_service.send_dm_to_user(
+            user=user,
+            text=f"📄 Generating PDF report for scan #{scan_id}...\n⏱️ This may take 30-60 seconds."
+        )
+        
+        logger.info(f"🔨 Starting PDF generation for scan {scan_id}")
+        
+        # Generate PDF using LaTeXReportService
+        report_service = LaTeXReportService()
+        pdf_bytes = await report_service.generate_security_report(
+            scan_id=scan_id,
+            user=user,
+            db=db
+        )
+        
+        if not pdf_bytes:
+            logger.error(f"❌ PDF generation returned empty bytes for scan {scan_id}")
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ Failed to generate PDF report for scan #{scan_id}."
+            )
+            return
+        
+        logger.info(f"✅ PDF generated successfully ({len(pdf_bytes)} bytes)")
+        
+        # Upload PDF to Slack DM
+        filename = f"security_report_scan_{scan_id}.pdf"
+        title = f"Security Report - {repository_name}"
+        
+        success = await slack_service.upload_file_to_user(
+            user=user,
+            file_content=pdf_bytes,
+            filename=filename,
+            title=title,
+            initial_comment=f"✅ Security report for scan #{scan_id} is ready! 📊"
+        )
+        
+        if success:
+            logger.info(f"✅ PDF report uploaded to Slack for user {user_id}")
+        else:
+            logger.error(f"❌ Failed to upload PDF to Slack for user {user_id}")
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ Report generated but failed to upload to Slack. Please download from the web app."
+            )
+        
+    except Exception as e:
+        logger.error(f"❌ Error in background PDF generation: {e}", exc_info=True)
+        
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                await slack_service.send_dm_to_user(
+                    user=user,
+                    text=f"❌ An error occurred while generating the report for scan #{scan_id}."
+                )
+        except:
+            pass
+    
+    finally:
+        db.close()
+
 
 @router.post("/interactions")
 async def handle_slack_interaction(
@@ -151,6 +310,8 @@ async def handle_block_action(payload: dict, user: User, db: Session):
     elif action_id == "open_in_app":
         # URL button - no action needed
         return {}
+    elif action_id == "generate_report":
+        return await handle_generate_report(payload, user, db)
     else:
         logger.warning(f"⚠️ Unknown action_id: {action_id}")
         return {}
@@ -230,38 +391,23 @@ async def handle_scan_repository_submission(
                 }
             }
         
-        # Start the scan in background
-        from fastapi import BackgroundTasks
+        # ✅ START SCAN IN BACKGROUND (don't await!)
         from app.api.v1.slack_scan_trigger import trigger_scan_from_slack
+        import asyncio
         
-        success, message, scan_id = await trigger_scan_from_slack(
-            user=user,
-            repository=repository,
-            db=db
+        # Fire and forget - this runs independently
+        asyncio.create_task(
+            _start_scan_and_notify(
+                user=user,
+                repository=repository,
+                db=db
+            )
         )
         
-        if success:
-            logger.info(f"✅ Scan {scan_id} initiated successfully for repository {repository_id}")
-            
-            # Send confirmation DM (don't await - do it in background)
-            import asyncio
-            asyncio.create_task(
-                slack_service.send_dm_to_user(
-                    user=user,
-                    text=f"✅ Scan started for *{repository.full_name}*\n🔍 Scan ID: #{scan_id}\n⏱️ Estimated time: 2-3 minutes\n\nI'll send you a notification when it completes!"
-                )
-            )
-            
-            # Return empty response to close modal immediately
-            return {}
-        else:
-            logger.error(f"❌ Failed to start scan: {message}")
-            return {
-                "response_action": "errors",
-                "errors": {
-                    "repository_select_block": message
-                }
-            }
+        logger.info(f"✅ Scan queued for repository {repository_id}")
+        
+        # ✅ RETURN IMMEDIATELY to close modal without waiting
+        return {}
         
     except Exception as e:
         logger.error(f"❌ Error handling scan submission: {e}", exc_info=True)
@@ -272,9 +418,56 @@ async def handle_scan_repository_submission(
             }
         }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# PLACEHOLDER HANDLERS (Phase 2 will implement these)
-# ═══════════════════════════════════════════════════════════════════════════
+
+async def _start_scan_and_notify(
+    user: User,
+    repository: Repository,
+    db: Session
+):
+    """
+    Background task: Start scan and send DM notification
+    This runs independently after modal closes
+    """
+    try:
+        from app.api.v1.slack_scan_trigger import trigger_scan_from_slack
+        
+        success, message, scan_id = await trigger_scan_from_slack(
+            user=user,
+            repository=repository,
+            db=db
+        )
+        
+        if success:
+            logger.info(f"✅ Scan {scan_id} initiated successfully for repository {repository.id}")
+            
+            # Send confirmation DM
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"✅ Scan started for *{repository.full_name}*\n🔍 Scan ID: #{scan_id}\n⏱️ Estimated time: 2-3 minutes\n\nI'll send you a notification when it completes!"
+            )
+        else:
+            logger.error(f"❌ Failed to start scan: {message}")
+            
+            # Send error DM
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ Failed to start scan for *{repository.full_name}*\n\nReason: {message}"
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Error in background scan start: {e}", exc_info=True)
+        
+        # Send error DM
+        try:
+            await slack_service.send_dm_to_user(
+                user=user,
+                text=f"❌ An error occurred while starting the scan for *{repository.full_name}*"
+            )
+        except:
+            pass  # Don't crash if DM fails
+
+
+
 
 async def handle_view_top_vulnerabilities(
     payload: dict,

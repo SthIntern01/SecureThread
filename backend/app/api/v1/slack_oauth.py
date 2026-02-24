@@ -48,7 +48,8 @@ async def initiate_slack_oauth(
         scopes = [
             "chat:write",           # Send messages
             "chat:write.public",    # Send to public channels
-            "commands",             # Slash commands
+            "commands",
+            "files:write",              # Slash commands
             "incoming-webhook",     # Webhook posting
             "channels:read",        # View channels
             "users:read",           # Get user info

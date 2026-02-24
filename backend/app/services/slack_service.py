@@ -227,6 +227,122 @@ class SlackService:
             logger.error(f"❌ Failed to send DM: {e}")
             return False
     
+
+    async def upload_file_to_user(
+        self,
+        user,
+        file_content: bytes,
+        filename: str,
+        title: str,
+        initial_comment: Optional[str] = None
+    ) -> bool:
+        """
+        Upload a file directly to a user's Slack DM.
+        Uses new files.uploadV2 API (files.upload is deprecated).
+        
+        Args:
+            user: User model instance (must have slack_bot_token and slack_user_id)
+            file_content: File content as bytes
+            filename: Name of the file (e.g., "report.pdf")
+            title: Title shown in Slack
+            initial_comment: Optional message to accompany the file
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        logger.info(f"🔑 Token being used: {user.slack_bot_token[:60]}...")  # First 60 chars
+        logger.info(f"👤 User ID: {user.id} ({user.email})")
+
+        if not user.slack_bot_token or not user.slack_user_id:
+            logger.warning(f"⚠️ User {user.id} doesn't have Slack connected properly")
+            return False
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {user.slack_bot_token}"
+            }
+            
+            # Step 1: Open DM conversation with the user
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                conv_response = await client.post(
+                    "https://slack.com/api/conversations.open",
+                    headers=headers,
+                    json={"users": user.slack_user_id}
+                )
+                
+                conv_data = conv_response.json()
+                if not conv_data.get("ok"):
+                    logger.error(f"❌ Failed to open DM for file upload: {conv_data.get('error')}")
+                    return False
+                
+                dm_channel = conv_data["channel"]["id"]
+                logger.info(f"✅ Opened DM channel {dm_channel} for file upload to user {user.id}")
+                
+                # Step 2: Get upload URL (new API flow)
+                upload_url_response = await client.get(
+                    "https://slack.com/api/files.getUploadURLExternal",
+                    headers=headers,
+                    params={
+                        "filename": filename,
+                        "length": len(file_content)
+                    }
+                )
+                
+                upload_url_data = upload_url_response.json()
+                if not upload_url_data.get("ok"):
+                    logger.error(f"❌ Failed to get upload URL: {upload_url_data.get('error')}")
+                    return False
+                
+                upload_url = upload_url_data["upload_url"]
+                file_id = upload_url_data["file_id"]
+                
+                logger.info(f"✅ Got upload URL for file_id: {file_id}")
+                
+                # Step 3: Upload file to S3
+                upload_response = await client.post(
+                    upload_url,
+                    content=file_content,
+                    headers={"Content-Type": "application/pdf"}
+                )
+                
+                if upload_response.status_code not in [200, 201]:
+                    logger.error(f"❌ Failed to upload file to S3: {upload_response.status_code}")
+                    return False
+                
+                logger.info(f"✅ File uploaded to S3 successfully")
+                
+                # Step 4: Complete the upload (makes file visible in Slack)
+                complete_payload = {
+                    "files": [
+                        {
+                            "id": file_id,
+                            "title": title
+                        }
+                    ],
+                    "channel_id": dm_channel
+                }
+                
+                if initial_comment:
+                    complete_payload["initial_comment"] = initial_comment
+                
+                complete_response = await client.post(
+                    "https://slack.com/api/files.completeUploadExternal",
+                    headers=headers,
+                    json=complete_payload
+                )
+                
+                complete_data = complete_response.json()
+                if complete_data.get("ok"):
+                    logger.info(f"✅ File upload completed and shared in DM")
+                    return True
+                else:
+                    logger.error(f"❌ Failed to complete upload: {complete_data.get('error')}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to upload file to Slack: {e}", exc_info=True)
+            return False
+
     async def send_test_message(self, user=None) -> bool:
         """
         Send a test message
@@ -423,7 +539,19 @@ class SlackService:
                     "style": "danger"
                 })
 
-            # ✅ MOVED OUTSIDE the if block - always show "Open in App"
+            # ✅ NEW: Add "Generate Report" button (always show)
+            action_buttons["elements"].append({
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "📄 Generate Report",
+                    "emoji": True
+                },
+                "action_id": "generate_report",
+                "value": str(scan_id),
+                "style": "primary"
+            })
+
             # Always add "Open in App" button (URL button)
             frontend_url = os.getenv("FRONTEND_URL", "http://localhost:8080")
             action_buttons["elements"].append({
