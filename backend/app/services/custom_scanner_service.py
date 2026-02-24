@@ -17,6 +17,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from app.models.user import User
 
 from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
@@ -672,6 +673,10 @@ class CustomScannerService:
         if not scan:
             raise ValueError("No pending scan found")
         
+        # ✅ Store scan_id early to avoid session issues
+        scan_id_value = scan.id
+        repository_id_value = repository.id
+        
         try:
             # Update scan status
             scan.status = "running"
@@ -683,15 +688,15 @@ class CustomScannerService:
                 'global_rules': len([r for r in rules if r.get('user_id') is None]),
                 'llm_enhancement': use_llm_enhancement,
                 'language_filtering_enabled': True,
-                'streaming_saves_enabled': True,  # ✅ NEW
+                'streaming_saves_enabled': True,
                 'scan_start_time': datetime.now(timezone.utc).isoformat()
             })
             self.db.commit()
             self.db.refresh(scan)
             
-            logger.info(f"✅ Scan {scan.id} status updated to 'running'")
+            logger.info(f"✅ Scan {scan_id_value} status updated to 'running'")
             
-            # Step 1: Get repository files (HYBRID:  try clone first, fallback to API)
+            # Step 1: Get repository files (HYBRID: try clone first, fallback to API)
             logger.info("📁 Step 1: Fetching repository files...")
                     
             clone_dir = None
@@ -706,7 +711,7 @@ class CustomScannerService:
                 clone_dir = self._clone_repository(repo_url, access_token)
                 
                 if clone_dir:
-                    # Clone successful!  Get files from local filesystem
+                    # Clone successful! Get files from local filesystem
                     logger.info("✅ Git clone successful, reading files from local clone")
                     file_tree = await self._get_all_repository_files_from_clone(clone_dir)
                     scan_method = 'local'
@@ -729,28 +734,11 @@ class CustomScannerService:
                 raise Exception("Failed to retrieve repository files")
 
             logger.info(f"✅ Using scan method: {scan_method}")
-            
-            # ✅✅✅ ADD THIS ✅✅✅
-            print(f"\n{'='*80}")
-            print(f"✅ STEP 1 COMPLETE - Got {len(file_tree) if file_tree else 0} files")
-            print(f"{'='*80}\n")
-            # ✅✅✅ END ✅✅✅
-
-            if not file_tree:
-                raise Exception("Failed to retrieve repository files")
-            
             logger.info(f"✅ Found {len(file_tree)} total files in repository")
             
             # Step 2: Filter scannable files (liberal filtering)
             logger.info("🔍 Step 2: Filtering scannable files...")
             scannable_files = self._filter_scannable_files(file_tree)
-
-            # ✅✅✅ ADD THIS ✅✅✅
-            print(f"\n{'='*80}")
-            print(f"✅ STEP 2 COMPLETE - {len(scannable_files)} scannable files")
-            print(f"{'='*80}\n")
-            # ✅✅✅ END ✅✅✅
-
             logger.info(f"✅ {len(scannable_files)} files are scannable")
             
             # Step 3: Prioritize and select files to scan
@@ -760,13 +748,6 @@ class CustomScannerService:
             # Step 4: Compile all rule patterns (with caching)
             logger.info("⚙️ Step 4: Compiling rule patterns...")
             compiled_rules = self._compile_all_rules(rules)
-
-            # ✅✅✅ ADD THIS ✅✅✅
-            print(f"\n{'='*80}")
-            print(f"✅ STEP 4 COMPLETE - {len(compiled_rules)} rules compiled")
-            print(f"{'='*80}\n")
-            # ✅✅✅ END ✅✅✅
-
             logger.info(f"✅ {len(compiled_rules)} rules compiled successfully")
             
             # Log language distribution of rules
@@ -784,24 +765,18 @@ class CustomScannerService:
                 # Fast path - scan from local filesystem
                 logger.info("⚡ Using LOCAL file scanning (fast)")
                 scan_results = await self._scan_all_files_from_local(
-                    files_to_scan, compiled_rules, scan.id, repository.id
+                    files_to_scan, compiled_rules, scan_id_value, repository_id_value
                 )
             else:
                 # Slow path - scan using API
                 logger.info("🐌 Using API file scanning (slower)")
                 scan_results = await self._scan_all_files_with_rules(
                     files_to_scan, access_token, repository.full_name,
-                    provider_type, compiled_rules, scan.id, repository.id
+                    provider_type, compiled_rules, scan_id_value, repository_id_value
                 )
-
-            # ✅✅✅ ADD THIS ✅✅✅
-            print(f"\n{'='*80}")
-            print(f"✅ STEP 5 COMPLETE - Scanned {scan_results.get('files_scanned', 0)} files")
-            print(f"{'='*80}\n")
-            # ✅✅✅ END ✅✅✅
             
             # ✅ Flush any remaining vulnerabilities in buffer
-            await self._flush_vulnerability_buffer(scan.id)
+            await self._flush_vulnerability_buffer(scan_id_value)
             
             logger.info(f"✅ Scan completed: {scan_results['files_scanned']} files scanned")
             
@@ -813,7 +788,7 @@ class CustomScannerService:
                 Vulnerability.severity,
                 func.count(Vulnerability.id)
             ).filter(
-                Vulnerability.scan_id == scan.id
+                Vulnerability.scan_id == scan_id_value
             ).group_by(Vulnerability.severity).all()
             
             # Convert to dict
@@ -826,7 +801,7 @@ class CustomScannerService:
             if use_llm_enhancement and total_vulns > 0:
                 logger.info("🤖 Step 7: Enhancing vulnerabilities with AI...")
                 await self._enhance_vulnerabilities_with_ai(
-                    scan.id, access_token, repository.full_name, provider_type
+                    scan_id_value, access_token, repository.full_name, provider_type
                 )
                 logger.info(f"✅ AI enhancement completed")
             else:
@@ -835,13 +810,17 @@ class CustomScannerService:
             # Step 8: Calculate security score
             logger.info("📊 Step 8: Calculating security score...")
             security_metrics = self._calculate_security_score_from_db(
-                scan.id, len(files_to_scan)
+                scan_id_value, len(files_to_scan)
             )
+            
+            # ✅ Refresh scan from database to avoid detached instance
+            self.db.expire_all()
+            scan = self.db.query(Scan).filter(Scan.id == scan_id_value).first()
             
             # Update scan with final results
             current_time = datetime.now(timezone.utc)
-            if self._check_if_scan_stopped(scan.id):
-                logger.info(f"⏹️ Scan {scan.id} was stopped by user during execution")
+            if self._check_if_scan_stopped(scan_id_value):
+                logger.info(f"⏹️ Scan {scan_id_value} was stopped by user during execution")
                 # Don't update status - keep it as "stopped"
                 # Just update the metadata and return
                 scan.scan_metadata.update({
@@ -875,7 +854,7 @@ class CustomScannerService:
                 'files_with_vulnerabilities': scan_results.get('vulnerable_files_count', 0),
                 'ai_enhanced': use_llm_enhancement,
                 'rules_filtered_by_language': True,
-                'streaming_saves_used': True,  # ✅ NEW
+                'streaming_saves_used': True,
                 'total_rule_checks': scan_results.get('total_rule_checks', 0),
                 'filtered_rule_checks': scan_results.get('filtered_rule_checks', 0),
                 'file_scan_results': scan_results.get('file_results', [])
@@ -905,7 +884,7 @@ class CustomScannerService:
                 logger.info(f"⚡ Language Filtering Saved {efficiency:.1f}% of rule checks!")
             
             try:
-                self._cleanup_old_scans(repository_id, keep_count=10)
+                self._cleanup_old_scans(repository_id_value, keep_count=10)
             except Exception as e: 
                 logger.warning(f"Failed to cleanup old scans: {e}")
 
@@ -916,23 +895,32 @@ class CustomScannerService:
             
             # Flush any buffered vulnerabilities before marking as failed
             try:
-                await self._flush_vulnerability_buffer(scan.id)
+                await self._flush_vulnerability_buffer(scan_id_value)
             except:
                 pass
             
-            scan.status = "failed"
-            scan.error_message = str(e)
-            scan.completed_at = datetime.now(timezone.utc)
+            # ✅ Refresh scan from database
+            try:
+                self.db.expire_all()
+                scan = self.db.query(Scan).filter(Scan.id == scan_id_value).first()
+                
+                if scan:
+                    scan.status = "failed"
+                    scan.error_message = str(e)
+                    scan.completed_at = datetime.now(timezone.utc)
+                    
+                    if scan.started_at.tzinfo is None:
+                        start_time = scan.started_at.replace(tzinfo=timezone.utc)
+                    else:
+                        start_time = scan.started_at
+                    
+                    duration = datetime.now(timezone.utc) - start_time
+                    scan.scan_duration = self._format_duration(duration)
+                    
+                    self.db.commit()
+            except Exception as db_error:
+                logger.error(f"Failed to update scan status: {db_error}")
             
-            if scan.started_at.tzinfo is None:
-                start_time = scan.started_at.replace(tzinfo=timezone.utc)
-            else:
-                start_time = scan.started_at
-            
-            duration = datetime.now(timezone.utc) - start_time
-            scan.scan_duration = self._format_duration(duration)
-            
-            self.db.commit()
             raise
         
         finally:
@@ -1522,7 +1510,11 @@ class CustomScannerService:
                             repo = self.db.query(Repository).filter(Repository.id == vuln_data.get('repository_id')).first()
                             repo_name = repo.full_name if repo else "Unknown Repository"
                             
+                            # Get user object
+                            user = self.db.query(User).filter(User.id == repo.owner_id).first() if repo else None
+
                             await slack_service.send_critical_vulnerability_alert(
+                                user=user,  # ✅ ADD THIS
                                 vulnerability_title=vuln_data.get('title', 'Unknown'),
                                 severity=vuln_data.get('severity', 'unknown'),
                                 repository_name=repo_name,

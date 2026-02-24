@@ -6,6 +6,7 @@ from app.core.database import Base, engine
 from app.api.v1 import ai
 from app.api.v1 import slack_oauth
 from app.api.v1 import slack_interactions
+from app.api.v1 import slack_commands  
 
 # Debug print to verify settings
 print(f"DEBUG: CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
@@ -37,6 +38,11 @@ app.include_router(
     slack_interactions.router,
     prefix="/api/v1/slack",
     tags=["slack-interactions"]
+)
+app.include_router(
+    slack_commands.router,
+    prefix="/api/v1/slack",
+    tags=["slack-commands"]
 )
 
 @app.get("/")

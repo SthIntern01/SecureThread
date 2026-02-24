@@ -158,14 +158,119 @@ async def handle_block_action(payload: dict, user: User, db: Session):
 
 async def handle_modal_submission(payload: dict, user: User, db: Session):
     """
-    Handle modal form submissions (Phase 4 & 5 will implement this).
+    Handle modal form submissions
     """
     callback_id = payload["view"]["callback_id"]
     logger.info(f"📝 Modal submitted: {callback_id} by user {user.id}")
     
-    # TODO: Implement in Phase 4 & 5
-    return {}
+    # Dispatch based on callback_id
+    if callback_id == "scan_repository_modal":
+        return await handle_scan_repository_submission(payload, user, db)
+    else:
+        logger.warning(f"⚠️ Unknown modal callback_id: {callback_id}")
+        return {}
 
+
+async def handle_scan_repository_submission(
+    payload: dict,
+    user: User,
+    db: Session
+):
+    """
+    Handle scan repository modal submission
+    Extracts selected repository and starts a scan
+    """
+    try:
+        # Extract selected repository ID from modal values
+        values = payload["view"]["state"]["values"]
+        repository_select_block = values.get("repository_select_block", {})
+        repository_select = repository_select_block.get("repository_select", {})
+        selected_repo_id = repository_select.get("selected_option", {}).get("value")
+        
+        if not selected_repo_id:
+            logger.error("❌ No repository selected in modal submission")
+            return {
+                "response_action": "errors",
+                "errors": {
+                    "repository_select_block": "Please select a repository"
+                }
+            }
+        
+        repository_id = int(selected_repo_id)
+        logger.info(f"🎯 User {user.id} selected repository {repository_id} for scanning")
+        
+        # Verify repository ownership
+        repository = db.query(Repository).filter(
+            Repository.id == repository_id,
+            Repository.owner_id == user.id
+        ).first()
+        
+        if not repository:
+            logger.error(f"❌ Repository {repository_id} not found or unauthorized")
+            return {
+                "response_action": "errors",
+                "errors": {
+                    "repository_select_block": "Repository not found or unauthorized"
+                }
+            }
+        
+        # Check for existing running scan
+        from app.models.vulnerability import Scan
+        existing_scan = db.query(Scan).filter(
+            Scan.repository_id == repository_id,
+            Scan.status.in_(["running", "pending"])
+        ).first()
+        
+        if existing_scan:
+            logger.warning(f"⚠️ Scan already running for repository {repository_id}")
+            return {
+                "response_action": "errors",
+                "errors": {
+                    "repository_select_block": f"A scan is already {existing_scan.status} for this repository"
+                }
+            }
+        
+        # Start the scan in background
+        from fastapi import BackgroundTasks
+        from app.api.v1.slack_scan_trigger import trigger_scan_from_slack
+        
+        success, message, scan_id = await trigger_scan_from_slack(
+            user=user,
+            repository=repository,
+            db=db
+        )
+        
+        if success:
+            logger.info(f"✅ Scan {scan_id} initiated successfully for repository {repository_id}")
+            
+            # Send confirmation DM (don't await - do it in background)
+            import asyncio
+            asyncio.create_task(
+                slack_service.send_dm_to_user(
+                    user=user,
+                    text=f"✅ Scan started for *{repository.full_name}*\n🔍 Scan ID: #{scan_id}\n⏱️ Estimated time: 2-3 minutes\n\nI'll send you a notification when it completes!"
+                )
+            )
+            
+            # Return empty response to close modal immediately
+            return {}
+        else:
+            logger.error(f"❌ Failed to start scan: {message}")
+            return {
+                "response_action": "errors",
+                "errors": {
+                    "repository_select_block": message
+                }
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error handling scan submission: {e}", exc_info=True)
+        return {
+            "response_action": "errors",
+            "errors": {
+                "repository_select_block": "An error occurred. Please try again."
+            }
+        }
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PLACEHOLDER HANDLERS (Phase 2 will implement these)
