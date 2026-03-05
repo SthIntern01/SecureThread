@@ -7,11 +7,12 @@ function Skeleton({
   return (
     <div
       className={cn(
-        "animate-pulse rounded-md",
-        // Light mode: subtle gray
-        "bg-gray-200/80",
-        // Dark mode: subtle white to match your theme
-        "dark:bg-white/10",
+        "rounded-md",
+        // Shimmer animation
+        "animate-shimmer bg-gradient-to-r",
+        "from-gray-200/80 via-gray-100/80 to-gray-200/80",
+        "dark:from-white/10 dark:via-white/20 dark:to-white/10",
+        "bg-[length:200%_100%]",
         className
       )}
       {...props}

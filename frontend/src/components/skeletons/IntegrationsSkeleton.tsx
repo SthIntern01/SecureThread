@@ -19,13 +19,13 @@ export const IntegrationsSkeleton = () => {
         </div>
       </div>
 
-      {/* Stats Section - 3 cards */}
+      {/* Stats Section - 3 cards (NO COLORS) */}
       <div className="p-8 border-b border-gray-200 dark:border-white/20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[...Array(3)].map((_, i) => (
             <div 
               key={i}
-              className="bg-green-50 dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center border border-green-200 dark:border-white/20"
+              className="bg-white dark:bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center border border-gray-200 dark:border-white/20"
             >
               <Skeleton className="h-10 w-16 mx-auto mb-2" />
               <Skeleton className="h-5 w-24 mx-auto" />
@@ -37,9 +37,7 @@ export const IntegrationsSkeleton = () => {
       {/* Search and Category Filters */}
       <div className="p-8 border-b border-gray-200 dark:border-white/20">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Skeleton className="h-10 w-full rounded-lg" />
-          </div>
+          <Skeleton className="h-10 w-full max-w-md rounded-lg" />
           <div className="flex flex-wrap gap-2">
             {[...Array(4)].map((_, i) => (
               <Skeleton key={i} className="h-10 w-32 rounded-lg" />
