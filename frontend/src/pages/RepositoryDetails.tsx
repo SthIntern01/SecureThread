@@ -1,5 +1,3 @@
-// frontend/src/pages/RepositoryDetails.tsx
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import RepositoryDetailsComponent from "../components/RepositoryDetails";
@@ -45,18 +43,19 @@ interface Project {
   code_coverage?: number | null;
 }
 
-const RepositoryDetailsPage: React.FC = () => {
+const RepositoryDetails: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0); // Add refresh key
 
   useEffect(() => {
     if (projectId) {
       fetchProject(parseInt(projectId));
     }
-  }, [projectId]);
+  }, [projectId, refreshKey]); // Re-fetch when refreshKey changes
 
   const fetchProject = async (id: number) => {
     setLoading(true);
@@ -150,6 +149,11 @@ const RepositoryDetailsPage: React.FC = () => {
     navigate("/projects");
   };
 
+  // Add refresh handler
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
   if (loading) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
@@ -180,7 +184,13 @@ const RepositoryDetailsPage: React.FC = () => {
     );
   }
 
-  return <RepositoryDetailsComponent project={project} onBack={handleBack} />;
+  return (
+    <RepositoryDetailsComponent 
+      project={project} 
+      onBack={handleBack}
+      onRefresh={handleRefresh}
+    />
+  );
 };
 
-export default RepositoryDetailsPage;
+export default RepositoryDetails;

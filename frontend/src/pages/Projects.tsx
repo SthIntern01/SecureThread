@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { scanService } from '../services/scanService';
 import { Input } from "@/components/ui/input";
 import AppSidebar from "../components/AppSidebar";
 import RepositoryDetails from "../components/RepositoryDetails";
-import ScanDetailsModal from "../components/ScanDetailsModal"; 
+import ScanDetailsModal from "../components/ScanDetailsModal";
+import { ScanTypeSelectionModal } from '../components/modals/ScanTypeSelectionModal';
+import { LLMScanModal } from '../components/modals/LLMScanModal';
 import ScanMethodModal from "../components/ScanMethodModal";
 import { useAuth } from "../contexts/AuthContext";
 import FileScanStatus from "../components/FileScanStatus";
@@ -1133,6 +1136,9 @@ const Projects = () => {
   const [showImportDropdown, setShowImportDropdown] = useState(false); 
   const [showScanMethodModal, setShowScanMethodModal] = useState(false);
   const [selectedProjectForScan, setSelectedProjectForScan] = useState<Project | null>(null);
+  const [showScanTypeModal, setShowScanTypeModal] = useState(false);
+  const [showRuleScanModal, setShowRuleScanModal] = useState(false);
+  const [showLLMScanModal, setShowLLMScanModal] = useState(false);
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
@@ -1442,95 +1448,147 @@ const Projects = () => {
     [clearScanPolling]
   );
 
-  const handleStartScan = async (projectId:  number) => {
+    const handleStartScan = async (projectId: number) => {
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
     
     setSelectedProjectForScan(project);
+    setShowScanTypeModal(true);
+  };
+
+  const handleSelectRuleBased = () => {
+    setShowScanTypeModal(false);
     setShowScanMethodModal(true);
   };
 
+  const handleSelectLLMBased = () => {
+    setShowScanTypeModal(false);
+    setShowLLMScanModal(true);
+  };
+
   const handleUnifiedScan = async (scanConfig: any) => {
-    if (!selectedProjectForScan) return;
-    
-    setShowScanMethodModal(false);
-    
-    const projectId = selectedProjectForScan. id;
-    
-    if (scanningProjects.has(projectId)) {
-      return;
-    }
+  if (!selectedProjectForScan) return;
+  
+  setShowScanMethodModal(false);
+  const projectId = selectedProjectForScan.id;
+  
+  if (scanningProjects.has(projectId)) return;
 
-    try {
-      setScanningProjects((prev) => new Set(prev).add(projectId));
+  try {
+    setScanningProjects((prev) => new Set(prev).add(projectId));
 
-      const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/start`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repository_id: projectId,
+          selected_rule_ids: scanConfig.selectedRules,
+          custom_rules: scanConfig.customRules,
+          use_llm_enhancement: scanConfig.enableLLMEnhancement,
+          max_files: scanConfig.maxFilesToScan,
+        }),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
       
-      const requestBody = {
-        repository_id: projectId,
-        use_llm_enhancement: scanConfig.enableLLMEnhancement !== false,
-        include_user_rules: true
-      };
-      
-      console.log('🚀 Starting scan with config:', requestBody);
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/custom-scans/start`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        }
+      setProjects((prevProjects) =>
+        prevProjects.map((project) =>
+          project.id === projectId
+            ? {
+                ...project,
+                latest_scan: {
+                  id: data.scan_id,
+                  status: "pending",
+                  scan_type: "custom",
+                  started_at: new Date().toISOString(),
+                },
+                status: "scanning" as const,
+              }
+            : project
+        )
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        
-        console.log('✅ Scan started successfully:', data);
-
-        setProjects((prevProjects) =>
-          prevProjects.map((project) =>
-            project.id === projectId
-              ? {
-                  ...project,
-                  latest_scan: {
-                    id: data.scan_id,
-                    status:  "pending",
-                    scan_type: "custom",
-                    started_at:  new Date().toISOString(),
-                  },
-                  status: "scanning" as const,
-                }
-              : project
-          )
-        );
-
-        startScanPolling(data.scan_id, projectId);
-      } else {
-        const errorData = await response.json();
-        console.error('❌ Scan failed:', errorData);
-        setError(typeof errorData. detail === 'string' ? errorData.detail : 'Failed to start scan');
-        setScanningProjects((prev) => {
-                    const newSet = new Set(prev);
-          newSet.delete(projectId);
-          return newSet;
-        });
-      }
-    } catch (error) {
-      console.error('❌ Network error:', error);
-      setError("Network error occurred while starting scan");
+      startScanPolling(data.scan_id, projectId);
+    } else {
+      const errorData = await response.json();
+      setError(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to start scan');
       setScanningProjects((prev) => {
         const newSet = new Set(prev);
         newSet.delete(projectId);
         return newSet;
       });
-    } finally {
-      setSelectedProjectForScan(null);
     }
-  };
+  } catch (error) {
+    console.error('Scan error:', error);
+    setError("Network error occurred while starting scan");
+    setScanningProjects((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(projectId);
+      return newSet;
+    });
+  } finally {
+    setSelectedProjectForScan(null);
+  }
+};
+
+  const handleStartLLMScan = async (config: any) => {
+  if (!selectedProjectForScan) return;
+  
+  setShowLLMScanModal(false);
+  const projectId = selectedProjectForScan.id;
+  
+  if (scanningProjects.has(projectId)) return;
+
+  try {
+    setScanningProjects((prev) => new Set(prev).add(projectId));
+
+    // ✅ USE THE SERVICE INSTEAD OF DIRECT API CALL
+    const response = await scanService.startLLMScan({
+      repository_id: projectId,
+      priority_level: config.priority_level || 'all',
+      max_files: config.max_files || 100,
+    });
+
+    console.log('✅ LLM Scan started:', response);
+
+    setProjects((prevProjects) =>
+      prevProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              latest_scan: {
+                id: response.scan_id,
+                status: "pending",
+                scan_type: "llm_based",
+                started_at: new Date().toISOString(),
+              },
+              status: "scanning" as const,
+            }
+          : project
+      )
+    );
+
+    startScanPolling(response.scan_id, projectId);
+  } catch (error: any) {
+    console.error('❌ LLM scan error:', error);
+    setError(error.message || "Failed to start LLM scan");
+    setScanningProjects((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(projectId);
+      return newSet;
+    });
+  } finally {
+    setSelectedProjectForScan(null);
+  }
+};
 
   const handleStopScan = async (projectId: number) => {
     try {
@@ -2070,6 +2128,28 @@ const Projects = () => {
         repositoryName={selectedRepoName}
       />
 
+      {/* Scan Type Selection Modal */}
+      <ScanTypeSelectionModal
+        isOpen={showScanTypeModal}
+        onClose={() => {
+          setShowScanTypeModal(false);
+          setSelectedProjectForScan(null);
+        }}
+        onSelectRuleBased={handleSelectRuleBased}
+        onSelectLLMBased={handleSelectLLMBased}
+      />
+
+      {/* LLM Scan Modal */}
+      <LLMScanModal
+        isOpen={showLLMScanModal}
+        onClose={() => {
+          setShowLLMScanModal(false);
+          setSelectedProjectForScan(null);
+        }}
+        onStartScan={handleStartLLMScan}
+        repositoryName={selectedProjectForScan?.name || ''}
+      />
+
       {/* Scan Method Modal */}
       <ScanMethodModal
         isOpen={showScanMethodModal}
@@ -2080,6 +2160,7 @@ const Projects = () => {
         onSelectUnifiedScan={handleUnifiedScan}
         projectName={selectedProjectForScan?.name}
       />
+
 
     </div>
   );

@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Fragment } from "react";
+import type { FC } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import ScanMethodModal from './ScanMethodModal'; // Your existing modal
 import {
   Dialog,
   DialogContent,
@@ -12,6 +15,7 @@ import { EtherealBackground } from "../components/ui/ethereal-background";
 import AppSidebar from "../components/AppSidebar"; 
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from 'react-router-dom';
+import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Search,
@@ -19,7 +23,7 @@ import {
   File,
   Folder,
   Download,
-  ExternalLink,
+  ExternalLink, 
   Code,
   FileText,
   Image as ImageIcon,
@@ -27,6 +31,9 @@ import {
   RefreshCw,
   Copy,
   Check,
+  Shield,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 import {
   IconBrandGithub,
@@ -35,7 +42,10 @@ import ScanDetailsModal from "./ScanDetailsModal";
 import { GitHubPATModal } from './GitHubPATModal';
 import { CodeEditorModal } from './CodeEditorModal';
 import { CreatePRModal } from './CreatePRModal';
+import { ScanTypeSelectionModal } from './modals/ScanTypeSelectionModal';
+import { LLMScanModal, LLMScanConfig } from './modals/LLMScanModal';
 import { githubIntegrationService } from '../services/githubIntegrationService';
+import { scanService } from '../services/scanService';
 
 interface Project {
   id: number;
@@ -73,6 +83,7 @@ interface Project {
     started_at: string;
     completed_at?: string;
     scan_duration?: string;
+    scan_type?: string;
   } | null;
   security_score?: number | null;
   code_coverage?: number | null;
@@ -99,12 +110,16 @@ interface CodeViewerProps {
     line_end_number?: number;
     code_snippet?: string;
     recommendation: string;
+    llm_explanation?: string;
+    llm_solution?: string;
+    llm_code_example?: string;
+    detection_method?: string;
   }>;
   onClose: () => void;
   onFixClick?: (vuln: any) => void;
 }
 
-const CodeViewer: React.FC<CodeViewerProps> = ({
+const CodeViewer: FC<CodeViewerProps> = ({
   fileName,
   content,
   language,
@@ -404,6 +419,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                                       >
                                         {vuln.severity}
                                       </Badge>
+                                      {vuln.detection_method === 'llm_based' && (
+                                        <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                          <Sparkles className="w-3 h-3 mr-1" />
+                                          AI
+                                        </Badge>
+                                      )}
                                       <span className="font-semibold text-sm text-gray-900 dark:text-white">
                                         {vuln.title}
                                       </span>
@@ -411,9 +432,17 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                                     <p className="text-xs text-gray-600 dark:text-gray-300 mb-1">
                                       {vuln.description}
                                     </p>
+                                    {vuln.llm_explanation && (
+                                      <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
+                                        <p className="text-xs text-purple-900 dark:text-purple-200">
+                                          <Sparkles className="w-3 h-3 inline mr-1" />
+                                          <strong>AI Insight:</strong> {vuln.llm_explanation}
+                                        </p>
+                                      </div>
+                                    )}
                                     <p className="text-xs text-blue-600 dark:text-blue-400">
                                       <strong>Fix:</strong>{" "}
-                                      {vuln.recommendation}
+                                      {vuln.llm_solution || vuln.recommendation}
                                     </p>
                                   </div>
                                 ))}
@@ -431,14 +460,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
 
           {vulnerabilities.length > 0 && (
             <div className="w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col">
-              {/* Header */}
               <div className="p-4 border-b border-gray-200 dark:border-gray-800">
                 <h3 className="font-semibold text-gray-900 dark:text-white">
                   Vulnerabilities ({vulnerabilities.length})
                 </h3>
               </div>
               
-              {/* Vulnerability List - NO BUTTONS */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {vulnerabilities.map((vuln) => (
                   <div
@@ -454,6 +481,12 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                       <Badge className={`text-xs ${getSeverityColor(vuln.severity)}`}>
                         {vuln.severity}
                       </Badge>
+                      {vuln.detection_method === 'llm_based' && (
+                        <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          AI
+                        </Badge>
+                      )}
                       {vuln.line_number && (
                         <span className="text-xs text-gray-500">
                           Line {vuln.line_number}
@@ -466,20 +499,25 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
                     <p className="text-xs text-gray-600 mb-2">
                       {vuln.description}
                     </p>
-                    <p className="text-xs text-blue-600">
-                      <strong>Fix:</strong> {vuln.recommendation}
-                    </p>
+                    {vuln.llm_solution ? (
+                      <p className="text-xs text-purple-600">
+                        <Sparkles className="w-3 h-3 inline mr-1" />
+                        <strong>AI Fix:</strong> {vuln.llm_solution}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-blue-600">
+                        <strong>Fix:</strong> {vuln.recommendation}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
               
-              {/* ✅ ONE BUTTON AT THE BOTTOM FOR ALL VULNERABILITIES */}
               <div className="p-4 border-t border-gray-200 bg-gray-50 dark:bg-gray-900/50">
                 <button
                   onClick={() => {
-                    // Fix ALL vulnerabilities in this file
                     if (onFixClick && vulnerabilities.length > 0) {
-                      onFixClick(vulnerabilities[0]); // Pass first vuln (we'll fix all anyway)
+                      onFixClick(vulnerabilities[0]);
                     }
                   }}
                   className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2"
@@ -496,21 +534,22 @@ const CodeViewer: React.FC<CodeViewerProps> = ({
   );
 };
 
-
 interface RepositoryDetailsProps {
   project: Project;
   onBack: () => void;
+  onRefresh?: () => void;
 }
 
-const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
+const RepositoryDetails: FC<RepositoryDetailsProps> = ({
   project,
   onBack,
+  onRefresh,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [contents, setContents] = useState<FileContent[]>([]);
   const navigate = useNavigate();
-  const [scanPollingInterval, setScanPollingInterval] =
-    useState<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
+  const [scanPollingInterval, setScanPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [latestScanData, setLatestScanData] = useState<any>(null);
   const [currentPath, setCurrentPath] = useState("");
   const [pathHistory, setPathHistory] = useState<string[]>([""]);
@@ -540,8 +579,18 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       line_end_number?: number;
       code_snippet?: string;
       recommendation: string;
+      llm_explanation?: string;
+      llm_solution?: string;
+      llm_code_example?: string;
+      detection_method?: string;
     }>;
   } | null>(null);
+
+  // NEW: Scan modal states
+  const [showScanTypeModal, setShowScanTypeModal] = useState(false);
+  const [showRuleScanModal, setShowRuleScanModal] = useState(false);
+  const [showLLMScanModal, setShowLLMScanModal] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (project.latest_scan?.status === "completed") {
@@ -569,6 +618,53 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     }
   };
 
+  const handleStartUnifiedScan = async (config: any) => {
+  try {
+    setShowRuleScanModal(false);
+    setScanning(true);
+
+    toast({
+      title: "Starting Unified Scan",
+      description: "Analyzing repository with selected rules...",
+    });
+
+    const response = await scanService.startScan({
+      repository_id: project.id,
+      selected_rule_ids: config.selectedRules,
+      custom_rules: config.customRules,
+      use_llm_enhancement: config.enableLLMEnhancement,
+      max_files: config.maxFilesToScan,
+      scan_priority: config.scanPriority,
+    });
+
+    toast({
+      title: "Scan Started!",
+      description: `Scan ID: ${response.scan_id}`,
+    });
+
+    await scanService.waitForScanCompletion(response.scan_id, (status) => {
+      console.log("Scan progress:", status);
+    });
+
+    toast({
+      title: "Scan Complete!",
+      description: "Security scan finished successfully.",
+    });
+
+    await fetchVulnerabilities();
+    if (onRefresh) onRefresh();
+  } catch (error: any) {
+    console.error("Unified scan error:", error);
+    toast({
+      title: "Scan Failed",
+      description: error.message || "Failed to complete scan",
+      variant: "destructive",
+    });
+  } finally {
+    setScanning(false);
+  }
+};
+
   const handleFixVulnerability = (vuln: any) => {
     setSelectedVulnerability(vuln);
     if (!hasPATToken) {
@@ -588,9 +684,124 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
   };
 
   const handlePRSuccess = (prUrl: string) => {
-    alert(`Pull request created! ${prUrl}`);
+    toast({
+      title: "Pull Request Created!",
+      description: "Opening in new tab...",
+    });
     setShowPRModal(false);
     window.open(prUrl, '_blank');
+  };
+
+  // NEW: Scan handlers
+  const handleScanClick = () => {
+    setShowScanTypeModal(true);
+  };
+
+  const handleSelectRuleBased = () => {
+    setShowScanTypeModal(false);
+    setShowRuleScanModal(true);
+  };
+
+  const handleSelectLLMBased = () => {
+    setShowScanTypeModal(false);
+    setShowLLMScanModal(true);
+  };
+
+  const handleStartRuleScan = async (config: any) => {
+    try {
+      setShowRuleScanModal(false);
+      setScanning(true);
+
+      toast({
+        title: "Starting Rule-Based Scan",
+        description: "Analyzing repository with security rules...",
+      });
+
+      const response = await scanService.startScan({
+        repository_id: project.id,
+        use_llm_enhancement: config.use_llm_enhancement || false,
+        include_user_rules: config.include_user_rules !== false,
+      });
+
+      toast({
+        title: "Scan Started!",
+        description: `Scan ID: ${response.scan_id}`,
+      });
+
+      await scanService.waitForScanCompletion(response.scan_id, (status) => {
+        console.log("Scan progress:", status);
+      });
+
+      toast({
+        title: "Scan Complete!",
+        description: "Rule-based scan finished successfully.",
+      });
+
+      await fetchVulnerabilities();
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      console.error("Rule scan error:", error);
+      toast({
+        title: "Scan Failed",
+        description: error.message || "Failed to complete scan",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleStartLLMScan = async (config: LLMScanConfig) => {
+    try {
+      setShowLLMScanModal(false);
+      setScanning(true);
+
+      toast({
+        title: "Starting LLM Scan",
+        description: "Initializing AI-powered security analysis...",
+      });
+
+      const response = await scanService.startLLMScan({
+        repository_id: project.id,
+        ...config,
+      });
+
+      const estimatedMinutes = Math.ceil(response.estimated_time_seconds / 60);
+
+      toast({
+        title: "LLM Scan Started!",
+        description: `Scan ID: ${response.scan_id}. Estimated time: ${estimatedMinutes} minutes`,
+      });
+
+      await scanService.waitForScanCompletion(response.scan_id, (status) => {
+        console.log("LLM Scan progress:", status);
+        if (status.progress) {
+          const percentage = status.progress.files_scanned
+            ? Math.round((status.progress.files_scanned / config.max_files) * 100)
+            : 0;
+          console.log(
+            `Progress: ${percentage}% - ${status.progress.vulnerabilities_found} vulnerabilities found`
+          );
+        }
+      });
+
+      toast({
+        title: "LLM Scan Complete!",
+        description: "AI-powered scan finished successfully.",
+      });
+
+      await fetchVulnerabilities();
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      console.error("LLM scan error:", error);
+      toast({
+        title: "LLM Scan Failed",
+        description: error.message || "Failed to complete LLM scan",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
   };
 
   const fetchContents = async (path: string) => {
@@ -1040,7 +1251,6 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
     return a.name.localeCompare(b.name);
   });
 
-
   const allVulnerableFiles = useMemo(() => {
     const vulnFilePaths = new Set(vulnerabilities.map(v => v.file_path));
     return Array.from(vulnFilePaths).map(filePath => {
@@ -1067,6 +1277,26 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
       return b.vulnerabilityCount - a.vulnerabilityCount;
     });
   }, [vulnerabilities]);
+
+  // Get scan type label
+  const getScanTypeLabel = () => {
+    if (project.latest_scan?.scan_type === 'llm_based') {
+      return (
+        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+          <Sparkles className="w-3 h-3 mr-1" />
+          LLM-Based Scan
+        </Badge>
+      );
+    } else if (project.latest_scan?.scan_type === 'rule_based') {
+      return (
+        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+          <Shield className="w-3 h-3 mr-1" />
+          Rule-Based Scan
+        </Badge>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
@@ -1120,11 +1350,31 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                         <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">Private</Badge>
                       )}
                       {project.is_fork && <Badge variant="outline" className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600">Fork</Badge>}
+                      {getScanTypeLabel()}
                     </div>
                     <p className="text-gray-600 dark:text-gray-300">{project.description}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
+                  {/* NEW: Scan Button */}
+                  <Button
+                    onClick={handleScanClick}
+                    disabled={scanning || project.status === "scanning"}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {scanning || project.status === "scanning" ? (
+                      <>
+                        <Activity className="w-4 h-4 mr-2 animate-pulse" />
+                        Scanning...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-4 h-4 mr-2" />
+                        Scan Repository
+                      </>
+                    )}
+                  </Button>
+                  
                   {project.latest_scan?.status === "completed" && (
                     <Button
                       variant="outline"
@@ -1186,6 +1436,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
               </div>
             </div>
 
+            {/* Rest of your existing code for file browser... */}
             <div className="bg-white/80 dark:bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-white/10 shadow-lg overflow-hidden">
               {allVulnerableFiles.length > 0 && (
                 <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-2xl border border-red-200 dark:border-red-900/50 shadow-lg overflow-hidden mb-6">
@@ -1193,14 +1444,14 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                          <span className="text-red-600 dark:text-red-400 font-bold text-lg">! </span>
+                          <span className="text-red-600 dark:text-red-400 font-bold text-lg">!</span>
                         </div>
                         <div>
                           <h2 className="text-xl font-semibold text-red-900 dark:text-red-200">
                             Files with Vulnerabilities
                           </h2>
                           <p className="text-sm text-red-700 dark:text-red-300">
-                            {allVulnerableFiles.length} file{allVulnerableFiles.length !== 1 ? 's' :  ''} contain{allVulnerableFiles.length === 1 ? 's' : ''} security issues
+                            {allVulnerableFiles.length} file{allVulnerableFiles.length !== 1 ? 's' : ''} contain{allVulnerableFiles.length === 1 ? 's' : ''} security issues
                           </p>
                         </div>
                       </div>
@@ -1211,16 +1462,16 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                     {allVulnerableFiles.map((file, index) => (
                       <div
                         key={`vuln-${file.path}-${index}`}
-                        onClick={() => navigate(`/projects/${project.id}/files/${encodeURIComponent(file.path)}`)}  // ✅ NAVIGATE TO PAGE
-                        className="p-4 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer"
+                        onClick={() => navigate(`/projects/${project.id}/files/${encodeURIComponent(file.path)}`)}
+                        className="p-4 hover:bg-red-50 dark:hover:bg-red-900/10 cursor-pointer flex items-center justify-between"
                       >
                         <div className="flex items-center space-x-3 flex-1">
                           <div className="relative">
                             <File className="w-5 h-5 text-red-600 dark:text-red-400" />
                             <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
-                              file.highestSeverity === 'critical' ?  'bg-red-600' :
+                              file.highestSeverity === 'critical' ? 'bg-red-600' :
                               file.highestSeverity === 'high' ? 'bg-orange-600' :
-                              file.highestSeverity === 'medium' ? 'bg-yellow-600' :  'bg-blue-600'
+                              file.highestSeverity === 'medium' ? 'bg-yellow-600' : 'bg-blue-600'
                             }`}></div>
                           </div>
                           
@@ -1233,12 +1484,12 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 variant="destructive" 
                                 className="text-xs flex-shrink-0"
                               >
-                                {file.vulnerabilityCount} issue{file.vulnerabilityCount !== 1 ? 's' :  ''}
+                                {file.vulnerabilityCount} issue{file.vulnerabilityCount !== 1 ? 's' : ''}
                               </Badge>
                               <Badge 
                                 className={`text-xs flex-shrink-0 ${
                                   file.highestSeverity === 'critical' ? 'bg-red-600' : 
-                                  file.highestSeverity === 'high' ?  'bg-orange-600' :
+                                  file.highestSeverity === 'high' ? 'bg-orange-600' :
                                   file.highestSeverity === 'medium' ? 'bg-yellow-600' : 'bg-blue-600'
                                 } text-white`}
                               >
@@ -1257,6 +1508,8 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* File browser section - keep your existing code */}
               <div className="p-4 border-b border-gray-200/50 dark:border-white/10">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                   <div className="flex items-center space-x-4">
@@ -1291,7 +1544,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
 
                 <div className="flex items-center space-x-2 mt-4">
                   {getBreadcrumbPath().map((segment, index) => (
-                    <React.Fragment key={index}>
+                    <Fragment key={index}>
                       {index > 0 && (
                         <ChevronRight className="w-4 h-4 text-gray-400" />
                       )}
@@ -1301,11 +1554,12 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                       >
                         {segment}
                       </button>
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </div>
               </div>
 
+              {/* Keep your existing file list rendering code... */}
               <div className="max-h-96 overflow-y-auto">
                 {loading ? (
                   <div className="p-8 text-center">
@@ -1359,8 +1613,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 statusColor = "text-red-600 dark:text-red-400";
                                 statusBadge = (
                                   <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
-                                    Scanning OK, {vulnCount} Vulnerabilities
-                                    found
+                                    Scanning OK, {vulnCount} Vulnerabilities found
                                   </Badge>
                                 );
                                 break;
@@ -1370,8 +1623,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                   statusColor = "text-red-600 dark:text-red-400";
                                   statusBadge = (
                                     <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
-                                      Scanning OK, {fileVulns.length}{" "}
-                                      Vulnerabilities found
+                                      Scanning OK, {fileVulns.length} Vulnerabilities found
                                     </Badge>
                                   );
                                 } else {
@@ -1385,8 +1637,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 }
                                 break;
                               case "skipped":
-                                statusMessage =
-                                  "Scanning did not occur (API Constraints)";
+                                statusMessage = "Scanning did not occur (API Constraints)";
                                 statusColor = "text-gray-600 dark:text-gray-400";
                                 statusBadge = (
                                   <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
@@ -1404,8 +1655,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                                 );
                                 break;
                               default:
-                                statusMessage =
-                                  "Scanning did not occur (API Constraints)";
+                                statusMessage = "Scanning did not occur (API Constraints)";
                                 statusColor = "text-gray-600 dark:text-gray-400";
                                 statusBadge = (
                                   <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
@@ -1418,13 +1668,11 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
                             statusColor = "text-red-600 dark:text-red-400";
                             statusBadge = (
                               <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800 text-xs">
-                                Scanning OK, {fileVulns.length} Vulnerabilities
-                                found
+                                Scanning OK, {fileVulns.length} Vulnerabilities found
                               </Badge>
                             );
                           } else {
-                            statusMessage =
-                              "Scanning did not occur (API Constraints)";
+                            statusMessage = "Scanning did not occur (API Constraints)";
                             statusColor = "text-gray-600 dark:text-gray-400";
                             statusBadge = (
                               <Badge className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700 text-xs">
@@ -1611,6 +1859,7 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         </div>
       </div>
 
+      {/* Modals */}
       {selectedFile && (
         <CodeViewer
           fileName={selectedFile.name}
@@ -1670,6 +1919,29 @@ const RepositoryDetails: React.FC<RepositoryDetailsProps> = ({
         preSelectedFixIds={savedFixId ? [savedFixId] : []}
         onSuccess={handlePRSuccess}
       />
+
+      {/* NEW: Scan Modals */}
+      <ScanTypeSelectionModal
+        isOpen={showScanTypeModal}
+        onClose={() => setShowScanTypeModal(false)}
+        onSelectRuleBased={handleSelectRuleBased}
+        onSelectLLMBased={handleSelectLLMBased}
+      />
+
+      <LLMScanModal
+        isOpen={showLLMScanModal}
+        onClose={() => setShowLLMScanModal(false)}
+        onStartScan={handleStartLLMScan}
+        repositoryName={project.name}
+      />
+
+      {/* Rule-Based Scan Modal - Using your existing ScanMethodModal */}
+<ScanMethodModal
+  isOpen={showRuleScanModal}
+  onClose={() => setShowRuleScanModal(false)}
+  onSelectUnifiedScan={handleStartUnifiedScan}
+  projectName={project.name}
+/>
     </div>
   );
 };

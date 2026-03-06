@@ -58,6 +58,7 @@ class User(Base):
     
     # Relationships
     repositories = relationship("Repository", back_populates="owner", cascade="all, delete-orphan")
+    scans = relationship("Scan", back_populates="user", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
     ai_recommendations = relationship("AIRecommendation", back_populates="user", cascade="all, delete-orphan")
     ai_usage_metrics = relationship("AIUsageMetrics", back_populates="user", cascade="all, delete-orphan")
@@ -67,6 +68,10 @@ class User(Base):
     team_memberships = relationship("TeamMember", foreign_keys="TeamMember.user_id", back_populates="user", cascade="all, delete-orphan")
     created_teams = relationship("Team", foreign_keys="Team.created_by", back_populates="creator", cascade="all, delete-orphan", overlaps="active_team")
     active_team = relationship("Team", foreign_keys=[active_team_id], overlaps="created_teams")
+    vulnerability_fixes = relationship("VulnerabilityFix", back_populates="user", cascade="all, delete-orphan")
+    pull_requests = relationship("PullRequest", back_populates="user", cascade="all, delete-orphan")
+    ai_analysis_requests = relationship("AIAnalysisRequest", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(email='{self.email}', github_username='{self.github_username}', gitlab_username='{self.gitlab_username}')>"

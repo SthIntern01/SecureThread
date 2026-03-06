@@ -20,6 +20,13 @@ from app.services.custom_scanner_service import CustomScannerService
 from app.services.latex_report_service import LaTeXReportService
 from app.services.slack_service import slack_service
 from fastapi.responses import StreamingResponse
+from app.schemas.llm_scan import (
+    LLMScanConfigRequest,
+    LLMScanResponse,
+    LLMScanResultResponse,
+    LLMVulnerabilityDetail
+)
+from app.services.llm_scan_service import LLMScanService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1103,3 +1110,190 @@ async def export_scan_report_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate PDF report"
         )
+    
+@router.post("/llm-scan", response_model=LLMScanResponse)
+async def initiate_llm_scan(
+    config: LLMScanConfigRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Initiate LLM-based vulnerability scan
+    """
+    try:
+        # Verify repository access
+        repository = db.query(Repository).filter(
+            Repository.id == config.repository_id,
+            Repository.owner_id == current_user.id
+        ).first()
+        
+        if not repository:
+            raise HTTPException(status_code=404, detail="Repository not found")
+        
+        # Create scan record
+        scan = Scan(
+            repository_id=repository.id,
+            user_id=current_user.id,
+            scan_type='llm_based',
+            status='pending',
+            max_files=config.max_files,
+            priority_level=config.priority_level,
+            llm_enhancement_enabled=True
+        )
+        
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+        
+        # Get repository path (adjust based on your setup)
+        # TODO: Update this path logic based on where you clone repositories
+        repo_path = f"./repos/{current_user.id}/{repository.name}"
+        
+        # If repository not cloned yet, you may need to clone it first
+        # For now, we'll assume the path exists
+        
+        # Initialize LLM scan service
+        llm_service = LLMScanService(db)
+        
+        # Estimate time
+        estimated_time = llm_service.estimate_scan_time(config.max_files, config.priority_level)
+        
+        # Start scan in background
+        background_tasks.add_task(
+            llm_service.perform_llm_scan,
+            scan.id,
+            repository,
+            config.max_files,
+            config.priority_level,
+            repo_path
+        )
+        
+        logger.info(f"🚀 LLM scan initiated: scan_id={scan.id}, repo={repository.name}, priority={config.priority_level}")
+        
+        return LLMScanResponse(
+            scan_id=scan.id,
+            message="LLM-based scan initiated successfully",
+            repository_id=repository.id,
+            scan_type='llm_based',
+            priority_level=config.priority_level,
+            max_files=config.max_files,
+            estimated_time_seconds=estimated_time
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating LLM scan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to initiate scan: {str(e)}")
+
+
+@router.get("/llm-scan/{scan_id}", response_model=LLMScanResultResponse)
+async def get_llm_scan_results(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get LLM scan results with full details
+    """
+    try:
+        scan = db.query(Scan).filter(
+            Scan.id == scan_id,
+            Scan.user_id == current_user.id,
+            Scan.scan_type == 'llm_based'
+        ).first()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="LLM scan not found")
+        
+        # Get vulnerabilities
+        vulnerabilities = db.query(Vulnerability).filter(
+            Vulnerability.scan_id == scan_id
+        ).all()
+        
+        vuln_details = [
+            LLMVulnerabilityDetail(
+                id=v.id,
+                title=v.title,
+                description=v.description,
+                severity=v.severity,
+                category=v.category,
+                file_path=v.file_path,
+                line_number=v.line_number,
+                line_end_number=v.line_end_number,
+                code_snippet=v.code_snippet,
+                llm_explanation=v.llm_explanation,
+                llm_solution=v.llm_solution,
+                llm_code_example=v.llm_code_example,
+                confidence_score=v.confidence_score,
+                detection_method=v.detection_method,
+                status=v.status,
+                created_at=v.created_at
+            )
+            for v in vulnerabilities
+        ]
+        
+        return LLMScanResultResponse(
+            scan_id=scan.id,
+            scan_type=scan.scan_type,
+            status=scan.status,
+            repository_name=scan.repository.name,
+            total_files_scanned=scan.total_files_scanned,
+            total_vulnerabilities=scan.total_vulnerabilities,
+            critical_count=scan.critical_count,
+            high_count=scan.high_count,
+            medium_count=scan.medium_count,
+            low_count=scan.low_count,
+            llm_model_used=scan.llm_model_used,
+            total_tokens_used=scan.total_tokens_used or 0,
+            estimated_cost=scan.estimated_cost or 0.0,
+            scan_duration_seconds=scan.scan_duration_seconds,
+            started_at=scan.started_at,
+            completed_at=scan.completed_at,
+            vulnerabilities=vuln_details
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting LLM scan results: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get scan results: {str(e)}")
+
+
+@router.get("/scan-status/{scan_id}")
+async def get_scan_status(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get current status of any scan (rule-based or LLM-based)
+    """
+    try:
+        scan = db.query(Scan).filter(
+            Scan.id == scan_id,
+            Scan.user_id == current_user.id
+        ).first()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        
+        return {
+            "scan_id": scan.id,
+            "scan_type": scan.scan_type,
+            "status": scan.status,
+            "progress": {
+                "files_scanned": scan.total_files_scanned,
+                "vulnerabilities_found": scan.total_vulnerabilities,
+            },
+            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+            "error_message": scan.error_message
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting scan status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

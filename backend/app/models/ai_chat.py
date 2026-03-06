@@ -44,7 +44,7 @@ class ChatMessage(Base):
     
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
-    user = relationship("User")
+    user = relationship("User", back_populates="chat_messages")
 
 
 class AIAnalysisRequest(Base):
@@ -72,7 +72,7 @@ class AIAnalysisRequest(Base):
     was_helpful = Column(Boolean, nullable=True)
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="ai_analysis_requests")
     vulnerability = relationship("Vulnerability")
     repository = relationship("Repository")
 
@@ -107,7 +107,7 @@ class AIRecommendation(Base):
     recommendation_metadata = Column(JSON, nullable=True)
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="ai_recommendations")
     repository = relationship("Repository")
 
 
@@ -139,7 +139,7 @@ class AIUsageMetrics(Base):
     estimated_cost = Column(Float, nullable=True)
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="ai_usage_metrics")
 
 
 class AIFeedback(Base):
@@ -163,6 +163,6 @@ class AIFeedback(Base):
     feedback_metadata = Column(JSON, nullable=True)
     
     # Relationships
-    user = relationship("User")
+    user = relationship("User", back_populates="ai_feedback")
     message = relationship("ChatMessage")
     analysis_request = relationship("AIAnalysisRequest")
