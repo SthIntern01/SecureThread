@@ -773,17 +773,21 @@ const RepositoryDetails: FC<RepositoryDetailsProps> = ({
         description: `Scan ID: ${response.scan_id}. Estimated time: ${estimatedMinutes} minutes`,
       });
 
-      await scanService.waitForScanCompletion(response.scan_id, (status) => {
-        console.log("LLM Scan progress:", status);
-        if (status.progress) {
-          const percentage = status.progress.files_scanned
-            ? Math.round((status.progress.files_scanned / config.max_files) * 100)
-            : 0;
-          console.log(
-            `Progress: ${percentage}% - ${status.progress.vulnerabilities_found} vulnerabilities found`
-          );
-        }
-      });
+      await scanService.waitForScanCompletion(
+        response.scan_id, 
+        (status) => {
+          console.log("LLM Scan progress:", status);
+          if (status.progress) {
+            const percentage = status.progress.files_scanned
+              ? Math.round((status.progress.files_scanned / config.max_files) * 100)
+              : 0;
+            console.log(
+              `Progress: ${percentage}% - ${status.progress.vulnerabilities_found} vulnerabilities found`
+            );
+          }
+        },
+        3600000 // ← 60 minutes (1 hour)
+      );
 
       toast({
         title: "LLM Scan Complete!",

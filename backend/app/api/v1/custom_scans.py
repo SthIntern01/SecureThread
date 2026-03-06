@@ -9,6 +9,10 @@ import io
 import logging
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
+import tempfile      # ✅ ADDED
+import subprocess    # ✅ ADDED
+import shutil        # ✅ ADDED
+import os           # ✅ ADDED
 
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
@@ -236,6 +240,81 @@ async def run_custom_scan_background(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# UTILITY FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Replace the cleanup_temp_directory function (around line 236)
+
+def cleanup_temp_directory(temp_dir: str, scan_id: int):
+    """
+    Clean up temporary directory after scan completes
+    Handles Windows permission issues with .git directories
+    """
+    import time
+    import stat
+    
+    # Wait longer to ensure all file handles are released
+    time.sleep(15)  # Increased from 10 to 15 seconds
+    
+    def handle_remove_readonly(func, path, exc):
+        """
+        Error handler for Windows read-only files
+        Changes file permissions and retries deletion
+        """
+        import os
+        import stat
+        
+        # If it's a permission error, try to fix it
+        if not os.access(path, os.W_OK):
+            # Make the file writable
+            os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+            # Retry the operation
+            func(path)
+        else:
+            raise
+    
+    try:
+        if os.path.exists(temp_dir):
+            # On Windows, use onerror handler to fix permission issues
+            if os.name == 'nt':  # Windows
+                logger.info(f"🪟 Windows detected - using special cleanup for {temp_dir}")
+                
+                # Try to remove read-only attributes from all files
+                for root, dirs, files in os.walk(temp_dir):
+                    for dir_name in dirs:
+                        try:
+                            dir_path = os.path.join(root, dir_name)
+                            os.chmod(dir_path, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR)
+                        except:
+                            pass
+                    for file_name in files:
+                        try:
+                            file_path = os.path.join(root, file_name)
+                            os.chmod(file_path, stat.S_IWUSR | stat.S_IRUSR)
+                        except:
+                            pass
+                
+                # Now try to remove with error handler
+                shutil.rmtree(temp_dir, onerror=handle_remove_readonly)
+            else:
+                # Unix/Linux/Mac - normal removal
+                shutil.rmtree(temp_dir)
+            
+            logger.info(f"🗑️ Cleaned up temp directory for scan {scan_id}: {temp_dir}")
+    
+    except PermissionError as e:
+        logger.warning(
+            f"⚠️ Permission denied when deleting temp directory {temp_dir}: {e}\n"
+            f"   The directory will be cleaned up later by the OS or manually."
+        )
+    except Exception as e:
+        logger.warning(
+            f"⚠️ Could not delete temp directory {temp_dir}: {e}\n"
+            f"   You may need to manually delete this directory."
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # SCAN MANAGEMENT ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -340,6 +419,7 @@ async def start_custom_scan(
         # Create scan record
         new_scan = Scan(
             repository_id=repository.id,
+            user_id=current_user.id,
             status="pending",
             started_at=datetime.now(timezone.utc),
             scan_metadata={
@@ -706,6 +786,7 @@ async def get_repository_scans(
         for scan in scans
     ]
 
+
 @router.get("/repository/{repository_id}/latest", response_model=ScanResponse)
 async def get_latest_repository_scan(
     repository_id: int,
@@ -759,6 +840,7 @@ async def get_latest_repository_scan(
         error_message=latest_scan.error_message,
         scan_metadata=latest_scan.scan_metadata or {}
     )
+
 
 @router.delete("/{scan_id}")
 async def delete_scan(
@@ -855,7 +937,7 @@ async def stop_scan(
     }
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ══════════��════════════════════════════════════════════════════════════════
 # WORKSPACE-SCOPED ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1075,7 +1157,7 @@ async def export_scan_report_pdf(
         latex_service = LaTeXReportService()
         
         # Generate PDF
-        pdf_content = await latex_service. generate_security_report(
+        pdf_content = await latex_service.generate_security_report(
             scan_id=scan_id,
             db=db,
             user=current_user,
@@ -1110,7 +1192,12 @@ async def export_scan_report_pdf(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate PDF report"
         )
-    
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LLM-BASED SCANNING ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
 @router.post("/llm-scan", response_model=LLMScanResponse)
 async def initiate_llm_scan(
     config: LLMScanConfigRequest,
@@ -1119,7 +1206,7 @@ async def initiate_llm_scan(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Initiate LLM-based vulnerability scan
+    Initiate LLM-based vulnerability scan with repository cloning
     """
     try:
         # Verify repository access
@@ -1146,12 +1233,105 @@ async def initiate_llm_scan(
         db.commit()
         db.refresh(scan)
         
-        # Get repository path (adjust based on your setup)
-        # TODO: Update this path logic based on where you clone repositories
-        repo_path = f"./repos/{current_user.id}/{repository.name}"
+        logger.info(f"📝 Created LLM scan record: scan_id={scan.id}")
         
-        # If repository not cloned yet, you may need to clone it first
-        # For now, we'll assume the path exists
+        # Get access token
+        access_token = current_user.github_access_token or current_user.github_token
+        
+        if not access_token:
+            scan.status = 'failed'
+            scan.error_message = 'GitHub access token not found'
+            db.commit()
+            raise HTTPException(
+                status_code=400,
+                detail="GitHub access token required. Please reconnect your GitHub account."
+            )
+        
+        # Create temp directory for clone
+        temp_dir = tempfile.mkdtemp(prefix=f"securethread_llm_scan_{scan.id}_")
+        logger.info(f"📁 Created temp directory for LLM scan: {temp_dir}")
+        
+        try:
+            # Build authenticated clone URL
+            repo_url = repository.clone_url
+            if access_token and "github.com" in repo_url:
+                auth_url = repo_url.replace("https://", f"https://{access_token}@")
+            else:
+                auth_url = repo_url
+            
+            logger.info(f"🔄 Cloning repository for LLM scan: {repository.full_name}")
+            
+            # Clone with depth=1 (only latest commit - faster)
+            result = subprocess.run(
+                ["git", "clone", "--depth=1", "--single-branch", auth_url, temp_dir],
+                capture_output=True,
+                text=True,
+                timeout=120  # 2 minute timeout
+            )
+            
+            if result.returncode != 0:
+                error_msg = result.stderr or "Unknown git error"
+                logger.error(f"❌ Git clone failed: {error_msg}")
+                
+                scan.status = 'failed'
+                scan.error_message = f'Failed to clone repository: {error_msg}'
+                db.commit()
+                
+                # Cleanup
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to clone repository: {error_msg}"
+                )
+            
+            logger.info(f"✅ Repository cloned successfully to {temp_dir}")
+            
+        except subprocess.TimeoutExpired:
+            logger.error("❌ Git clone timeout after 120 seconds")
+            
+            scan.status = 'failed'
+            scan.error_message = 'Repository clone timed out after 120 seconds'
+            db.commit()
+            
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            raise HTTPException(
+                status_code=500,
+                detail="Clone timeout - repository is too large or connection is slow"
+            )
+        
+        except FileNotFoundError:
+            logger.error("❌ Git is not installed on the server")
+            
+            scan.status = 'failed'
+            scan.error_message = 'Git is not installed on the server'
+            db.commit()
+            
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            raise HTTPException(
+                status_code=500,
+                detail="Git is not available on the server"
+            )
+        
+        except Exception as clone_error:
+            logger.error(f"❌ Unexpected clone error: {str(clone_error)}")
+            
+            scan.status = 'failed'
+            scan.error_message = f'Clone error: {str(clone_error)}'
+            db.commit()
+            
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to clone repository: {str(clone_error)}"
+            )
         
         # Initialize LLM scan service
         llm_service = LLMScanService(db)
@@ -1159,17 +1339,27 @@ async def initiate_llm_scan(
         # Estimate time
         estimated_time = llm_service.estimate_scan_time(config.max_files, config.priority_level)
         
-        # Start scan in background
+        # Start scan in background with cloned repo path
         background_tasks.add_task(
             llm_service.perform_llm_scan,
             scan.id,
             repository,
             config.max_files,
             config.priority_level,
-            repo_path
+            temp_dir  # ← Use the cloned directory
         )
         
-        logger.info(f"🚀 LLM scan initiated: scan_id={scan.id}, repo={repository.name}, priority={config.priority_level}")
+        # Schedule cleanup task to run after scan
+        background_tasks.add_task(
+            cleanup_temp_directory,
+            temp_dir,
+            scan.id
+        )
+        
+        logger.info(
+            f"🚀 LLM scan initiated: scan_id={scan.id}, repo={repository.name}, "
+            f"priority={config.priority_level}, max_files={config.max_files}"
+        )
         
         return LLMScanResponse(
             scan_id=scan.id,
@@ -1184,8 +1374,11 @@ async def initiate_llm_scan(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error initiating LLM scan: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to initiate scan: {str(e)}")
+        logger.error(f"❌ Error initiating LLM scan: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initiate scan: {str(e)}"
+        )
 
 
 @router.get("/llm-scan/{scan_id}", response_model=LLMScanResultResponse)
@@ -1206,6 +1399,11 @@ async def get_llm_scan_results(
         
         if not scan:
             raise HTTPException(status_code=404, detail="LLM scan not found")
+        
+        # Get repository name
+        repository = db.query(Repository).filter(Repository.id == scan.repository_id).first()
+        if not repository:
+            raise HTTPException(status_code=404, detail="Repository not found")
         
         # Get vulnerabilities
         vulnerabilities = db.query(Vulnerability).filter(
@@ -1238,14 +1436,14 @@ async def get_llm_scan_results(
             scan_id=scan.id,
             scan_type=scan.scan_type,
             status=scan.status,
-            repository_name=scan.repository.name,
-            total_files_scanned=scan.total_files_scanned,
-            total_vulnerabilities=scan.total_vulnerabilities,
-            critical_count=scan.critical_count,
-            high_count=scan.high_count,
-            medium_count=scan.medium_count,
-            low_count=scan.low_count,
-            llm_model_used=scan.llm_model_used,
+            repository_name=repository.name,
+            total_files_scanned=scan.total_files_scanned or 0,
+            total_vulnerabilities=scan.total_vulnerabilities or 0,
+            critical_count=scan.critical_count or 0,
+            high_count=scan.high_count or 0,
+            medium_count=scan.medium_count or 0,
+            low_count=scan.low_count or 0,
+            llm_model_used=scan.llm_model_used or "deepseek-chat",
             total_tokens_used=scan.total_tokens_used or 0,
             estimated_cost=scan.estimated_cost or 0.0,
             scan_duration_seconds=scan.scan_duration_seconds,
@@ -1262,7 +1460,7 @@ async def get_llm_scan_results(
 
 
 @router.get("/scan-status/{scan_id}")
-async def get_scan_status(
+async def get_scan_status_detailed(
     scan_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -1284,8 +1482,8 @@ async def get_scan_status(
             "scan_type": scan.scan_type,
             "status": scan.status,
             "progress": {
-                "files_scanned": scan.total_files_scanned,
-                "vulnerabilities_found": scan.total_vulnerabilities,
+                "files_scanned": scan.total_files_scanned or 0,
+                "vulnerabilities_found": scan.total_vulnerabilities or 0,
             },
             "started_at": scan.started_at.isoformat() if scan.started_at else None,
             "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,

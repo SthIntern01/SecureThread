@@ -7,6 +7,7 @@ import re
 import json
 import logging
 import time
+import shutil
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -64,11 +65,14 @@ class LLMScanService:
         files = []
         
         try:
+            logger.info(f"📂 Scanning directory: {repo_path}")
+            
             for root, dirs, filenames in os.walk(repo_path):
                 # Skip common directories
                 dirs[:] = [d for d in dirs if d not in [
                     'node_modules', 'venv', '.git', '__pycache__', 
-                    'build', 'dist', '.next', 'vendor'
+                    'build', 'dist', '.next', 'vendor', '.venv',
+                    'target', 'bin', 'obj'
                 ]]
                 
                 for filename in filenames:
@@ -78,8 +82,10 @@ class LLMScanService:
                         files.append(relative_path)
                         
                         if len(files) >= max_files:
+                            logger.info(f"✅ Reached max file limit: {max_files}")
                             return files
             
+            logger.info(f"✅ Found {len(files)} scannable files")
             return files
         except Exception as e:
             logger.error(f"Error scanning directory: {str(e)}")
@@ -89,7 +95,17 @@ class LLMScanService:
         """Read file content safely"""
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read()
+                content = f.read()
+            
+            # Limit content size (max 50KB per file)
+            if len(content) > 50000:
+                logger.debug(f"File too large, truncating: {file_path}")
+                content = content[:50000] + "\n\n[... file truncated due to size ...]"
+            
+            return content
+        except UnicodeDecodeError:
+            logger.debug(f"Skipping binary file: {file_path}")
+            return None
         except Exception as e:
             logger.error(f"Error reading file {file_path}: {str(e)}")
             return None
@@ -144,7 +160,7 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             return data.get('vulnerabilities', [])
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {str(e)}")
-            logger.debug(f"Response text: {response_text}")
+            logger.debug(f"Response text: {response_text[:500]}")
             return []
     
     def analyze_file_with_llm(
@@ -255,18 +271,50 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
         """
         start_time = time.time()
         
+        logger.info(f"🚀 Starting LLM scan {scan_id} for repository: {repository.name}")
+        logger.info(f"📍 Scan path: {repo_path}")
+        logger.info(f"📊 Max files: {max_files}, Priority: {priority}")
+        
         # Get scan object
         scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
         if not scan:
-            raise ValueError(f"Scan {scan_id} not found")
+            logger.error(f"❌ Scan {scan_id} not found")
+            return {'success': False, 'error': 'Scan not found'}
         
-        # Update scan status
+        # Verify repo path exists
+        if not os.path.exists(repo_path):
+            error_msg = f"Repository path does not exist: {repo_path}"
+            logger.error(f"❌ {error_msg}")
+            scan.status = 'failed'
+            scan.error_message = error_msg
+            scan.completed_at = datetime.utcnow()
+            self.db.commit()
+            return {'success': False, 'error': error_msg}
+        
+        # Update scan status to running
         scan.status = 'running'
         scan.started_at = datetime.utcnow()
         self.db.commit()
         
+        logger.info(f"✅ Scan status updated to 'running'")
+        
         # Get files to scan
         files_to_scan = self.get_scannable_files(repo_path, max_files)
+        
+        if not files_to_scan:
+            logger.warning("⚠️ No scannable files found")
+            scan.status = 'completed'
+            scan.completed_at = datetime.utcnow()
+            scan.total_files_scanned = 0
+            scan.total_vulnerabilities = 0
+            self.db.commit()
+            return {
+                'success': True,
+                'scan_id': scan_id,
+                'files_scanned': 0,
+                'vulnerabilities_found': 0,
+                'message': 'No scannable files found'
+            }
         
         total_files = len(files_to_scan)
         total_vulnerabilities = 0
@@ -275,6 +323,8 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
         total_prompt_tokens = 0
         total_completion_tokens = 0
         
+        logger.info(f"📁 Scanning {total_files} files...")
+        
         try:
             for idx, relative_file_path in enumerate(files_to_scan, 1):
                 full_file_path = os.path.join(repo_path, relative_file_path)
@@ -282,7 +332,10 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
                 # Read file content
                 file_content = self.read_file_content(full_file_path)
                 if not file_content:
+                    logger.debug(f"⏭️ Skipping file (no content): {relative_file_path}")
                     continue
+                
+                logger.info(f"🔍 [{idx}/{total_files}] Analyzing: {relative_file_path}")
                 
                 # Analyze with LLM
                 vulnerabilities, prompt_tokens, completion_tokens = self.analyze_file_with_llm(
@@ -295,6 +348,9 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
                 total_completion_tokens += completion_tokens
                 
                 # Save vulnerabilities
+                if vulnerabilities:
+                    logger.info(f"   ⚠️ Found {len(vulnerabilities)} vulnerabilities")
+                    
                 for vuln_data in vulnerabilities:
                     vuln = self.save_vulnerability(
                         scan_id,
@@ -308,18 +364,27 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
                         severity = vuln.severity.lower()
                         if severity in severity_counts:
                             severity_counts[severity] += 1
+                            logger.debug(f"   📌 {severity.upper()}: {vuln.title}")
                 
-                # Update progress
+                # Update progress in database
                 scan.total_files_scanned = idx
                 scan.total_vulnerabilities = total_vulnerabilities
                 self.db.commit()
-                
-                logger.info(f"Scanned file {idx}/{total_files}: {relative_file_path}")
             
             # Calculate final metrics
             total_tokens = total_prompt_tokens + total_completion_tokens
             estimated_cost = self.calculate_cost(total_prompt_tokens, total_completion_tokens)
             scan_duration = time.time() - start_time
+            
+            logger.info(f"✅ Scan completed successfully!")
+            logger.info(f"📊 Files scanned: {total_files}")
+            logger.info(f"⚠️ Vulnerabilities found: {total_vulnerabilities}")
+            logger.info(f"   🔴 Critical: {severity_counts['critical']}")
+            logger.info(f"   🟠 High: {severity_counts['high']}")
+            logger.info(f"   🟡 Medium: {severity_counts['medium']}")
+            logger.info(f"   🔵 Low: {severity_counts['low']}")
+            logger.info(f"💰 Estimated cost: ${estimated_cost}")
+            logger.info(f"⏱️ Duration: {scan_duration:.2f} seconds")
             
             # Update scan with final results
             scan.status = 'completed'
@@ -349,7 +414,7 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             }
             
         except Exception as e:
-            logger.error(f"Error during LLM scan: {str(e)}")
+            logger.error(f"❌ Error during LLM scan: {str(e)}")
             scan.status = 'failed'
             scan.error_message = str(e)
             scan.completed_at = datetime.utcnow()
