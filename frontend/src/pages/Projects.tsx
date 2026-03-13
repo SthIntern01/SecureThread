@@ -11,6 +11,7 @@ import { LLMScanModal } from '../components/modals/LLMScanModal';
 import ScanMethodModal from "../components/ScanMethodModal";
 import { useAuth } from "../contexts/AuthContext";
 import FileScanStatus from "../components/FileScanStatus";
+import { ProjectsSkeleton } from "@/components/skeletons/ProjectsSkeleton";
 import {
   Select,
   SelectContent,
@@ -134,7 +135,7 @@ const ImportRepositoriesModal = ({
   const [myRepositories, setMyRepositories] = useState<Repository[]>([]);
   const [publicRepositories, setPublicRepositories] = useState<Repository[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<number[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -291,12 +292,7 @@ const ImportRepositoriesModal = ({
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           {loading ? (
-            <div className="text-center py-8 flex-1 flex items-center justify-center">
-              <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
-              </div>
-            </div>
+            <ProjectsSkeleton />
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
@@ -657,12 +653,7 @@ const ImportBitbucketRepositoriesModal = ({
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           {loading ?  (
-            <div className="text-center py-8 flex-1 flex items-center justify-center">
-              <div>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                <p className="text-gray-600 dark:text-white/70">Loading repositories...</p>
-              </div>
-            </div>
+            <ProjectsSkeleton />
           ) : error ? (
             <div className="text-center py-8 flex-1 flex items-center justify-center">
               <div>
@@ -1870,6 +1861,9 @@ const Projects = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
+            {loading ? (
+              <ProjectsSkeleton />
+            ) : (
             <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
               
               {/* Header Section */}
@@ -1932,166 +1926,169 @@ const Projects = () => {
                 </div>
               </div>
 
-              {/* Stats Section */}
-              <div className="p-8 border-b border-gray-200 dark: border-white/20">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                      {stats.total}
-                    </div>
-                    <div className="text-gray-600 dark:text-white/70 font-medium">
-                      Total Projects
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
-                      {stats.active}
-                    </div>
-                    <div className="text-gray-600 dark:text-white/70 font-medium">
-                      Active
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-[#003D6B] dark:text-blue-400 mb-1">
-                      {stats.scanning}
-                    </div>
-                    <div className="text-gray-600 dark:text-white/70 font-medium">
-                      Scanning
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-red-600 dark: text-red-400 mb-1">
-                      {stats. failed}
-                    </div>
-                    <div className="text-gray-600 dark:text-white/70 font-medium">
-                      Failed
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {loading ? (
+  <ProjectsSkeleton />
+) : (
+  <>
+    {/* Stats Section */}
+    <div className="p-8 border-b border-gray-200 dark:border-white/20">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="text-center">
+          <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+            {stats.total}
+          </div>
+          <div className="text-gray-600 dark:text-white/70 font-medium">
+            Total Projects
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
+            {stats.active}
+          </div>
+          <div className="text-gray-600 dark:text-white/70 font-medium">
+            Active
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-3xl font-bold text-[#003D6B] dark:text-blue-400 mb-1">
+            {stats.scanning}
+          </div>
+          <div className="text-gray-600 dark:text-white/70 font-medium">
+            Scanning
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-3xl font-bold text-red-600 dark:text-red-400 mb-1">
+            {stats.failed}
+          </div>
+          <div className="text-gray-600 dark:text-white/70 font-medium">
+            Failed
+          </div>
+        </div>
+      </div>
+    </div>
 
-              {/* Filters Section */}
-              <div className="p-8 border-b border-gray-200 dark: border-white/20">
-                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-white/50 w-4 h-4" />
-                    <Input
-                      placeholder="Search projects..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder: text-gray-500 dark:placeholder:text-white/50"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="scanning">Scanning</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                    <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
-                      <SelectValue placeholder="Filter by source" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
-                      <SelectItem value="all">All Sources</SelectItem>
-                      <SelectItem value="github">GitHub</SelectItem>
-                      <SelectItem value="gitlab">GitLab</SelectItem>
-                      <SelectItem value="bitbucket">Bitbucket</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+    {/* Filters Section */}
+    <div className="p-8 border-b border-gray-200 dark:border-white/20">
+      <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-white/50 w-4 h-4" />
+          <Input
+            placeholder="Search projects..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="scanning">Scanning</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-full lg:w-48 bg-white dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white">
+            <SelectValue placeholder="Filter by source" />
+          </SelectTrigger>
+          <SelectContent className="bg-white dark:bg-gray-950/80 backdrop-blur-xl border-gray-200 dark:border-white/10 [&_[role=option][data-highlighted]]:bg-blue-50 [&_[role=option][data-highlighted]]:text-blue-900 dark:[&_[role=option][data-highlighted]]:bg-white/10 dark:[&_[role=option][data-highlighted]]:text-white">
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="github">GitHub</SelectItem>
+            <SelectItem value="gitlab">GitLab</SelectItem>
+            <SelectItem value="bitbucket">Bitbucket</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
 
-              {/* Projects Content Section */}
-              <div className="p-8">
-                {loading ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003D6B] dark:border-orange-500 mx-auto mb-4"></div>
-                    <p className="text-gray-900 dark:text-white">Loading projects...</p>
-                  </div>
-                ) : error ? (
-                  <div className="text-center py-12">
-                    <AlertTriangle className="w-16 h-16 text-red-600 dark:text-red-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      Error Loading Projects
-                    </h3>
-                    <p className="text-red-600 dark:text-red-400 mb-6">{error}</p>
-                    <Button
-                      onClick={fetchProjects}
-                      style={{ color: 'white' }}
-                      className="bg-[#003D6B] hover: bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                ) : filteredProjects.length === 0 ? (
-                  <div className="text-center py-12">
-                    <IconFolder className="w-16 h-16 text-gray-300 dark:text-white/30 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                      {projects.length === 0
-                        ? "No Projects Yet"
-                        : "No Projects Found"}
-                    </h3>
-                    <p className="text-gray-600 dark:text-white/70 mb-6">
-                      {projects.length === 0
-                        ? "Get started by importing your first repository."
-                        : "Try adjusting your search or filter criteria."}
-                    </p>
-                    {projects.length === 0 && (
-                      <Button
-                        onClick={handleImportClick}
-                        style={{ color:  'white' }}
-                        className="bg-[#003D6B] hover:bg-[#002A4D] dark: bg-orange-500 dark: hover:bg-orange-600"
-                      >
-                        {authProvider === 'bitbucket' ? (
-                          <>
-                            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-. 646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-                            </svg>
-                            Import Repository
-                          </>
-                        ) : authProvider === 'github' ? (
-                          <>
-                            <Github className="w-4 h-4 mr-2" />
-                            Import Repository
-                          </>
-                        ) : (
-                          <>
-                            <Github className="w-4 h-4 mr-2" />
-                            Import Repository
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredProjects.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onDelete={handleDeleteProject}
-                        onSync={handleSyncProject}
-                        onViewDetails={handleViewDetails}
-                        onStartScan={handleStartScan}
-                        onStopScan={handleStopScan}
-                        onViewFileScanStatus={handleViewFileScanStatus}
-                        onViewScanDetails={handleViewScanDetails}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+    {/* Projects Content Section */}
+    <div className="p-8">
+      {error ? (
+        <div className="text-center py-12">
+          <AlertTriangle className="w-16 h-16 text-red-600 dark:text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            Error Loading Projects
+          </h3>
+          <p className="text-red-600 dark:text-red-400 mb-6">{error}</p>
+          <Button
+            onClick={fetchProjects}
+            style={{ color: 'white' }}
+            className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
+          >
+            Try Again
+          </Button>
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="text-center py-12">
+          <IconFolder className="w-16 h-16 text-gray-300 dark:text-white/30 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            {projects.length === 0
+              ? "No Projects Yet"
+              : "No Projects Found"}
+          </h3>
+          <p className="text-gray-600 dark:text-white/70 mb-6">
+            {projects.length === 0
+              ? "Get started by importing your first repository."
+              : "Try adjusting your search or filter criteria."}
+          </p>
+          {projects.length === 0 && (
+            <Button
+              onClick={handleImportClick}
+              style={{ color: 'white' }}
+              className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
+            >
+              {authProvider === 'bitbucket' ? (
+                <>
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                  </svg>
+                  Import Repository
+                </>
+              ) : authProvider === 'github' ? (
+                <>
+                  <Github className="w-4 h-4 mr-2" />
+                  Import Repository
+                </>
+              ) : (
+                <>
+                  <Github className="w-4 h-4 mr-2" />
+                  Import Repository
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={handleDeleteProject}
+              onSync={handleSyncProject}
+              onViewDetails={handleViewDetails}
+              onStartScan={handleStartScan}
+              onStopScan={handleStopScan}
+              onViewFileScanStatus={handleViewFileScanStatus}
+              onViewScanDetails={handleViewScanDetails}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  </>
+)}
 
             </div>
+            )}
           </div>
+          
         </div>
       </div>
 

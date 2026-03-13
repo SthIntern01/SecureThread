@@ -105,6 +105,80 @@ class AIChatService {
     return response.json();
   }
 
+  // ADD THIS ENTIRE NEW METHOD
+async sendMessageStream(
+  message: string,
+  conversationHistory: ChatMessage[] = [],
+  onChunk: (chunk: string) => void,
+  onComplete: (sessionId: number, messageId: number) => void,
+  onError: (error:  string) => void
+): Promise<void> {
+  try {
+    const response = await fetch(`${this.baseURL}/api/v1/ai-chat/chat/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ... this.getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        message,
+        conversation_history:  conversationHistory,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error("Response body is null");
+    }
+
+    let sessionId:  number | null = null;
+    let messageId: number | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          
+          try {
+            const parsed = JSON.parse(data);
+            
+            if (parsed.type === "session") {
+              sessionId = parsed.session_id;
+            } else if (parsed.type === "chunk") {
+              onChunk(parsed.content);
+            } else if (parsed.type === "done") {
+              messageId = parsed.message_id;
+              if (sessionId && messageId) {
+                onComplete(sessionId, messageId);
+              }
+            } else if (parsed.type === "error") {
+              onError(parsed.error);
+            }
+          } catch (e) {
+            // Ignore JSON parse errors for incomplete chunks
+          }
+        }
+      }
+    }
+  } catch (error) {
+    onError(error instanceof Error ? error.message : "Unknown error");
+  }
+}
+
+
   async uploadFilesForAnalysis(files: File[]): Promise<FileUploadResponse> {
     const formData = new FormData();
     

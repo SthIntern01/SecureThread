@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EtherealBackground } from "../components/ui/ethereal-background";
 import AppSidebar from "@/components/AppSidebar";
+import { DocsSkeleton } from '@/components/skeletons/DocsSkeleton';
 import {
   Search,
   ChevronRight,
@@ -60,10 +61,17 @@ const Docs = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  
 
   const toggleAccordion = (id: string) => {
     setOpenAccordion(openAccordion === id ? null : id);
   };
+
+  useEffect(() => {
+  const timer = setTimeout(() => setLoading(false), 800);
+  return () => clearTimeout(timer);
+}, []);
 
   return (
     <div className="w-full h-screen font-sans relative flex overflow-hidden">
@@ -79,6 +87,12 @@ const Docs = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="p-4 lg:p-6">
           <div className="max-w-6xl mx-auto">
+            {loading ? (
+            <DocsSkeleton />
+          ) : (
+            <>
+
+            
             {/* Header Container */}
             <div className="bg-white dark:bg-white/10 backdrop-blur-lg rounded-3xl border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden mb-6">
               <div className="p-8 border-b border-gray-200 dark:border-white/20">
@@ -763,6 +777,8 @@ const Docs = () => {
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         </div>
       </div>
