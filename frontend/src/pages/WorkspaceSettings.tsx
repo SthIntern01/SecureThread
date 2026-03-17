@@ -50,6 +50,8 @@ import {
   Plus,
   Github,
   AlertCircle,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import { IconUser } from "@tabler/icons-react";
 
@@ -363,7 +365,7 @@ const MemberRow = ({
   );
 };
 
-// ✅ SIMPLIFIED Repositories Tab Component - READ ONLY (No Add Repo)
+// Repositories Tab Component - READ ONLY
 const RepositoriesTab = () => {
   const { currentWorkspace } = useWorkspace();
   const [repositories, setRepositories] = useState<any[]>([]);
@@ -379,11 +381,9 @@ const RepositoriesTab = () => {
     
     try {
       setLoading(true);
-      console.log('🔍 Loading repositories for workspace:', currentWorkspace.id);
       const repos = await workspaceService.getWorkspaceRepositories(
         String(currentWorkspace.id)
       );
-      console.log('✅ Loaded repositories:', repos);
       setRepositories(repos);
     } catch (error) {
       console.error('❌ Error loading repositories:', error);
@@ -520,6 +520,14 @@ const WorkspaceSettings = () => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // GitHub PAT States
+  const [githubPat, setGithubPat] = useState("");
+  const [isSavingPat, setIsSavingPat] = useState(false);
+  const [hasGithubPat, setHasGithubPat] = useState(false);
+  const [patCreatedAt, setPatCreatedAt] = useState<string | null>(null);
+  const [isCheckingPat, setIsCheckingPat] = useState(true);
+  const [showPatGuide, setShowPatGuide] = useState(false);
+
   useEffect(() => {
     if (currentWorkspace) {
       setWorkspaceName(currentWorkspace. name);
@@ -531,6 +539,13 @@ const WorkspaceSettings = () => {
     const interval = setInterval(loadMembers, 10000);
     return () => clearInterval(interval);
   }, [currentWorkspace]);
+
+  // Check token status when switching to integrations tab
+  useEffect(() => {
+    if (activeTab === "integrations") {
+      checkTokenStatus();
+    }
+  }, [activeTab]);
 
   const loadMembers = async () => {
     if (!currentWorkspace) return;
@@ -614,6 +629,44 @@ const WorkspaceSettings = () => {
 
   const handleInviteSent = () => {
     loadMembers();
+  };
+
+  const checkTokenStatus = async () => {
+    try {
+      setIsCheckingPat(true);
+      const status = await workspaceService.checkGitHubTokenStatus();
+      setHasGithubPat(status.has_token);
+      setPatCreatedAt(status.created_at);
+    } catch (error) {
+      console.error("Failed to check token status", error);
+    } finally {
+      setIsCheckingPat(false);
+    }
+  };
+
+  const handleSavePat = async () => {
+    if (!githubPat.trim()) return;
+    try {
+      setIsSavingPat(true);
+      await workspaceService.saveGitHubToken(githubPat.trim());
+      setGithubPat("");
+      await checkTokenStatus();
+    } catch (error: any) {
+      alert(error.message || "Failed to save GitHub token");
+    } finally {
+      setIsSavingPat(false);
+    }
+  };
+
+  const handleDeletePat = async () => {
+    if (!confirm("Are you sure you want to delete your GitHub token? You won't be able to create PRs.")) return;
+    try {
+      await workspaceService.deleteGitHubToken();
+      setHasGithubPat(false);
+      setPatCreatedAt(null);
+    } catch (error: any) {
+      alert(error.message || "Failed to delete token");
+    }
   };
 
   const tabs = [
@@ -857,25 +910,113 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
+                {/* Integrations Tab */}
                 {activeTab === "integrations" && (
                   <div className="space-y-6">
                     <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
-                      <h3 className="text-xl font-semibold theme-text mb-4">
-                        Connected Integrations
-                      </h3>
-                      <div className="flex items-center justify-between py-4">
+                      <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center space-x-4">
-                          <Github className="w-8 h-8 theme-text" />
+                          <div className="w-12 h-12 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center">
+                            <Github className="w-7 h-7 theme-text" />
+                          </div>
                           <div>
-                            <h4 className="font-semibold theme-text">GitHub</h4>
+                            <h3 className="text-xl font-semibold theme-text">GitHub Integration</h3>
                             <p className="text-sm text-white/70">
-                              Connected to 1 repository
+                              Manage your connection and Personal Access Token (PAT)
                             </p>
                           </div>
                         </div>
-                        <Button variant="outline" className="border-white/20 theme-text">
-                          Configure
-                        </Button>
+                      </div>
+
+                      <div className="space-y-6 pt-4 border-t theme-border">
+                        {isCheckingPat ? (
+                          <div className="flex items-center space-x-2 text-white/70">
+                            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                            <span>Checking connection status...</span>
+                          </div>
+                        ) : hasGithubPat ? (
+                          /* --- ACTIVE TOKEN STATE --- */
+                          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-start justify-between">
+                            <div className="flex items-start space-x-3">
+                              <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                              <div>
+                                <h4 className="font-semibold text-green-500">Token Connected</h4>
+                                <p className="text-sm text-green-500/70 mt-1">
+                                  SecureThread is authorized to scan repositories and create PRs.
+                                  <br/>
+                                  Added on: {patCreatedAt ? new Date(patCreatedAt).toLocaleDateString() : 'Unknown'}
+                                </p>
+                              </div>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              onClick={handleDeletePat}
+                              className="border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Remove Token
+                            </Button>
+                          </div>
+                        ) : (
+                          /* --- NO TOKEN STATE --- */
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium theme-text mb-2">
+                                Personal Access Token (PAT)
+                              </label>
+                              <div className="flex space-x-3">
+                                <Input
+                                  type="password"
+                                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                  value={githubPat}
+                                  onChange={(e) => setGithubPat(e.target.value)}
+                                  className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text"
+                                />
+                                <Button 
+                                  onClick={handleSavePat}
+                                  disabled={!githubPat.trim() || isSavingPat}
+                                  className="bg-accent hover:bg-accent/90 min-w-[120px]"
+                                >
+                                  {isSavingPat ? "Saving..." : "Save Token"}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* --- HOW TO GUIDE --- */}
+                            <div className="pt-2">
+                              <button 
+                                onClick={() => setShowPatGuide(!showPatGuide)}
+                                className="text-sm text-accent hover:underline focus:outline-none"
+                              >
+                                {showPatGuide ? "Hide instructions" : "How do I get a GitHub PAT?"}
+                              </button>
+                              
+                              {showPatGuide && (
+                                <div className="mt-3 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl p-4">
+                                  <h4 className="font-medium text-blue-800 dark:text-blue-400 mb-2">
+                                    📝 Steps to create a Personal Access Token
+                                  </h4>
+                                  <ol className="space-y-2 text-sm text-blue-900/80 dark:text-blue-100/80">
+                                    <li>1. Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)</li>
+                                    <li>2. Click "Generate new token (classic)"</li>
+                                    <li>3. Give it a name (e.g., "SecureThread Integration")</li>
+                                    <li>4. Select scopes: <code className="bg-blue-200/50 dark:bg-blue-900/50 px-1 rounded text-blue-900 dark:text-blue-300">repo</code> (full control of private repositories)</li>
+                                    <li>5. Click "Generate token" and paste it here.</li>
+                                  </ol>
+                                  <a
+                                    href="https://github.com/settings/tokens/new"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 mt-4 text-accent hover:text-accent/80 text-sm font-medium transition-colors"
+                                  >
+                                    Open GitHub Token Settings
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

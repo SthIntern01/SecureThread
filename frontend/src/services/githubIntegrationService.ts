@@ -112,40 +112,7 @@ const getAuthToken = (): string => {
 
 // API Service
 export const githubIntegrationService = {
-  // PAT Token Management
-  async savePATToken(token: string): Promise<PATTokenResponse> {
-    const response = await axios.post(
-      `${API_BASE_URL}/github/pat/save`,
-      { token },
-      {
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    return response.data;
-  },
-
-  async checkPATStatus(): Promise<PATStatusResponse> {
-    // FIXED: Removed space in 'axios.get'
-    const response = await axios.get(`${API_BASE_URL}/github/pat/status`, {
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-      },
-    });
-    return response.data;
-  },
-
-  async deletePATToken(): Promise<{ success: boolean; message: string }> {
-    const response = await axios.delete(`${API_BASE_URL}/github/pat/delete`, {
-      headers: {
-        'Authorization': `Bearer ${getAuthToken()}`,
-      },
-    });
-    return response.data;
-  },
-
+  
   // File Content
   async fetchFileContent(request: FileContentRequest): Promise<FileContentResponse> {
     const response = await axios.post(

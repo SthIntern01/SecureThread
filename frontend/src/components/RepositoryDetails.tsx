@@ -39,7 +39,6 @@ import {
   IconBrandGithub,
 } from "@tabler/icons-react";
 import ScanDetailsModal from "./ScanDetailsModal";
-import { GitHubPATModal } from './GitHubPATModal';
 import { CodeEditorModal } from './CodeEditorModal';
 import { CreatePRModal } from './CreatePRModal';
 import { ScanTypeSelectionModal } from './modals/ScanTypeSelectionModal';
@@ -1880,18 +1879,6 @@ const RepositoryDetails: FC<RepositoryDetailsProps> = ({
         onClose={() => setShowScanModal(false)}
         scanId={selectedScanId}
         repositoryName={project.name}
-      />
-      
-      <GitHubPATModal
-        isOpen={showPATModal}
-        onClose={() => setShowPATModal(false)}
-        onSuccess={() => {
-          setHasPATToken(true);
-          setShowPATModal(false);
-          if (selectedVulnerability) {
-            setShowCodeEditor(true);
-          }
-        }}
       />
 
       {selectedVulnerability && (

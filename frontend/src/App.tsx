@@ -15,7 +15,6 @@ import Docs from "./pages/Docs";
 import Solved from "./pages/Solved";
 import AIChat from "./pages/AIChat";
 import SignIn from "./pages/SignIn";
-import Settings from "./pages/Settings";
 import Feedback from "./pages/Feedback"; 
 import Help from "./pages/Help";
 import GitHubCallback from "./pages/GitHubCallback";
@@ -109,14 +108,6 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <AIChat />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute>
-                      <Settings />
                     </ProtectedRoute>
                   }
                 />

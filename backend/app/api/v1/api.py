@@ -54,7 +54,7 @@ api_router.include_router(teams.router, prefix="/teams", tags=["teams"])
 api_router.include_router(scan_rules.router, prefix="/scan-rules", tags=["scan-rules"])
 
 # GitHub Integration for PR creation
-api_router.include_router(github_integration.router, prefix="/github", tags=["GitHub Integration"])
+api_router.include_router(github_integration.router, prefix="/github-integration", tags=["GitHub Integration"])
 
 api_router.include_router(slack_webhooks.router, prefix="/slack", tags=["slack"])
 
