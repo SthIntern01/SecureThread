@@ -347,7 +347,17 @@ async def handle_scan_repository_submission(
         repository_select_block = values.get("repository_select_block", {})
         repository_select = repository_select_block.get("repository_select", {})
         selected_repo_id = repository_select.get("selected_option", {}).get("value")
-        
+
+        # Extract selected scan type from modal values
+        scan_type_block = values.get("scan_type_block", {})
+        scan_type_select = scan_type_block.get("scan_type_select", {})
+        selected_scan_type = scan_type_select.get("selected_option", {}).get("value", "custom_rules")
+
+        # Validate scan type
+        if selected_scan_type not in ["custom_rules", "llm_based"]:
+            logger.warning(f"⚠️ Invalid scan type '{selected_scan_type}', defaulting to custom_rules")
+            selected_scan_type = "custom_rules"
+
         if not selected_repo_id:
             logger.error("❌ No repository selected in modal submission")
             return {
@@ -356,16 +366,17 @@ async def handle_scan_repository_submission(
                     "repository_select_block": "Please select a repository"
                 }
             }
-        
+
         repository_id = int(selected_repo_id)
         logger.info(f"🎯 User {user.id} selected repository {repository_id} for scanning")
-        
+        logger.info(f"🧠 User {user.id} selected scan type: {selected_scan_type}")
+
         # Verify repository ownership
         repository = db.query(Repository).filter(
             Repository.id == repository_id,
             Repository.owner_id == user.id
         ).first()
-        
+
         if not repository:
             logger.error(f"❌ Repository {repository_id} not found or unauthorized")
             return {
@@ -374,14 +385,14 @@ async def handle_scan_repository_submission(
                     "repository_select_block": "Repository not found or unauthorized"
                 }
             }
-        
+
         # Check for existing running scan
         from app.models.vulnerability import Scan
         existing_scan = db.query(Scan).filter(
             Scan.repository_id == repository_id,
             Scan.status.in_(["running", "pending"])
         ).first()
-        
+
         if existing_scan:
             logger.warning(f"⚠️ Scan already running for repository {repository_id}")
             return {
@@ -390,25 +401,25 @@ async def handle_scan_repository_submission(
                     "repository_select_block": f"A scan is already {existing_scan.status} for this repository"
                 }
             }
-        
+
         # ✅ START SCAN IN BACKGROUND (don't await!)
-        from app.api.v1.slack_scan_trigger import trigger_scan_from_slack
         import asyncio
-        
+
         # Fire and forget - this runs independently
         asyncio.create_task(
             _start_scan_and_notify(
                 user=user,
                 repository=repository,
-                db=db
+                db=db,
+                scan_type=selected_scan_type
             )
         )
-        
+
         logger.info(f"✅ Scan queued for repository {repository_id}")
-        
+
         # ✅ RETURN IMMEDIATELY to close modal without waiting
         return {}
-        
+
     except Exception as e:
         logger.error(f"❌ Error handling scan submission: {e}", exc_info=True)
         return {
@@ -422,46 +433,62 @@ async def handle_scan_repository_submission(
 async def _start_scan_and_notify(
     user: User,
     repository: Repository,
-    db: Session
+    db: Session,
+    scan_type: str
 ):
     """
     Background task: Start scan and send DM notification
     This runs independently after modal closes
     """
+    scan_type_label = "LLM Based" if scan_type == "llm_based" else "Custom Rule Based"
+
     try:
         from app.api.v1.slack_scan_trigger import trigger_scan_from_slack
-        
+
         success, message, scan_id = await trigger_scan_from_slack(
             user=user,
             repository=repository,
-            db=db
+            db=db,
+            scan_type=scan_type
         )
-        
+
         if success:
             logger.info(f"✅ Scan {scan_id} initiated successfully for repository {repository.id}")
-            
+
             # Send confirmation DM
             await slack_service.send_dm_to_user(
                 user=user,
-                text=f"✅ Scan started for *{repository.full_name}*\n🔍 Scan ID: #{scan_id}\n⏱️ Estimated time: 2-3 minutes\n\nI'll send you a notification when it completes!"
+                text=(
+                    f"✅ Scan started for *{repository.full_name}*\n"
+                    f"🧠 Type: *{scan_type_label}*\n"
+                    f"🔍 Scan ID: #{scan_id}\n"
+                    f"⏱️ Estimated time: 2-5 minutes\n\n"
+                    f"I'll send you a notification when it completes!"
+                )
             )
         else:
-            logger.error(f"❌ Failed to start scan: {message}")
-            
+            logger.error(f"❌ Failed to start {scan_type_label} scan: {message}")
+
             # Send error DM
             await slack_service.send_dm_to_user(
                 user=user,
-                text=f"❌ Failed to start scan for *{repository.full_name}*\n\nReason: {message}"
+                text=(
+                    f"❌ Failed to start *{scan_type_label}* scan for *{repository.full_name}*\n\n"
+                    f"Reason: {message}"
+                )
             )
-            
+
     except Exception as e:
-        logger.error(f"❌ Error in background scan start: {e}", exc_info=True)
-        
+        logger.error(f"❌ Error in background scan start ({scan_type_label}): {e}", exc_info=True)
+
         # Send error DM
         try:
             await slack_service.send_dm_to_user(
                 user=user,
-                text=f"❌ An error occurred while starting the scan for *{repository.full_name}*"
+                text=(
+                    f"❌ An error occurred while starting the *{scan_type_label}* scan "
+                    f"for *{repository.full_name}*"
+                )
             )
         except:
             pass  # Don't crash if DM fails
@@ -917,7 +944,7 @@ def build_vulnerability_modal(
                 },
                 {
                     "type": "mrkdwn",
-                    "text": f"*Risk Score:*\n{vuln.risk_score}/10"
+                    "text": f"*Risk Score:*\n{(vuln.risk_score if vuln.risk_score is not None else 'N/A')}/10"
                 }
             ]
         },
@@ -944,9 +971,13 @@ def build_vulnerability_modal(
         })
     
     # Add AI-enhanced explanation if available (safe access)
-    ai_explanation = getattr(vuln, 'ai_explanation', None)
-    if ai_explanation:
-        explanation = ai_explanation[:3000]
+    llm_explanation = (
+        getattr(vuln, "llm_explanation", None)
+        or getattr(vuln, "ai_explanation", None)  # backward compatibility
+    )
+
+    if llm_explanation:
+        explanation = llm_explanation[:3000]
         blocks.append({
             "type": "section",
             "text": {
@@ -973,9 +1004,15 @@ def build_vulnerability_modal(
     blocks.append({"type": "divider"})
     
     # Add remediation (safe access)
-    remediation = getattr(vuln, 'remediation', None)
-    if remediation:
-        rem_text = remediation[:3000]
+    remediation_text = (
+        getattr(vuln, "llm_solution", None)
+        or getattr(vuln, "fix_suggestion", None)
+        or getattr(vuln, "recommendation", None)
+        or getattr(vuln, "remediation", None)  # backward compatibility
+    )
+
+    if remediation_text:
+        rem_text = remediation_text[:3000]
         blocks.append({
             "type": "section",
             "text": {
@@ -985,7 +1022,11 @@ def build_vulnerability_modal(
         })
     
     # Add AI-enhanced remediation if available (safe access)
-    ai_remediation = getattr(vuln, 'ai_remediation', None)
+    ai_remediation = (
+        getattr(vuln, "llm_solution", None)
+        or getattr(vuln, "ai_remediation", None)  # backward compatibility
+    )
+
     if ai_remediation:
         ai_rem_text = ai_remediation[:3000]
         blocks.append({

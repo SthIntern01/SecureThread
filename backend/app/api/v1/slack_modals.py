@@ -120,6 +120,50 @@ async def open_scan_repository_modal(
                 }
             },
             {
+                "type": "input",
+                "block_id": "scan_type_block",
+                "element": {
+                    "type": "static_select",
+                    "action_id": "scan_type_select",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Choose scan type...",
+                        "emoji": True
+                    },
+                    "initial_option": {
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Custom Rule Based",
+                            "emoji": True
+                        },
+                        "value": "custom_rules"
+                    },
+                    "options": [
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Custom Rule Based",
+                                "emoji": True
+                            },
+                            "value": "custom_rules"
+                        },
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": "LLM Based",
+                                "emoji": True
+                            },
+                            "value": "llm_based"
+                        }
+                    ]
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Scan Type",
+                    "emoji": True
+                }
+            },
+            {
                 "type": "divider"
             },
             {
@@ -128,10 +172,10 @@ async def open_scan_repository_modal(
                     "type": "mrkdwn",
                     "text": (
                         "*Scan Options:*\n"
-                        "• Uses global + custom rules\n"
-                        "• AI-enhanced explanations\n"
+                        "• *Custom Rule Based* → Global + custom rules with optional AI enhancement\n"
+                        "• *LLM Based* → Deep analysis using LLM model\n"
                         "• Results sent via DM\n"
-                        "• Estimated time: 2-5 minutes"
+                        "• Estimated time varies by repository size"
                     )
                 }
             }

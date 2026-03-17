@@ -237,111 +237,99 @@ class SlackService:
         initial_comment: Optional[str] = None
     ) -> bool:
         """
-        Upload a file directly to a user's Slack DM.
-        Uses new files.uploadV2 API (files.upload is deprecated).
-        
-        Args:
-            user: User model instance (must have slack_bot_token and slack_user_id)
-            file_content: File content as bytes
-            filename: Name of the file (e.g., "report.pdf")
-            title: Title shown in Slack
-            initial_comment: Optional message to accompany the file
-        
-        Returns:
-            True if successful, False otherwise
+        Upload a file directly to a user's Slack DM using files.uploadV2 flow.
+        Uses files.getUploadURLExternal + files.completeUploadExternal.
         """
-        logger.info(f"🔑 Token being used: {user.slack_bot_token[:60]}...")  # First 60 chars
+        logger.info(f"🔑 Token being used: {user.slack_bot_token[:60]}...")
         logger.info(f"👤 User ID: {user.id} ({user.email})")
 
         if not user.slack_bot_token or not user.slack_user_id:
             logger.warning(f"⚠️ User {user.id} doesn't have Slack connected properly")
             return False
-        
+
+        # ✅ More forgiving timeouts (uploads can be slow)
+        timeout = httpx.Timeout(
+            connect=20.0,
+            read=120.0,
+            write=120.0,
+            pool=20.0
+        )
+
         try:
-            headers = {
-                "Authorization": f"Bearer {user.slack_bot_token}"
-            }
-            
-            # Step 1: Open DM conversation with the user
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            headers = {"Authorization": f"Bearer {user.slack_bot_token}"}
+
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                # Step 1: Open DM conversation
                 conv_response = await client.post(
                     "https://slack.com/api/conversations.open",
                     headers=headers,
                     json={"users": user.slack_user_id}
                 )
-                
                 conv_data = conv_response.json()
                 if not conv_data.get("ok"):
                     logger.error(f"❌ Failed to open DM for file upload: {conv_data.get('error')}")
                     return False
-                
+
                 dm_channel = conv_data["channel"]["id"]
                 logger.info(f"✅ Opened DM channel {dm_channel} for file upload to user {user.id}")
-                
-                # Step 2: Get upload URL (new API flow)
+
+                # Step 2: Get upload URL
                 upload_url_response = await client.get(
                     "https://slack.com/api/files.getUploadURLExternal",
                     headers=headers,
-                    params={
-                        "filename": filename,
-                        "length": len(file_content)
-                    }
+                    params={"filename": filename, "length": len(file_content)}
                 )
-                
                 upload_url_data = upload_url_response.json()
                 if not upload_url_data.get("ok"):
                     logger.error(f"❌ Failed to get upload URL: {upload_url_data.get('error')}")
                     return False
-                
+
                 upload_url = upload_url_data["upload_url"]
                 file_id = upload_url_data["file_id"]
-                
                 logger.info(f"✅ Got upload URL for file_id: {file_id}")
-                
-                # Step 3: Upload file to S3
+
+                # Step 3: Upload bytes to the provided URL (this is the slowest step)
+                upload_headers = {"Content-Type": "application/pdf"}
                 upload_response = await client.post(
                     upload_url,
                     content=file_content,
-                    headers={"Content-Type": "application/pdf"}
+                    headers=upload_headers
                 )
-                
-                if upload_response.status_code not in [200, 201]:
-                    logger.error(f"❌ Failed to upload file to S3: {upload_response.status_code}")
+
+                if upload_response.status_code not in (200, 201):
+                    logger.error(f"❌ Failed to upload file bytes: {upload_response.status_code} - {upload_response.text[:200]}")
                     return False
-                
-                logger.info(f"✅ File uploaded to S3 successfully")
-                
-                # Step 4: Complete the upload (makes file visible in Slack)
-                complete_payload = {
-                    "files": [
-                        {
-                            "id": file_id,
-                            "title": title
-                        }
-                    ],
+
+                logger.info("✅ File bytes uploaded successfully")
+
+                # Step 4: Complete upload + share to DM channel
+                complete_payload: Dict[str, Any] = {
+                    "files": [{"id": file_id, "title": title}],
                     "channel_id": dm_channel
                 }
-                
                 if initial_comment:
                     complete_payload["initial_comment"] = initial_comment
-                
+
                 complete_response = await client.post(
                     "https://slack.com/api/files.completeUploadExternal",
-                    headers=headers,
+                    headers={**headers, "Content-Type": "application/json"},
                     json=complete_payload
                 )
-                
                 complete_data = complete_response.json()
+
                 if complete_data.get("ok"):
-                    logger.info(f"✅ File upload completed and shared in DM")
+                    logger.info("✅ File upload completed and shared in DM")
                     return True
-                else:
-                    logger.error(f"❌ Failed to complete upload: {complete_data.get('error')}")
-                    return False
-                    
+
+                logger.error(f"❌ Failed to complete upload: {complete_data.get('error')}")
+                return False
+
+        except httpx.ReadTimeout as e:
+            logger.error(f"❌ Slack file upload timed out: {e}", exc_info=True)
+            return False
         except Exception as e:
             logger.error(f"❌ Failed to upload file to Slack: {e}", exc_info=True)
-            return False
+            return False    
 
     async def send_test_message(self, user=None) -> bool:
         """
@@ -743,15 +731,32 @@ class SlackService:
 
     async def send_scan_started_notification(
         self,
-        user,  # ✅ Add user parameter
+        user,
         scan_id: int,
         repository_name: str,
-        rules_count: int,
-        user_custom_rules: int,
-        global_rules: int
+        scan_type: str = "custom_rules",
+        rules_count: int = 0,
+        user_custom_rules: int = 0,
+        global_rules: int = 0,
+        priority_level: str = "all",
+        max_files: int = 100
     ) -> bool:
-        """Send notification when a security scan starts"""
+        """Send notification when a security scan starts (supports custom + LLM scan modes)."""
         try:
+            scan_type_label = "LLM Based" if scan_type == "llm_based" else "Custom Rule Based"
+
+            if scan_type == "llm_based":
+                scan_mode_text = (
+                    f"*Scan Mode:*\n🧠 {scan_type_label}\n"
+                    f"🎯 Priority: {priority_level}\n"
+                    f"📂 Max files: {max_files}"
+                )
+            else:
+                scan_mode_text = (
+                    f"*Scan Mode:*\n📋 {scan_type_label}\n"
+                    f"📏 {rules_count} total rules ({global_rules} global + {user_custom_rules} custom)"
+                )
+
             blocks = [
                 {
                     "type": "header",
@@ -778,7 +783,7 @@ class SlackService:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*Scanning with:*\n📋 {rules_count} total rules ({global_rules} global + {user_custom_rules} custom)"
+                        "text": scan_mode_text
                     }
                 },
                 {
@@ -791,14 +796,14 @@ class SlackService:
                     ]
                 }
             ]
-            
+
             # ✅ Send to user's Slack
             return await self.send_notification_to_user(
                 user=user,
-                text=f"🔍 Scan #{scan_id} started for {repository_name}",
+                text=f"🔍 {scan_type_label} scan #{scan_id} started for {repository_name}",
                 blocks=blocks
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to send scan started notification: {str(e)}")
             return False
