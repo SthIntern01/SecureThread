@@ -59,14 +59,14 @@ class WorkspaceService {
     };
   }
 
-  // Get all workspaces
-  async getUserWorkspaces(): Promise<Workspace[]> {
+  // ✅ UPDATED: Get all workspaces now returns the activeWorkspaceId from the backend
+  async getUserWorkspaces(): Promise<{ workspaces: Workspace[], activeWorkspaceId: string | null }> {
     try {
       const token = localStorage.getItem('access_token');
       
       if (!token) {
         console.error('❌ No access token found');
-        return [];
+        return { workspaces: [], activeWorkspaceId: null };
       }
 
       const response = await fetch(`${this.API_URL}/api/v1/workspace/list`, {
@@ -85,11 +85,11 @@ class WorkspaceService {
       
       if (!Array.isArray(workspaces)) {
         console.error('❌ Workspaces is not an array:', workspaces);
-        return [];
+        return { workspaces: [], activeWorkspaceId: null };
       }
       
       // Map to frontend format
-      return workspaces.map((ws: any) => ({
+      const mappedWorkspaces = workspaces.map((ws: any) => ({
         id: ws.id?.toString() || ws.team_id?.toString(),
         name: ws.name,
         owner_id: ws.owner_id,
@@ -99,16 +99,22 @@ class WorkspaceService {
         member_count: ws.member_count || 0,
         repository_count: ws.repository_count || 0,
       }));
+
+      // Return both the workspaces and the active workspace ID
+      return {
+        workspaces: mappedWorkspaces,
+        activeWorkspaceId: data.active_workspace_id?.toString() || null
+      };
       
     } catch (error) {
       console.error('❌ Error fetching workspaces:', error);
-      return [];
+      return { workspaces: [], activeWorkspaceId: null };
     }
   }
 
-  // Get workspace by ID
+  // ✅ UPDATED: Accommodates the new return type of getUserWorkspaces
   async getWorkspace(workspaceId: string): Promise<Workspace> {
-    const workspaces = await this.getUserWorkspaces();
+    const { workspaces } = await this.getUserWorkspaces();
     const workspace = workspaces.find(w => w.id === workspaceId);
     if (!workspace) {
       throw new Error('Workspace not found');
@@ -116,10 +122,11 @@ class WorkspaceService {
     return workspace;
   }
 
-  // Get workspace members (uses existing team members endpoint)
+// Get workspace members
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     try {
-      const members = await teamService.getTeamMembers();
+      // ✅ FIX: Pass workspaceId to teamService
+      const members = await teamService.getTeamMembers(workspaceId);
       return members.map(m => ({
         ...m,
         workspace_id: workspaceId,
@@ -224,14 +231,15 @@ class WorkspaceService {
     }
   }
 
-  // Generate invite link (uses existing team endpoint)
+  // Generate invite link
   async generateInviteLink(workspaceId: string, role: string) {
-    return await teamService.generateInviteLink(role);
+    return await teamService.generateInviteLink(role, workspaceId);
   }
 
   // Send email invitations (uses existing team endpoint)
   async sendEmailInvitations(workspaceId: string, emails: string[], role: string) {
-    return await teamService.sendEmailInvitations(emails, role);
+    // ✅ FIX: Pass workspaceId
+    return await teamService.sendEmailInvitations(emails, role, workspaceId);
   }
 
   // Update member role (uses existing team endpoint)
@@ -244,7 +252,7 @@ class WorkspaceService {
     return await teamService.removeMember(memberId);
   }
 
-  // Switch workspace
+  // ✅ UPDATED: Switch workspace no longer forces conflicting localStorage states
   async switchWorkspace(workspaceId: string): Promise<void> {
     const token = localStorage.getItem('access_token');
     
@@ -260,13 +268,23 @@ class WorkspaceService {
     if (!response.ok) {
       throw new Error('Failed to switch workspace');
     }
-
-    localStorage.setItem('current_workspace_id', workspaceId);
+    
+    // Removed localStorage.setItem('current_workspace_id', workspaceId)
+    // The WorkspaceContext now handles local storage sync perfectly.
   }
 
-  // Get current workspace ID
+  // ✅ UPDATED: Read from the unified 'currentWorkspace' object if needed
   getCurrentWorkspaceId(): string | null {
-    return localStorage.getItem('current_workspace_id') || '1';
+    const savedWorkspace = localStorage.getItem('currentWorkspace');
+    if (savedWorkspace) {
+      try {
+        const parsed = JSON.parse(savedWorkspace);
+        return parsed.id;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   }
 
   // Create workspace (for now, use GitHub OAuth flow)

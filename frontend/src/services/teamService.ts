@@ -45,20 +45,21 @@ class TeamService {
     };
   }
 
-  /**
+/**
    * Get all team members
    */
-  async getTeamMembers(): Promise<TeamMember[]> {
+  async getTeamMembers(workspaceId?: string): Promise<TeamMember[]> {
     try {
-      const response = await fetch(`${this.baseURL}/api/v1/teams/members`, {
+      const url = workspaceId 
+        ? `${this.baseURL}/api/v1/teams/members?team_id=${workspaceId}` 
+        : `${this.baseURL}/api/v1/teams/members`;
+        
+      const response = await fetch(url, {
         method: "GET",
         headers: this.getAuthHeaders(),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
     } catch (error) {
       console.error('Error fetching team members:', error);
@@ -69,17 +70,18 @@ class TeamService {
   /**
    * Get team statistics
    */
-  async getTeamStats(): Promise<TeamStats> {
+  async getTeamStats(workspaceId?: string): Promise<TeamStats> {
     try {
-      const response = await fetch(`${this.baseURL}/api/v1/teams/stats`, {
+      const url = workspaceId 
+        ? `${this.baseURL}/api/v1/teams/stats?team_id=${workspaceId}` 
+        : `${this.baseURL}/api/v1/teams/stats`;
+
+      const response = await fetch(url, {
         method: "GET",
         headers: this.getAuthHeaders(),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
     } catch (error) {
       console.error('Error fetching team stats:', error);
@@ -90,14 +92,15 @@ class TeamService {
   /**
    * Send email invitations
    */
-  async sendEmailInvitations(emails: string[], role: string = "Member"): Promise<{ message: string; sent_to: string[]; total_sent: number }> {
+  async sendEmailInvitations(emails: string[], role: string = "Member", workspaceId?: string): Promise<{ message: string; sent_to: string[]; total_sent: number }> {
     try {
       const response = await fetch(`${this.baseURL}/api/v1/teams/invite/email`, {
         method: "POST",
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           emails,
-          role
+          role,
+          team_id: workspaceId ? parseInt(workspaceId) : undefined
         }),
       });
 
@@ -105,7 +108,6 @@ class TeamService {
         const errorText = await response.text();
         throw new Error(`Failed to send invitations: ${errorText}`);
       }
-
       return response.json();
     } catch (error) {
       console.error('Error sending email invitations:', error);
@@ -116,24 +118,25 @@ class TeamService {
   /**
    * Generate invite link
    */
- async generateInviteLink(role: string = "Member"): Promise<InviteLinkResponse> {
-  try {
-    const response = await fetch(`${this.baseURL}/api/v1/teams/invite/link?role=${role}`, {
-      method: "GET",
-      headers: this.getAuthHeaders(),
-    });
+  async generateInviteLink(role: string = "Member", workspaceId?: string): Promise<InviteLinkResponse> {
+    try {
+      const url = workspaceId 
+        ? `${this.baseURL}/api/v1/teams/invite/link?role=${role}&team_id=${workspaceId}`
+        : `${this.baseURL}/api/v1/teams/invite/link?role=${role}`;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: this.getAuthHeaders(),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error generating invite link:', error);
+      throw error;
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error generating invite link:', error);
-    throw error;
   }
-}
-
+  
   /**
    * Update member role
    */

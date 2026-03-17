@@ -8,8 +8,8 @@ interface Workspace {
   name: string;
   created_at: string | null;
   repository_count: number;
-  member_count?:  number;
-  owner_id?:  number;
+  member_count?: number;
+  owner_id?: number;
 }
 
 interface WorkspaceContextType {
@@ -17,8 +17,8 @@ interface WorkspaceContextType {
   currentWorkspace: Workspace | null;
   loading: boolean;
   refreshWorkspaces: () => Promise<void>;
-  switchWorkspace: (workspaceId:  string) => Promise<void>;
-  setCurrentWorkspace: (workspace:  Workspace | null) => void;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
+  setCurrentWorkspace: (workspace: Workspace | null) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -41,10 +41,10 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspace, setCurrentWorkspaceState] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Wrapper to also save to localStorage when setting workspace
-  const setCurrentWorkspace = (workspace:  Workspace | null) => {
+  const setCurrentWorkspace = (workspace: Workspace | null) => {
     console.log('💾 Setting current workspace:', workspace);
     setCurrentWorkspaceState(workspace);
     if (workspace) {
@@ -62,10 +62,11 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
     try {
       console.log('🔄 Refreshing workspaces...');
       
-      const fetchedWorkspaces = await workspaceService.getUserWorkspaces();
+      // ✅ FIX: Destructure both workspaces AND the activeWorkspaceId from the backend
+      const { workspaces: fetchedWorkspaces, activeWorkspaceId } = await workspaceService.getUserWorkspaces();
       console.log('📦 Workspaces fetched:', fetchedWorkspaces);
       
-      if (! fetchedWorkspaces || fetchedWorkspaces.length === 0) {
+      if (!fetchedWorkspaces || fetchedWorkspaces.length === 0) {
         console.log('⚠️ No workspaces found');
         setWorkspaces([]);
         setCurrentWorkspace(null);
@@ -78,7 +79,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       const switchToId = sessionStorage.getItem('switch_to_workspace');
       if (switchToId) {
         console.log('🔀 Looking for workspace to switch to:', switchToId);
-        const targetWorkspace = fetchedWorkspaces.find(w => w.id. toString() === switchToId.toString());
+        const targetWorkspace = fetchedWorkspaces.find(w => w.id.toString() === switchToId.toString());
         if (targetWorkspace) {
           console.log('✅ Found target workspace, switching:', targetWorkspace);
           setCurrentWorkspace(targetWorkspace);
@@ -88,13 +89,23 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
           console.log('⚠️ Target workspace not found in list');
         }
       }
+
+      // ✅ Priority 2: Trust the backend's active workspace!
+      if (activeWorkspaceId) {
+        const activeBackendWorkspace = fetchedWorkspaces.find(w => w.id.toString() === activeWorkspaceId.toString());
+        if (activeBackendWorkspace) {
+          console.log('✅ Using backend active workspace:', activeBackendWorkspace);
+          setCurrentWorkspace(activeBackendWorkspace);
+          return;
+        }
+      }
       
-      // ✅ Priority 2: Try to restore from localStorage
+      // ✅ Priority 3: Try to restore from localStorage (Fallback only)
       const savedWorkspace = localStorage.getItem('currentWorkspace');
       if (savedWorkspace) {
         try {
           const parsed = JSON.parse(savedWorkspace);
-          const exists = fetchedWorkspaces.find(w => w.id. toString() === parsed.id.toString());
+          const exists = fetchedWorkspaces.find(w => w.id.toString() === parsed.id.toString());
           if (exists) {
             console.log('✅ Restored workspace from localStorage:', exists);
             setCurrentWorkspace(exists);
@@ -107,17 +118,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
         }
       }
       
-      // ✅ Priority 3: If we already have a current workspace, try to find and update it
-      if (currentWorkspace && currentWorkspace.id) {
-        const updatedWorkspace = fetchedWorkspaces.find((w) => w.id.toString() === currentWorkspace.id.toString());
-        if (updatedWorkspace) {
-          console.log('✅ Updating current workspace:', updatedWorkspace);
-          setCurrentWorkspace(updatedWorkspace);
-          return;
-        }
-      }
-      
-      // ✅ Priority 4: Set the first workspace as active
+      // ✅ Priority 4: Set the first workspace as active if nothing else matches
       console.log('✅ Setting first workspace as active:', fetchedWorkspaces[0]);
       setCurrentWorkspace(fetchedWorkspaces[0]);
       
@@ -148,6 +149,9 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
       });
 
       if (response.ok) {
+        // ✅ FIX: Clear local storage so it doesn't immediately fight the backend on refresh
+        localStorage.removeItem('currentWorkspace');
+        
         await refreshWorkspaces();
         console.log('✅ Workspace switched successfully');
       } else {
@@ -162,7 +166,7 @@ export const WorkspaceProvider: React.FC<WorkspaceProviderProps> = ({ children }
   // ✅ Load workspaces when user is authenticated
   useEffect(() => {
     const loadWorkspaces = async () => {
-      if (! isAuthenticated) {
+      if (!isAuthenticated) {
         console.log('⚠️ User not authenticated, skipping workspace load');
         setLoading(false);
         return;

@@ -535,9 +535,9 @@ const WorkspaceSettings = () => {
   }, [currentWorkspace]);
 
   useEffect(() => {
-    loadMembers();
-    const interval = setInterval(loadMembers, 10000);
-    return () => clearInterval(interval);
+    if (currentWorkspace) {
+      loadMembers();
+    }
   }, [currentWorkspace]);
 
   // Check token status when switching to integrations tab

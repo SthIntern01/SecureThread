@@ -3,16 +3,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel, EmailStr
 import logging
-from app.models.team import TeamMember
-from app.models.repository import Repository, UserRepositoryAccess
+import os
+import traceback
 
 from app.core.database import get_db
 from app.services.team_service import TeamService
 from app.models.user import User
-import traceback
 from app.models.team import Team, TeamMember, MemberRole, MemberStatus, TeamInvitation
 from app.models.team_repository import TeamRepository  
-from app.models.repository import Repository  
+from app.models.repository import Repository, UserRepositoryAccess
 from app.core.security import get_current_active_user
 from app.api.deps import get_current_user
 
@@ -41,6 +40,7 @@ class TeamStatsResponse(BaseModel):
 class InviteByEmailRequest(BaseModel):
     emails: List[str]
     role: str = "Member"
+    team_id: Optional[int] = None  # ✅ FIX: Added team_id
 
 class InviteLinkResponse(BaseModel):
     invite_link: str
@@ -49,21 +49,29 @@ class InviteLinkResponse(BaseModel):
 class RoleUpdateRequest(BaseModel):
     role: str
 
+
+# Helper function to determine the correct team ID
+def get_target_team_id(requested_team_id: Optional[int], current_user: User, team_service: TeamService) -> int:
+    target_id = requested_team_id or current_user.active_team_id
+    if not target_id:
+        team = team_service.get_or_create_default_team(current_user.id)
+        target_id = team.id
+    return target_id
+
+
 @router.get("/members", response_model=List[MemberResponse])
 async def get_team_members(
+    team_id: Optional[int] = None,  # ✅ FIX: Accept team_id
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all team members for current user's team"""
     try:
         team_service = TeamService(db)
+        target_team_id = get_target_team_id(team_id, current_user, team_service)
         
-        # Get or create default team for user
-        team = team_service.get_or_create_default_team(current_user. id)
-        
-        # ✅ Get team members - ONLY ACTIVE ones (filter out pending invitations)
-        members = team_service.get_team_members(team.id, active_only=True)
-        
+        # Get team members - ONLY ACTIVE ones
+        members = team_service.get_team_members(target_team_id, active_only=True)
         return members
         
     except Exception as e:
@@ -72,27 +80,23 @@ async def get_team_members(
 
 @router.get("/stats", response_model=TeamStatsResponse)
 async def get_team_stats(
+    team_id: Optional[int] = None,  # ✅ FIX: Accept team_id
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Get team statistics"""
     try:
         team_service = TeamService(db)
+        target_team_id = get_target_team_id(team_id, current_user, team_service)
         
-        # Get or create default team for user
-        team = team_service.get_or_create_default_team(current_user.id)
+        members = team_service.get_team_members(target_team_id)
         
-        # Get team members
-        members = team_service.get_team_members(team.id)
-        
-        # Calculate stats
         stats = {
             "total": len(members),
             "active": len([m for m in members if m["status"] == "Active"]),
             "pending": len([m for m in members if m["status"] == "Pending"]),
             "admins": len([m for m in members if m["role"] in ["Admin", "Owner"]])
         }
-        
         return stats
         
     except Exception as e:
@@ -108,19 +112,15 @@ async def invite_by_email(
     """Send email invitations"""
     try:
         team_service = TeamService(db)
+        target_team_id = get_target_team_id(request.team_id, current_user, team_service)
         
-        # Get or create default team for user
-        team = team_service.get_or_create_default_team(current_user.id)
-        
-        # Validate role
         try:
             role = MemberRole(request.role)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid role")
         
-        # Send invitations
         sent_invitations = team_service.send_email_invitations(
-            team.id, 
+            target_team_id, 
             request.emails, 
             role, 
             current_user.id
@@ -137,17 +137,17 @@ async def invite_by_email(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/invite/link", response_model=InviteLinkResponse)
 async def generate_invite_link(
     role: str = "Member",
+    team_id: Optional[int] = None,  # ✅ FIX: Accept team_id
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """Generate invite link"""
     try:
         team_service = TeamService(db)
-        team = team_service.get_or_create_default_team(current_user.id)
+        target_team_id = get_target_team_id(team_id, current_user, team_service)
         
         try:
             member_role = MemberRole(role)
@@ -157,7 +157,7 @@ async def generate_invite_link(
         placeholder_email = f"pending-{team_service.generate_invite_token()[:8]}@invite.placeholder"
         
         invitation = team_service.create_invitation(
-            team.id,
+            target_team_id,
             placeholder_email,
             member_role,
             current_user.id
@@ -185,26 +185,18 @@ async def update_member_role(
     """Update team member role"""
     try:
         team_service = TeamService(db)
-        
-        # Validate role
         try:
             new_role = MemberRole(request.role)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid role")
         
-        # Update member role
-        updated_member = team_service.update_member_role(
-            member_id, 
-            new_role, 
-            current_user.id
-        )
+        updated_member = team_service.update_member_role(member_id, new_role, current_user.id)
         
         return {
             "message": "Member role updated successfully",
             "member_id": member_id,
             "new_role": request.role
         }
-        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -220,18 +212,12 @@ async def remove_member(
     """Remove team member"""
     try:
         team_service = TeamService(db)
-        
-        # Remove member
         success = team_service.remove_member(member_id, current_user.id)
         
         if success:
-            return {
-                "message": "Member removed successfully",
-                "member_id": member_id
-            }
+            return {"message": "Member removed successfully", "member_id": member_id}
         else:
             raise HTTPException(status_code=400, detail="Failed to remove member")
-        
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -273,37 +259,24 @@ async def accept_invitation(
 ):
     """Accept team invitation"""
     try:
-        logger.info(f"🔍 User {current_user.id} ({current_user.email}) accepting invitation")
-        
         team_service = TeamService(db)
-        
-        # Accept invitation
         team_member = team_service.accept_invitation(token, current_user.id)
-        logger.info(f"✅ Team member created: user_id={current_user.id}, team_id={team_member.team_id}, role={team_member.role}")
         
-        # ✅ CRITICAL: Set the invited workspace as the user's active workspace
         current_user.active_team_id = team_member.team_id
         db.add(current_user)
         db.flush()
-        logger.info(f"✅ Set active_team_id={team_member.team_id} for user {current_user.id}")
-        
         db.commit()
-        logger.info(f"✅ Invitation acceptance completed successfully")
         
         return {
             "message": "Invitation accepted successfully",
             "team_id": team_member.team_id,
-            "team_name": team_member.team. name,
-            "role": team_member.role. value,
+            "team_name": team_member.team.name,
+            "role": team_member.role.value,
             "active_team_id": current_user.active_team_id
         }
-        
     except ValueError as e:
-        logger.error(f"❌ ValueError: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"❌ Error: {str(e)}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
