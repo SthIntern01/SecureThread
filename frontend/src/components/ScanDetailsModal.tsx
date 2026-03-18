@@ -554,7 +554,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
           </div>
         ) : scanDetails ? (
           <div className="flex-1 overflow-hidden flex flex-col">
-            <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+            <Tabs defaultValue="overview" className="flex-1 flex flex-col overflow-hidden">
               <TabsList className="flex-shrink-0 bg-gray-100 dark:bg-white/10">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="vulnerabilities">
@@ -661,7 +661,7 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                 </div>
               </TabsContent>
 
-              <TabsContent value="vulnerabilities" className="flex-1 flex flex-col overflow-hidden">
+              <TabsContent value="vulnerabilities" className="flex-1 flex-col overflow-hidden data-[state=active]:flex min-h-0">
                 {/* Filters */}
                 <div className="flex-shrink-0 bg-gray-50 dark:bg-white/5 rounded-lg p-4 mb-4">
                   <div className="flex items-center space-x-4">
@@ -693,8 +693,8 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                 </div>
 
                 {/* Vulnerabilities List */}
-                <div className="flex-1 overflow-auto space-y-3">
-                  {filteredVulnerabilities.map((vuln) => (
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 min-h-0">
+                {filteredVulnerabilities.map((vuln) => (
                     <div
                       key={vuln.id}
                       className="bg-white dark:bg-white/10 rounded-lg border border-gray-200 dark:border-white/20 p-4 hover:shadow-md transition-shadow"
