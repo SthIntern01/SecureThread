@@ -100,7 +100,36 @@ class RuleParser:
         except Exception as e:
             logger.error(f"Error parsing string line '{line[:100]}': {e}")
             return None
-    
+
+# Add inside RuleParser class
+
+    def parse_condition(self, rule_content: str) -> Dict[str, Any]:
+        """
+        Parse a minimal subset of YARA condition:
+          - any of them
+          - all of them
+          - N of them   (e.g., '2 of them')
+        Defaults to 'any'.
+        """
+        try:
+            cond_match = re.search(r'condition:\s*\n(.*?)(?:$)', rule_content, re.DOTALL)
+            if not cond_match:
+                return {"type": "any", "n": None}
+
+            cond = cond_match.group(1).strip().lower()
+
+            if "all of them" in cond:
+                return {"type": "all", "n": None}
+
+            m = re.search(r"(\d+)\s+of\s+them", cond)
+            if m:
+                return {"type": "n_of_them", "n": int(m.group(1))}
+
+            # default
+            return {"type": "any", "n": None}
+        except Exception:
+            return {"type": "any", "n": None}
+
     def _parse_regex_pattern(self, var_name: str, pattern_part: str) -> Optional[Dict[str, Any]]:
         """
         Parse regex pattern: /pattern/modifiers
@@ -258,7 +287,10 @@ class RuleParser:
             'severity': 'medium',
             'category': 'general',
             'cwe_id': None,
-            'owasp_category': None
+            'owasp_category': None,
+            'requires_keywords': None,   # comma-separated
+            'strip_strings': None,       # "true"/"false"
+            'strip_comments': None,      # "true"/"false"
         }
         
         try:

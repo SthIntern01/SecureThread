@@ -18,11 +18,12 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.user import User
-
+from app.services.code_sanitizer import sanitize_code
 from app.models.repository import Repository
 from app.models.vulnerability import Scan, Vulnerability
 from app.services.github_service import GitHubService
 from app.services.bitbucket_services import BitbucketService
+from app.services.vulnerability_triage import VulnerabilityTriage
 from app.services.llm_service import LLMService
 from app.services.slack_service import slack_service
 from app.services.rule_parser import rule_parser
@@ -237,6 +238,7 @@ class CustomScannerService:
         self.critical_alerts_sent: Dict[int, int] = {}  # scan_id -> count
         self.MAX_INDIVIDUAL_ALERTS = 3  # Only send first 3 individual alerts
 
+        self.triage = VulnerabilityTriage()
     def _clone_repository(self, repo_url: str, access_token: str) -> Optional[str]:
         """
         Clone repository to temp directory using git
@@ -377,193 +379,235 @@ class CustomScannerService:
         compiled_rules: List[Dict[str, Any]],
         scan_id: int,
         repository_id: int
-    ) -> Optional[Dict[str, Any]]:  
+    ) -> Optional[Dict[str, Any]]:
         """
         Scan a single file from local filesystem
         ✅ Fast - reads from disk, no API calls
+
+        Accuracy improvements:
+        ✅ Strip comments before matching (reduces comment-only FPs)
+        ✅ Evaluate YARA-like condition: any/all/n-of-them (more correct)
+        ✅ Optional meta gating: requires_keywords="token,session,..." (OFF unless set in rule meta)
+        ✅ Keep 1 vuln per rule per file (balanced; avoids duplicates)
+
+        Verification improvements:
+        ✅ Store rule_id on Vulnerability
+        ✅ Store match evidence (pattern variables hit + counts + condition + keyword gating)
         """
-        file_path = file_info['path']
-        local_path = file_info['local_path']
-        
-        try: 
-            # ✅✅✅ DEBUG LOG TO FILE ✅✅✅
-            debug_log_path = "C:\\temp\\scan_debug.txt"
-            os.makedirs(os.path.dirname(debug_log_path), exist_ok=True)  # ✅ Fixed: removed space after os.path.
-            # ✅✅✅ END ✅✅✅
-            
-            # Read file content from disk (instant!)
+        file_path = file_info["path"]
+        local_path = file_info["local_path"]
+
+        debug_log_path = None
+
+        try:
+            debug_log_path = os.getenv("SCAN_DEBUG_LOG_PATH")
+            if debug_log_path:
+                debug_dir = os.path.dirname(debug_log_path)
+                if debug_dir:
+                    os.makedirs(debug_dir, exist_ok=True)
+
             file_content_data = self._read_local_file_content(local_path)
-            
-            if not file_content_data or file_content_data.get('is_binary'):
+            if not file_content_data or file_content_data.get("is_binary"):
                 return None
-            
-            file_content = file_content_data['content']
-            
-            # Skip if file is too large (> 1MB)
+
+            file_content = file_content_data["content"]
+
             if len(file_content) > 1_000_000:
                 logger.warning(f"Skipping large file: {file_path}")
                 return None
-            
-            # Detect language
+
             language = self._detect_language(file_path)
-            
             if not language:
                 return None
-            
-            # Filter rules by language
+
             applicable_rules = self._filter_rules_by_language(compiled_rules, language)
-            
-            logger.debug(f"🔍 {file_path} | Language: {language} | Rules: {len(applicable_rules)}/{len(compiled_rules)}")
-            
-            # Scan for vulnerabilities
-            vulnerabilities = []
-            
-            # ✅✅✅ DEBUG LOG TO FILE ✅✅✅
-            with open(debug_log_path, 'a', encoding='utf-8') as f:
-                f.write(f"\n{'='*80}\n")
-                f.write(f"🔍 FILE: {file_path}\n")
-                f.write(f"   Language: {language}\n")
-                f.write(f"   File size: {len(file_content)} bytes\n")
-                f.write(f"   Total rules: {len(compiled_rules)}\n")
-                f.write(f"   Applicable rules: {len(applicable_rules)}\n")
-                
-                if applicable_rules:
-                    first_rule = applicable_rules[0]
-                    f.write(f"   First rule: {first_rule.get('name')}\n")
-                    f.write(f"   First rule patterns: {len(first_rule.get('patterns', []))}\n")
-                else:
-                    f.write(f"   ❌ NO APPLICABLE RULES!\n")
-            # ✅✅✅ END DEBUG ✅✅✅
-            
+
+            # Sanitize comments (preserve newlines so indices map correctly)
+            try:
+                sanitized_content = sanitize_code(
+                    file_content,
+                    language,
+                    strip_comments=True,
+                    strip_strings=False,
+                ).sanitized
+            except Exception as sanitize_err:
+                logger.warning(f"Sanitization failed for {file_path}, falling back to raw content: {sanitize_err}")
+                sanitized_content = file_content
+
+            vulnerabilities: List[Vulnerability] = []
+
+            if debug_log_path:
+                with open(debug_log_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n{'='*80}\n")
+                    f.write(f"🔍 FILE: {file_path}\n")
+                    f.write(f"   Language: {language}\n")
+                    f.write(f"   File size: {len(file_content)} bytes\n")
+                    f.write(f"   Total rules: {len(compiled_rules)}\n")
+                    f.write(f"   Applicable rules: {len(applicable_rules)}\n")
+
+            raw_lower = file_content.lower()
+
             for rule in applicable_rules:
-                try:   
-                    # ✅ Iterate through patterns in the rule
-                    for pattern_info in rule['patterns']: 
-                        compiled_pattern = pattern_info['compiled']
-                        
-                        # ✅ Find all matches
-                        matches = list(compiled_pattern.finditer(file_content))
-                        
-                        # ✅✅✅ DEBUG LOG MATCHES ✅✅✅
-                        if matches:
-                            with open(debug_log_path, 'a', encoding='utf-8') as f:
-                                f.write(f"   🎯 MATCH! Rule: {rule['name']}, Matches: {len(matches)}\n")
-                        # ✅✅✅ END DEBUG ✅✅✅
-                        
-                                                # Process each match
-                        for match in matches:   
-                            line_number = file_content[: match.start()].count('\n') + 1
-                            
-                            # Extract code snippet
-                            lines = file_content.split('\n')
-                            code_snippet = lines[line_number - 1] if line_number <= len(lines) else match.group(0)
-                            
-                            # Create vulnerability
-                            vuln = Vulnerability(
-                                scan_id=scan_id,
-                                repository_id=repository_id,
-                                file_path=file_path,
-                                line_number=line_number,
-                                title=rule['name'][:255],
-                                description=rule['description'][:1000] if rule['description'] else 'No description',
-                                severity=rule['severity'],
-                                category=rule['category'],
-                                cwe_id=rule.get('cwe_id'),
-                                owasp_category=rule.get('owasp_category'),
-                                code_snippet=code_snippet[: 500] if code_snippet else None,
-                                recommendation=f"Review and fix the {rule['category']} issue in {file_path}"[:2000],
-                                risk_score=self._calculate_risk_score(rule['severity']),
-                                status='open'
+                try:
+                    rule_id = rule.get("id")
+                    rule_name = rule.get("name", "Unknown Rule")
+                    rule_desc = rule.get("description") or "No description"
+                    rule_sev = (rule.get("severity") or "medium").lower()
+                    rule_cat = rule.get("category") or "general"
+
+                    patterns = rule.get("patterns") or []
+                    if not patterns:
+                        continue
+
+                    # -------- Optional meta gating (OFF unless set in rule meta) --------
+                    meta = rule.get("meta") or {}
+                    req_kw = meta.get("requires_keywords")
+
+                    requires_keywords_matched = None
+                    if req_kw:
+                        keywords = [k.strip().lower() for k in str(req_kw).split(",") if k.strip()]
+                        if keywords:
+                            for k in keywords:
+                                if k in raw_lower:
+                                    requires_keywords_matched = k
+                                    break
+                            if not requires_keywords_matched:
+                                continue  # gated out
+
+                    # -------- Evaluate pattern hits + capture evidence --------
+                    patterns_hit = 0
+                    earliest_start = None
+                    earliest_match_text = None
+                    matched_variables: List[str] = []
+
+                    for p in patterns:
+                        cre = p.get("compiled")
+                        if not cre:
+                            continue
+
+                        m = cre.search(sanitized_content)
+                        if m:
+                            patterns_hit += 1
+                            matched_variables.append(p.get("variable", "?"))
+                            if earliest_start is None or m.start() < earliest_start:
+                                earliest_start = m.start()
+                                earliest_match_text = m.group(0)
+
+                    if patterns_hit == 0:
+                        continue
+
+                    # -------- Evaluate condition --------
+                    condition = rule.get("condition") or {"type": "any", "n": None}
+                    cond_type = (condition.get("type") or "any").lower()
+
+                    matched = False
+                    if cond_type == "all":
+                        matched = (patterns_hit == len(patterns))
+                    elif cond_type == "n_of_them":
+                        n = int(condition.get("n") or 1)
+                        matched = patterns_hit >= n
+                    else:
+                        matched = patterns_hit >= 1
+
+                    if not matched:
+                        continue
+
+                    if earliest_start is None:
+                        earliest_start = 0
+
+                    line_number = file_content[:earliest_start].count("\n") + 1
+                    lines = file_content.split("\n")
+                    code_snippet = lines[line_number - 1] if 1 <= line_number <= len(lines) else (earliest_match_text or "")
+
+                    # -------- Evidence string (compact) --------
+                    matched_vars_str = ",".join(matched_variables[:10])  # cap to avoid huge strings
+                    evidence = (
+                        f"[evidence] rule_id={rule_id} "
+                        f"patterns_hit={patterns_hit}/{len(patterns)} "
+                        f"condition={cond_type}"
+                    )
+                    if cond_type == "n_of_them":
+                        evidence += f"(n={int(condition.get('n') or 1)})"
+                    evidence += f" matched_patterns={matched_vars_str}"
+                    if req_kw:
+                        evidence += f" requires_keywords={req_kw} matched_keyword={requires_keywords_matched}"
+
+                    # Put evidence into recommendation (safe, always present)
+                    recommendation = f"Review and fix the {rule_cat} issue in {file_path}"
+                    recommendation = (recommendation + "\n" + evidence)[:2000]
+
+                    vuln = Vulnerability(
+                        scan_id=scan_id,
+                        repository_id=repository_id,
+                        rule_id=rule_id,  # ✅ NEW
+                        detection_method="rule_based",
+                        file_path=file_path,
+                        line_number=line_number,
+                        title=rule_name[:255],
+                        description=rule_desc[:1000],
+                        severity=rule_sev,
+                        category=rule_cat,
+                        cwe_id=rule.get("cwe_id"),
+                        owasp_category=rule.get("owasp_category"),
+                        code_snippet=(code_snippet[:500] if code_snippet else None),
+                        recommendation=recommendation,
+                        risk_score=self._calculate_risk_score(rule_sev),
+                        status="open",
+                    )
+                    vulnerabilities.append(vuln)
+
+                    if debug_log_path:
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(
+                                f"   ✅ RULE MATCHED: {rule_name} | "
+                                f"hit={patterns_hit}/{len(patterns)} | cond={cond_type} | line={line_number} | "
+                                f"vars={matched_vars_str}\n"
                             )
-                            
-                            vulnerabilities.append(vuln)
-                            
-                            # ✅ SEND SLACK ALERT FOR CRITICAL/HIGH (with limiting)
-                            if rule['severity'].lower() in ['critical', 'high']:
-                                # Check if we've already sent max alerts for this scan
-                                alerts_sent = self.critical_alerts_sent.get(scan_id, 0)
-                                
-                                if alerts_sent < self.MAX_INDIVIDUAL_ALERTS:
-                                    try:
-                                        # Get repository name
-                                        repo = self.db.query(Repository).filter(Repository.id == repository_id).first()
-                                        repo_name = repo.full_name if repo else "Unknown Repository"
-                                        
-                                        await slack_service.send_critical_vulnerability_alert(
-                                            vulnerability_title=rule['name'],
-                                            severity=rule['severity'],
-                                            repository_name=repo_name,
-                                            file_path=file_path,
-                                            line_number=line_number,
-                                            code_snippet=code_snippet[:500] if code_snippet else None,
-                                            description=rule['description'] or 'No description',
-                                            recommendation=f"Review and fix the {rule['category']} issue in {file_path}",
-                                            cwe_id=rule.get('cwe_id'),
-                                            owasp_category=rule.get('owasp_category')
-                                        )
-                                        
-                                        # Increment counter
-                                        self.critical_alerts_sent[scan_id] = alerts_sent + 1
-                                        logger.info(f"🚨 Sent Slack alert #{alerts_sent + 1} for {rule['severity']} vulnerability: {rule['name']}")
-                                        
-                                    except Exception as slack_error:
-                                        logger.error(f"Failed to send Slack alert: {slack_error}")
-                                elif alerts_sent == self.MAX_INDIVIDUAL_ALERTS:
-                                    # Log once when we hit the limit
-                                    logger.info(f"⏸️ Reached limit of {self.MAX_INDIVIDUAL_ALERTS} individual alerts. Remaining critical/high vulnerabilities will be in final summary.")
-                                    self.critical_alerts_sent[scan_id] = alerts_sent + 1  # Increment so this message only shows once
-                        
-                except Exception as e:  
+
+                except Exception as e:
                     logger.warning(f"Error applying rule {rule.get('name', 'Unknown')} to {file_path}: {e}")
-                    # ✅✅✅ DEBUG LOG ERROR ✅✅✅
-                    with open(debug_log_path, 'a', encoding='utf-8') as f:
-                        f.write(f"   ❌ ERROR: {rule.get('name')}: {str(e)}\n")
-                    # ✅✅✅ END DEBUG ✅✅✅
+                    if debug_log_path:
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"   ❌ ERROR: {rule.get('name')}: {str(e)}\n")
                     continue
-            
-            # ✅✅✅ DEBUG LOG RESULTS ✅✅✅
-            with open(debug_log_path, 'a', encoding='utf-8') as f:
-                f.write(f"   Total vulnerabilities found: {len(vulnerabilities)}\n")
-            # ✅✅✅ END DEBUG ✅✅✅
-            
-            # ✅ Save vulnerabilities to database IN BATCH
+
+            if debug_log_path:
+                with open(debug_log_path, "a", encoding="utf-8") as f:
+                    f.write(f"   Total vulnerabilities found: {len(vulnerabilities)}\n")
+
             if vulnerabilities:
                 try:
-                    self.db.add_all(vulnerabilities)  # ✅ Bulk insert
+                    self.db.add_all(vulnerabilities)
                     self.db.commit()
-                    
-                    # ✅✅✅ DEBUG LOG SAVE ✅✅✅
-                    with open(debug_log_path, 'a', encoding='utf-8') as f:
-                        f.write(f"   ✅ Saved {len(vulnerabilities)} vulnerabilities to database\n")
-                    # ✅✅✅ END DEBUG ✅✅✅
-                    
+
+                    if debug_log_path:
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"   ✅ Saved {len(vulnerabilities)} vulnerabilities to database\n")
+
                 except Exception as e:
                     logger.error(f"Failed to save vulnerabilities for {file_path}: {e}")
                     self.db.rollback()
-                    
-                    # ✅✅✅ DEBUG LOG SAVE ERROR ✅✅✅
-                    with open(debug_log_path, 'a', encoding='utf-8') as f:
-                        f.write(f"   ❌ FAILED TO SAVE: {str(e)}\n")
-                    # ✅✅✅ END DEBUG ✅✅✅
-            
-            # ✅ RETURN RESULT
+
+                    if debug_log_path:
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"   ❌ FAILED TO SAVE: {str(e)}\n")
+
             return {
-                'file': file_path,
-                'vulnerabilities_count': len(vulnerabilities),
-                'language': language
+                "file": file_path,
+                "vulnerabilities_count": len(vulnerabilities),
+                "language": language,
             }
-            
-        except Exception as e: 
+
+        except Exception as e:
             logger.error(f"Error scanning {file_path}: {e}")
-            
-            # ✅✅✅ DEBUG LOG EXCEPTION ✅✅✅
-            try:
-                with open(debug_log_path, 'a', encoding='utf-8') as f:
-                    f.write(f"   💥 EXCEPTION: {str(e)}\n")
-            except:
-                pass
-            # ✅✅✅ END DEBUG ✅✅✅
-            
+
+            if debug_log_path:
+                try:
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"   💥 EXCEPTION: {str(e)}\n")
+                except Exception:
+                    pass
+
             return None
             
 
@@ -1079,54 +1123,120 @@ class CustomScannerService:
         return base_priority
     
     def _compile_all_rules(self, rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Compile all rules and extract patterns
-        ✅ PRESERVES language FIELD for filtering
-        """
-        compiled_rules = []
-        
+        compiled_rules: List[Dict[str, Any]] = []
+
         for rule in rules:
-            try:
-                rule_id = rule.get('id')
-                rule_content = rule.get('rule_content', '')
-                
-                # Parse YARA rule and extract patterns
-                patterns = rule_parser.parse_yara_rule(rule_content)
-                
-                if not patterns:
-                    logger.warning(f"Rule {rule_id} ({rule.get('name')}) has no valid patterns")
-                    continue
-                
-                # Compile each pattern
-                compiled_patterns = []
-                for pattern_dict in patterns:
-                    compiled = rule_parser.compile_pattern(pattern_dict)
-                    if compiled:
-                        compiled_patterns.append({
-                            'variable': pattern_dict['variable'],
-                            'compiled': compiled,
-                            'type': pattern_dict['type']
-                        })
-                
-                if compiled_patterns:
-                    compiled_rules.append({
-                        'id': rule_id,
-                        'name': rule.get('name'),
-                        'description': rule.get('description'),
-                        'severity': rule.get('severity', 'medium'),
-                        'category': rule.get('category', 'general'),
-                        'cwe_id': rule.get('cwe_id'),
-                        'owasp_category': rule.get('owasp_category'),
-                        'language': rule.get('language', 'multi'),  # ✅ CRITICAL: Preserve language
-                        'patterns': compiled_patterns
-                    })
-                    
-            except Exception as e:
-                logger.error(f"Error compiling rule {rule.get('id')}: {e}")
-        
-        logger.info(f"Successfully compiled {len(compiled_rules)}/{len(rules)} rules")
+            rule_id = rule.get("id")
+            rule_content = rule.get("rule_content") or ""
+            if not rule_id or not rule_content:
+                continue
+
+            patterns = rule_parser.parse_yara_rule(rule_content)
+            if not patterns:
+                continue
+
+            # compile patterns
+            compiled_patterns = []
+            for p in patterns:
+                compiled = rule_parser.compile_pattern(p)
+                if compiled:
+                    compiled_patterns.append({**p, "compiled": compiled})
+
+            if not compiled_patterns:
+                continue
+
+            meta = rule_parser.extract_metadata(rule_content)
+            condition = rule_parser.parse_condition(rule_content)
+
+            # Merge DB fields + meta (DB wins if present)
+            compiled_rules.append({
+                "id": rule_id,
+                "user_id": rule.get("user_id"),
+                "name": rule.get("name") or meta.get("description") or f"Rule {rule_id}",
+                "description": rule.get("description") or meta.get("description") or "",
+                "category": rule.get("category") or meta.get("category") or "general",
+                "severity": rule.get("severity") or meta.get("severity") or "medium",
+                "cwe_id": rule.get("cwe_id") or meta.get("cwe_id"),
+                "owasp_category": rule.get("owasp_category") or meta.get("owasp_category"),
+                "language": rule.get("language"),
+                "confidence_level": rule.get("confidence_level", "medium"),
+
+                "meta": meta,
+                "condition": condition,
+                "patterns": compiled_patterns,
+            })
+
+        logger.info(f"✅ Compiled {len(compiled_rules)} rules (from {len(rules)} total)")
         return compiled_rules
     
+    def _rule_requires_keywords_ok(self, compiled_rule: Dict[str, Any], content: str) -> bool:
+        meta = compiled_rule.get("meta") or {}
+        kw = meta.get("requires_keywords")
+        if not kw:
+            return True
+
+        # requires_keywords = "token,session,secret"
+        keywords = [k.strip().lower() for k in str(kw).split(",") if k.strip()]
+        if not keywords:
+            return True
+
+        lower = (content or "").lower()
+        return any(k in lower for k in keywords)
+
+    def _evaluate_rule_matches(
+        self,
+        compiled_rule: Dict[str, Any],
+        content_for_matching: str
+    ) -> Dict[str, Any]:
+        """
+        Return:
+        {
+            "matched": bool,
+            "match_count": int,
+            "matches": [ {pattern_variable, start, end, line} ... ],
+        }
+        """
+        patterns = compiled_rule.get("patterns") or []
+        condition = compiled_rule.get("condition") or {"type": "any", "n": None}
+
+        all_matches = []
+        patterns_hit = 0
+
+        for p in patterns:
+            cre = p.get("compiled")
+            if not cre:
+                continue
+
+            ms = list(cre.finditer(content_for_matching))
+            if ms:
+                patterns_hit += 1
+                for m in ms:
+                    all_matches.append({
+                        "variable": p.get("variable"),
+                        "start": m.start(),
+                        "end": m.end(),
+                        "line": content_for_matching[:m.start()].count("\n") + 1,
+                        "match": m.group(0)[:200],
+                    })
+
+        cond_type = condition.get("type", "any")
+        cond_n = condition.get("n")
+
+        if cond_type == "all":
+            matched = (patterns_hit == len(patterns)) if patterns else False
+        elif cond_type == "n_of_them":
+            n = int(cond_n or 1)
+            matched = patterns_hit >= n
+        else:
+            matched = patterns_hit > 0
+
+        return {
+            "matched": matched,
+            "match_count": len(all_matches),
+            "matches": all_matches,
+            "patterns_hit": patterns_hit,
+        }
+
     async def _scan_all_files_with_rules(
         self,
         files: List[Dict[str, Any]],
@@ -1329,62 +1439,83 @@ class CustomScannerService:
     ) -> List[Dict[str, Any]]:
         """
         Apply a single rule to file content and return vulnerabilities
+        Now includes triage to suppress obvious false positives.
         """
-        vulnerabilities = []
-        
+        vulnerabilities: List[Dict[str, Any]] = []
+
         try:
-            # Check all patterns in the rule
             pattern_matches = []
-            
-            for pattern_info in rule['patterns']:
-                compiled_pattern = pattern_info['compiled']
+
+            for pattern_info in rule["patterns"]:
+                compiled_pattern = pattern_info["compiled"]
                 matches = list(compiled_pattern.finditer(content))
-                
+
                 if matches:
                     pattern_matches.append({
-                        'variable': pattern_info['variable'],
-                        'matches': matches
+                        "variable": pattern_info["variable"],
+                        "matches": matches
                     })
-            
-            # If any pattern matched, create vulnerability
-            if pattern_matches:
-                # Find the line number of the first match
-                first_match = pattern_matches[0]['matches'][0]
-                line_number = content[:first_match.start()].count('\n') + 1
-                
-                # Extract code snippet (3 lines context)
-                lines = content.split('\n')
-                start_line = max(0, line_number - 2)
-                end_line = min(len(lines), line_number + 2)
-                code_snippet = '\n'.join(lines[start_line:end_line])
-                
-                vulnerability = {
-                    'repository_id': repository_id,
-                    'title': rule['name'],
-                    'description': rule['description'],
-                    'severity': rule['severity'],
-                    'category': rule['category'],
-                    'cwe_id': rule.get('cwe_id'),
-                    'owasp_category': rule.get('owasp_category'),
-                    'file_path': file_path,
-                    'line_number': line_number,
-                    'line_end_number': line_number,
-                    'code_snippet': code_snippet[:500],  # Limit snippet size
-                    'recommendation': f"Review and fix the {rule['category']} issue in {file_path}",
-                    'fix_suggestion': "Apply appropriate security controls and validation",
-                    'risk_score': self._calculate_risk_score(rule['severity']),
-                    'exploitability': 'medium',
-                    'impact': rule['severity'],
-                    'rule_id': rule['id'],
-                    'pattern_matches_count': len(pattern_matches),
-                    'ai_enhanced': False
+
+            if not pattern_matches:
+                return vulnerabilities
+
+            first_match = pattern_matches[0]["matches"][0]
+            line_number = content[:first_match.start()].count("\n") + 1
+
+            lines = content.split("\n")
+            start_line = max(0, line_number - 4)
+            end_line = min(len(lines), line_number + 4)
+            context_snippet = "\n".join(lines[start_line:end_line])
+
+            # language is already inferred from file path extension in your codebase
+            language = detect_file_language(file_path)
+
+            # triage decision (false-positive reduction)
+            decision = self.triage.decide(
+                rule=rule,
+                file_path=file_path,
+                language=language,
+                matched_text=first_match.group(0) if first_match else "",
+                context_snippet=context_snippet,
+            )
+
+            if not decision.should_report:
+                # suppressed (don’t create vulnerability)
+                return []
+
+            vulnerability = {
+                "repository_id": repository_id,
+                "title": rule["name"],
+                "description": rule["description"],
+                "severity": rule["severity"],
+                "category": rule["category"],
+                "cwe_id": rule.get("cwe_id"),
+                "owasp_category": rule.get("owasp_category"),
+                "file_path": file_path,
+                "line_number": line_number,
+                "line_end_number": line_number,
+                "code_snippet": context_snippet[:500],
+                "recommendation": f"Review and fix the {rule['category']} issue in {file_path}",
+                "fix_suggestion": "Apply appropriate security controls and validation",
+                "risk_score": self._calculate_risk_score(rule["severity"]),
+                "exploitability": "medium",
+                "impact": rule["severity"],
+                "rule_id": rule["id"],
+                "pattern_matches_count": len(pattern_matches),
+                "ai_enhanced": False,
+                # traceability:
+                "triage": {
+                    "decision": "reported",
+                    "reason": decision.reason,
+                    "confidence": decision.confidence,
                 }
-                
-                vulnerabilities.append(vulnerability)
-        
+            }
+
+            vulnerabilities.append(vulnerability)
+
         except Exception as e:
-            logger.error(f"Error applying rule {rule['name']} to {file_path}: {e}")
-        
+            logger.error(f"Error applying rule {rule.get('name')} to {file_path}: {e}")
+
         return vulnerabilities
     
     def _calculate_risk_score(self, severity: str) -> float:
