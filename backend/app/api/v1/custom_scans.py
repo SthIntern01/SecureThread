@@ -109,6 +109,10 @@ class VulnerabilityResponse(BaseModel):
     impact: Optional[str] = None
     status: str
     detected_at: str
+    detection_method: Optional[str] = None
+    llm_explanation: Optional[str] = None
+    llm_solution: Optional[str] = None
+    llm_code_example: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -501,7 +505,11 @@ async def get_detailed_scan_results(
             "code_snippet": vuln.code_snippet, "recommendation": vuln.recommendation,
             "fix_suggestion": vuln.fix_suggestion, "risk_score": vuln.risk_score,
             "exploitability": vuln.exploitability, "impact": vuln.impact,
-            "status": vuln.status, "detected_at": vuln.detected_at.isoformat()
+            "status": vuln.status, "detected_at": vuln.detected_at.isoformat(),
+            "detection_method": vuln.detection_method,
+            "llm_explanation": vuln.llm_explanation,
+            "llm_solution": vuln.llm_solution,
+            "llm_code_example": vuln.llm_code_example
         })
     
     scan_response = ScanResponse(
@@ -547,7 +555,11 @@ async def get_scan_vulnerabilities(
             code_snippet=vuln.code_snippet, recommendation=vuln.recommendation,
             fix_suggestion=vuln.fix_suggestion, risk_score=vuln.risk_score,
             exploitability=vuln.exploitability, impact=vuln.impact,
-            status=vuln.status, detected_at=vuln.detected_at.isoformat()
+            status=vuln.status, detected_at=vuln.detected_at.isoformat(),
+            detection_method=vuln.detection_method,
+            llm_explanation=vuln.llm_explanation,
+            llm_solution=vuln.llm_solution,
+            llm_code_example=vuln.llm_code_example
         ) for vuln in vulnerabilities
     ]
 

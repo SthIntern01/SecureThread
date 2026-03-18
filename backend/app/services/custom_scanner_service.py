@@ -7,14 +7,12 @@ Custom Scanner Service - Rule-based vulnerability scanning with AI enhancement
 import re
 import asyncio
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import os
 import shutil
 import tempfile
 import subprocess
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.user import User
@@ -38,120 +36,54 @@ logger = logging.getLogger(__name__)
 def detect_file_language(file_path: str) -> str:
     """
     Detect programming language from file extension
-    
-    Args:
-        file_path: Path to the file
-        
-    Returns: 
-        Language identifier (e.g., 'python', 'javascript', 'multi')
     """
     if not file_path:
         return 'unknown'
     
-    # Extract file extension
     file_ext = file_path.lower().split('.')[-1] if '.' in file_path else ''
     
-    # Language mapping (matches database language values)
     language_map = {
-        # Python
         'py': 'python', 'pyw': 'python', 'pyx': 'python', 'pyi': 'python',
-        
-        # JavaScript/TypeScript
         'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
         'ts': 'typescript', 'tsx': 'typescript',
-        
-        # Java
         'java': 'java', 'class': 'java', 'jar': 'java', 'jsp': 'jsp',
-        
-        # C/C++
         'c': 'c', 'h': 'c', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hxx': 'cpp',
-        
-        # C#
         'cs': 'csharp',
-        
-        # Ruby
         'rb': 'ruby', 'erb': 'ruby',
-        
-        # Go
         'go': 'go',
-        
-        # Rust
         'rs': 'rust',
-        
-        # PHP
         'php': 'php', 'phtml': 'php', 'php3': 'php', 'php4': 'php', 'php5': 'php',
-        
-        # Shell/Bash
         'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
-        
-        # Perl
         'pl': 'perl', 'pm': 'perl',
-        
-        # Swift
         'swift': 'swift',
-        
-        # Lua
         'lua': 'lua',
-        
-        # R
         'r': 'r',
-        
-        # PowerShell
         'ps1': 'powershell', 'psm1': 'powershell',
-        
-        # Config/Data files
         'json': 'json', 'xml': 'xml', 'yml': 'yaml', 'yaml': 'yaml',
         'toml': 'toml', 'ini': 'ini', 'conf': 'config', 'config': 'config',
-        
-        # Web
         'html': 'html', 'htm': 'html', 'xhtml': 'html',
         'css': 'css', 'scss': 'css', 'sass': 'css',
-        
-        # Docker
         'dockerfile': 'dockerfile',
-        
-        # Other
         'md': 'markdown', 'txt': 'text', 'env': 'config',
     }
     
-    # Special case: Dockerfile (no extension)
     if file_path.lower().endswith('dockerfile'):
         return 'dockerfile'
     
     detected_language = language_map.get(file_ext, 'unknown')
-    
     logger.debug(f"📄 File: {file_path} → Language: {detected_language}")
-    
     return detected_language
 
 
 def filter_rules_by_language(file_path: str, all_rules: List) -> List:
     """
     Filter scan rules based on file language for 10x faster scanning
-    
-    Args:
-        file_path: Path to the file being scanned
-        all_rules: List of all available scan rules
-        
-    Returns: 
-        List of rules applicable to this file's language
     """
     file_language = detect_file_language(file_path)
-    
-    # Filter rules:
-    # 1. Rules matching the file's language exactly
-    # 2. Multi-language rules (apply to all files)
-    # 3. Rules with no language specified (backward compatibility)
     applicable_rules = []
     
     for rule in all_rules:
-        # Get rule language (handle None gracefully)
         rule_lang = getattr(rule, 'language', None) if hasattr(rule, 'language') else rule.get('language')
-        
-        # Include rule if:
-        # - Exact language match (e.g., Python rule for .py file)
-        # - Multi-language rule
-        # - Unknown file type (apply all rules as fallback)
         if (
             rule_lang == file_language or
             rule_lang in ['multi', 'all'] or
@@ -160,7 +92,6 @@ def filter_rules_by_language(file_path: str, all_rules: List) -> List:
         ):
             applicable_rules.append(rule)
     
-    # Calculate statistics
     total_rules = len(all_rules)
     filtered_rules = len(applicable_rules)
     percentage = (filtered_rules / total_rules * 100) if total_rules > 0 else 0
@@ -169,7 +100,6 @@ def filter_rules_by_language(file_path: str, all_rules: List) -> List:
         f"🔍 {file_path} | Language: {file_language} | "
         f"Rules: {filtered_rules}/{total_rules} ({percentage:.1f}%)"
     )
-    
     return applicable_rules
 
 
@@ -178,108 +108,69 @@ def filter_rules_by_language(file_path: str, all_rules: List) -> List:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class CustomScannerService:
-    """
-    Production-grade custom scanner with:
-    - Complete file coverage (NO skipping)
-    - User custom rules + global rules
-    - ✅ Language-based rule filtering (10x faster)
-    - ✅ Streaming vulnerability saves (Snyk/Aikido approach)
-    - ✅ Micro-batching for optimal performance
-    - AI-enhanced vulnerability explanations
-    """
-    
     def __init__(self, db: Session):
         self.db = db
         self.github_service = GitHubService()
         self.bitbucket_service = BitbucketService()
         self.llm_service = LLMService()
         
-        # Scanning configuration
         self.MAX_FILES_TO_SCAN = 1000
-        self.MAX_FILE_SIZE = 500 * 1024  # 500KB
-        self.BATCH_SIZE = 10  # Process 10 files at a time
-        self.VULN_SAVE_BATCH_SIZE = 5  # ✅ Micro-batch size for vulnerability saves
+        self.MAX_FILE_SIZE = 500 * 1024
+        self.BATCH_SIZE = 10
+        self.VULN_SAVE_BATCH_SIZE = 5
         
-        # Comprehensive file extensions
         self.scannable_extensions = {
-            # Web languages
             '.py', '.js', '.jsx', '.ts', '.tsx', '.php', '.asp', '.aspx',
             '.jsp', '.html', '.htm', '.xml', '.json', '.yaml', '.yml',
-            
-            # Compiled languages
             '.java', '.cs', '.cpp', '.c', '.h', '.hpp', '.cc', '.go',
             '.rs', '.swift', '.kt', '.scala', '.rb', '.pl', '.lua',
-            
-            # Scripts & configs
             '.sh', '.bash', '.ps1', '.bat', '.cmd', '.sql',
             '.conf', '.config', '.ini', '.toml', '.env',
-            
-            # Mobile
             '.m', '.mm', '.dart',
-            
-            # Data & markup
             '.graphql', '.proto', '.thrift'
         }
         
-        # Minimal exclusions - scan almost everything
         self.excluded_paths = {
             'node_modules', '.git', '__pycache__', '.venv', 'venv',
             'vendor', 'dist', 'build', '.next', 'target'
         }
         
-        # Pattern cache for performance
         self.compiled_patterns_cache: Dict[int, List[re.Pattern]] = {}
-        
-        # ✅ Vulnerability buffer for micro-batching
         self.vulnerability_buffer: List[Dict[str, Any]] = []
         self.buffer_lock = asyncio.Lock()
         
-        # ✅ Alert limiting - track how many alerts sent per scan
-        self.critical_alerts_sent: Dict[int, int] = {}  # scan_id -> count
-        self.MAX_INDIVIDUAL_ALERTS = 3  # Only send first 3 individual alerts
+        self.critical_alerts_sent: Dict[int, int] = {}
+        self.MAX_INDIVIDUAL_ALERTS = 3
 
         self.triage = VulnerabilityTriage()
+
     def _clone_repository(self, repo_url: str, access_token: str) -> Optional[str]:
-        """
-        Clone repository to temp directory using git
-        ✅ This is how Snyk, Aikido, and professional tools do it
-        Returns:  temp directory path if successful, None if failed
-        """
         import time
         start_time = time.time()
         
         try:
-            # Create temp directory
             temp_dir = tempfile.mkdtemp(prefix="securethread_scan_")
-            
             logger.info(f"📁 Created temp directory: {temp_dir}")
             
-            # Build authenticated clone URL for private repos
             if access_token and "github.com" in repo_url:
-                # For GitHub:  https://TOKEN@github.com/user/repo.git
                 auth_url = repo_url.replace("https://", f"https://{access_token}@")
             else:
-                # For public repos, use URL as-is
                 auth_url = repo_url
             
             logger.info(f"🔄 Cloning repository...")
-            
-            # Clone with depth=1 (only latest commit - much faster)
             result = subprocess.run(
                 ["git", "clone", "--depth=1", "--single-branch", auth_url, temp_dir],
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minute timeout
+                timeout=120
             )
             
             elapsed = time.time() - start_time
-            
             if result.returncode == 0:
                 logger.info(f"✅ Repository cloned successfully in {elapsed:.2f} seconds")
                 return temp_dir
             else:
-                logger.error(f"❌ Git clone failed:  {result.stderr}")
-                # Clean up failed clone
+                logger.error(f"❌ Git clone failed: {result.stderr}")
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 return None
@@ -289,11 +180,9 @@ class CustomScannerService:
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
             return None
-            
         except FileNotFoundError:
             logger.error("❌ Git is not installed on this system")
             return None
-            
         except Exception as e: 
             logger.error(f"❌ Error cloning repository: {e}")
             if 'temp_dir' in locals() and os.path.exists(temp_dir):
@@ -301,66 +190,45 @@ class CustomScannerService:
             return None
     
     async def _get_all_repository_files_from_clone(self, clone_dir: str) -> List[Dict[str, Any]]: 
-        """
-        Get all files from cloned repository (local filesystem)
-        ✅ MUCH faster than API calls - instant! 
-        """
         files = []
-        
         try: 
-            logger.info(f"📂 Walking directory tree:  {clone_dir}")
-            
+            logger.info(f"📂 Walking directory tree: {clone_dir}")
             for root, dirs, filenames in os.walk(clone_dir):
-                # Skip . git directory
                 if '.git' in root:
                     continue
-                
-                # Skip node_modules, vendor, etc.  (optional optimization)
                 dirs[:] = [d for d in dirs if d not in ['.git', 'node_modules', 'vendor', '__pycache__']]
                 
                 for filename in filenames:
                     file_path = os.path.join(root, filename)
                     relative_path = os.path.relpath(file_path, clone_dir)
-                    
                     try:
                         file_size = os.path.getsize(file_path)
-                        
                         files.append({
-                            'path': relative_path.replace('\\', '/'),  # Normalize Windows paths
-                            'local_path': file_path,  # Full path on disk
+                            'path': relative_path.replace('\\', '/'),
+                            'local_path': file_path,
                             'size': file_size,
                             'type': 'file'
                         })
-                        
                     except Exception as e:
                         logger.warning(f"Could not get info for {relative_path}: {e}")
                         continue
-            
             logger.info(f"✅ Found {len(files)} files in local clone")
             return files
-            
         except Exception as e: 
-            logger.error(f"❌ Error walking directory:  {e}")
+            logger.error(f"❌ Error walking directory: {e}")
             return []
         
     def _read_local_file_content(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """
-        Read file content from local filesystem
-        ✅ Instant - no API calls needed! 
-        """
         try: 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                
             return {
                 'content': content,
                 'encoding': 'utf-8',
                 'path': file_path,
                 'is_binary': False
             }
-            
         except UnicodeDecodeError:
-            # Binary file - skip it
             logger.debug(f"Skipping binary file: {file_path}")
             return {
                 'content': 'Binary file',
@@ -368,10 +236,180 @@ class CustomScannerService:
                 'path': file_path,
                 'is_binary': True
             }
-            
         except Exception as e:
             logger.error(f"Error reading file {file_path}: {e}")
             return None
+
+    def _evaluate_rules_on_content(
+        self,
+        file_content: str,
+        file_path: str,
+        applicable_rules: List[Dict[str, Any]],
+        repository_id: int,
+        debug_log_path: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        UNIFIED SCANNING CORE:
+        Applies rules to file content, evaluates YARA conditions, generates evidence,
+        and runs through the Triage Engine.
+        Returns a list of vulnerability dictionaries ready for the save buffer.
+        """
+        vulnerabilities = []
+        language = detect_file_language(file_path)
+
+        # 1. Sanitize code (strip comments, preserve lines for accuracy)
+        try:
+            sanitized_content = sanitize_code(
+                file_content,
+                language,
+                strip_comments=True,
+                strip_strings=False,
+            ).sanitized
+        except Exception as sanitize_err:
+            logger.warning(f"Sanitization failed for {file_path}, fallback to raw: {sanitize_err}")
+            sanitized_content = file_content
+
+        raw_lower = file_content.lower()
+
+        for rule in applicable_rules:
+            try:
+                rule_id = rule.get("id")
+                rule_name = rule.get("name", "Unknown Rule")
+                rule_category = rule.get("category", "general")
+                
+                # 2. Optional Meta Gating (requires_keywords)
+                meta = rule.get("meta") or {}
+                req_kw = meta.get("requires_keywords")
+                requires_keywords_matched = None
+                
+                if req_kw:
+                    keywords = [k.strip().lower() for k in str(req_kw).split(",") if k.strip()]
+                    if keywords:
+                        for k in keywords:
+                            if k in raw_lower:
+                                requires_keywords_matched = k
+                                break
+                        if not requires_keywords_matched:
+                            continue  # Gated out - required keyword not found
+
+                # 3. Pattern Matching
+                patterns = rule.get("patterns") or []
+                if not patterns:
+                    continue
+
+                patterns_hit = 0
+                earliest_start = None
+                earliest_match_text = None
+                matched_variables = []
+
+                for p in patterns:
+                    cre = p.get("compiled")
+                    if not cre:
+                        continue
+                    m = cre.search(sanitized_content)
+                    if m:
+                        patterns_hit += 1
+                        matched_variables.append(p.get("variable", "?"))
+                        if earliest_start is None or m.start() < earliest_start:
+                            earliest_start = m.start()
+                            earliest_match_text = m.group(0)
+
+                if patterns_hit == 0:
+                    continue
+
+                # 4. Evaluate YARA Condition (any, all, n_of_them)
+                condition = rule.get("condition") or {"type": "any", "n": None}
+                cond_type = (condition.get("type") or "any").lower()
+
+                matched = False
+                if cond_type == "all":
+                    matched = (patterns_hit == len(patterns))
+                elif cond_type == "n_of_them":
+                    n = int(condition.get("n") or 1)
+                    matched = patterns_hit >= n
+                else:
+                    matched = patterns_hit >= 1
+
+                if not matched:
+                    continue
+
+                # 5. Extract Context Snippet
+                if earliest_start is None: earliest_start = 0
+                line_number = file_content[:earliest_start].count("\n") + 1
+                lines = file_content.split("\n")
+                
+                start_line = max(0, line_number - 4)
+                end_line = min(len(lines), line_number + 4)
+                context_snippet = "\n".join(lines[start_line:end_line])
+
+                # 6. Triage Engine (False Positive Reduction)
+                decision = self.triage.decide(
+                    rule=rule,
+                    file_path=file_path,
+                    language=language,
+                    matched_text=earliest_match_text or "",
+                    context_snippet=context_snippet,
+                )
+
+                if not decision.should_report:
+                    continue  # Suppressed by AI/Triage logic!
+
+                # 7. Generate Evidence String
+                matched_vars_str = ",".join(matched_variables[:10])
+                evidence = (
+                    f"[evidence] rule_id={rule_id} "
+                    f"patterns_hit={patterns_hit}/{len(patterns)} "
+                    f"condition={cond_type}"
+                )
+                if cond_type == "n_of_them":
+                    evidence += f"(n={int(condition.get('n') or 1)})"
+                evidence += f" matched_patterns={matched_vars_str}"
+                if req_kw:
+                    evidence += f" requires_keywords={req_kw} matched_keyword={requires_keywords_matched}"
+                
+                recommendation = f"Review and fix the {rule_category} issue in {file_path}\n{evidence}"
+
+                # 8. Construct Vulnerability Dictionary (Ready for Micro-batching)
+                vuln_dict = {
+                    "repository_id": repository_id,
+                    "title": rule_name[:255],
+                    "description": rule.get("description") or "No description",
+                    "severity": (rule.get("severity") or "medium").lower(),
+                    "category": rule_category,
+                    "cwe_id": rule.get("cwe_id"),
+                    "owasp_category": rule.get("owasp_category"),
+                    "file_path": file_path,
+                    "line_number": line_number,
+                    "line_end_number": line_number,
+                    "code_snippet": context_snippet[:500],
+                    "recommendation": recommendation[:2000],
+                    "fix_suggestion": "Apply appropriate security controls and validation",
+                    "risk_score": self._calculate_risk_score(rule.get("severity", "medium")),
+                    "exploitability": "medium",
+                    "impact": (rule.get("severity") or "medium").lower(),
+                    "rule_id": rule_id,
+                    "pattern_matches_count": patterns_hit,
+                    "ai_enhanced": False,
+                    "triage": {
+                        "decision": "reported",
+                        "reason": decision.reason,
+                        "confidence": decision.confidence,
+                    }
+                }
+                vulnerabilities.append(vuln_dict)
+
+                if debug_log_path:
+                    try:
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"   ✅ MATCH: {rule_name} | hit={patterns_hit}/{len(patterns)} | cond={cond_type} | vars={matched_vars_str}\n")
+                    except Exception:
+                        pass
+
+            except Exception as e:
+                logger.warning(f"Error applying rule {rule.get('name')} to {file_path}: {e}")
+                continue
+
+        return vulnerabilities
 
     async def _scan_single_file_local(
         self,
@@ -380,23 +418,8 @@ class CustomScannerService:
         scan_id: int,
         repository_id: int
     ) -> Optional[Dict[str, Any]]:
-        """
-        Scan a single file from local filesystem
-        ✅ Fast - reads from disk, no API calls
-
-        Accuracy improvements:
-        ✅ Strip comments before matching (reduces comment-only FPs)
-        ✅ Evaluate YARA-like condition: any/all/n-of-them (more correct)
-        ✅ Optional meta gating: requires_keywords="token,session,..." (OFF unless set in rule meta)
-        ✅ Keep 1 vuln per rule per file (balanced; avoids duplicates)
-
-        Verification improvements:
-        ✅ Store rule_id on Vulnerability
-        ✅ Store match evidence (pattern variables hit + counts + condition + keyword gating)
-        """
         file_path = file_info["path"]
         local_path = file_info["local_path"]
-
         debug_log_path = None
 
         try:
@@ -411,7 +434,6 @@ class CustomScannerService:
                 return None
 
             file_content = file_content_data["content"]
-
             if len(file_content) > 1_000_000:
                 logger.warning(f"Skipping large file: {file_path}")
                 return None
@@ -422,154 +444,32 @@ class CustomScannerService:
 
             applicable_rules = self._filter_rules_by_language(compiled_rules, language)
 
-            # Sanitize comments (preserve newlines so indices map correctly)
-            try:
-                sanitized_content = sanitize_code(
-                    file_content,
-                    language,
-                    strip_comments=True,
-                    strip_strings=False,
-                ).sanitized
-            except Exception as sanitize_err:
-                logger.warning(f"Sanitization failed for {file_path}, falling back to raw content: {sanitize_err}")
-                sanitized_content = file_content
+            # ✅ USE UNIFIED ENGINE
+            vuln_dicts = self._evaluate_rules_on_content(
+                file_content, file_path, applicable_rules, repository_id, debug_log_path
+            )
 
-            vulnerabilities: List[Vulnerability] = []
-
-            if debug_log_path:
-                with open(debug_log_path, "a", encoding="utf-8") as f:
-                    f.write(f"\n{'='*80}\n")
-                    f.write(f"🔍 FILE: {file_path}\n")
-                    f.write(f"   Language: {language}\n")
-                    f.write(f"   File size: {len(file_content)} bytes\n")
-                    f.write(f"   Total rules: {len(compiled_rules)}\n")
-                    f.write(f"   Applicable rules: {len(applicable_rules)}\n")
-
-            raw_lower = file_content.lower()
-
-            for rule in applicable_rules:
-                try:
-                    rule_id = rule.get("id")
-                    rule_name = rule.get("name", "Unknown Rule")
-                    rule_desc = rule.get("description") or "No description"
-                    rule_sev = (rule.get("severity") or "medium").lower()
-                    rule_cat = rule.get("category") or "general"
-
-                    patterns = rule.get("patterns") or []
-                    if not patterns:
-                        continue
-
-                    # -------- Optional meta gating (OFF unless set in rule meta) --------
-                    meta = rule.get("meta") or {}
-                    req_kw = meta.get("requires_keywords")
-
-                    requires_keywords_matched = None
-                    if req_kw:
-                        keywords = [k.strip().lower() for k in str(req_kw).split(",") if k.strip()]
-                        if keywords:
-                            for k in keywords:
-                                if k in raw_lower:
-                                    requires_keywords_matched = k
-                                    break
-                            if not requires_keywords_matched:
-                                continue  # gated out
-
-                    # -------- Evaluate pattern hits + capture evidence --------
-                    patterns_hit = 0
-                    earliest_start = None
-                    earliest_match_text = None
-                    matched_variables: List[str] = []
-
-                    for p in patterns:
-                        cre = p.get("compiled")
-                        if not cre:
-                            continue
-
-                        m = cre.search(sanitized_content)
-                        if m:
-                            patterns_hit += 1
-                            matched_variables.append(p.get("variable", "?"))
-                            if earliest_start is None or m.start() < earliest_start:
-                                earliest_start = m.start()
-                                earliest_match_text = m.group(0)
-
-                    if patterns_hit == 0:
-                        continue
-
-                    # -------- Evaluate condition --------
-                    condition = rule.get("condition") or {"type": "any", "n": None}
-                    cond_type = (condition.get("type") or "any").lower()
-
-                    matched = False
-                    if cond_type == "all":
-                        matched = (patterns_hit == len(patterns))
-                    elif cond_type == "n_of_them":
-                        n = int(condition.get("n") or 1)
-                        matched = patterns_hit >= n
-                    else:
-                        matched = patterns_hit >= 1
-
-                    if not matched:
-                        continue
-
-                    if earliest_start is None:
-                        earliest_start = 0
-
-                    line_number = file_content[:earliest_start].count("\n") + 1
-                    lines = file_content.split("\n")
-                    code_snippet = lines[line_number - 1] if 1 <= line_number <= len(lines) else (earliest_match_text or "")
-
-                    # -------- Evidence string (compact) --------
-                    matched_vars_str = ",".join(matched_variables[:10])  # cap to avoid huge strings
-                    evidence = (
-                        f"[evidence] rule_id={rule_id} "
-                        f"patterns_hit={patterns_hit}/{len(patterns)} "
-                        f"condition={cond_type}"
-                    )
-                    if cond_type == "n_of_them":
-                        evidence += f"(n={int(condition.get('n') or 1)})"
-                    evidence += f" matched_patterns={matched_vars_str}"
-                    if req_kw:
-                        evidence += f" requires_keywords={req_kw} matched_keyword={requires_keywords_matched}"
-
-                    # Put evidence into recommendation (safe, always present)
-                    recommendation = f"Review and fix the {rule_cat} issue in {file_path}"
-                    recommendation = (recommendation + "\n" + evidence)[:2000]
-
-                    vuln = Vulnerability(
-                        scan_id=scan_id,
-                        repository_id=repository_id,
-                        rule_id=rule_id,  # ✅ NEW
-                        detection_method="rule_based",
-                        file_path=file_path,
-                        line_number=line_number,
-                        title=rule_name[:255],
-                        description=rule_desc[:1000],
-                        severity=rule_sev,
-                        category=rule_cat,
-                        cwe_id=rule.get("cwe_id"),
-                        owasp_category=rule.get("owasp_category"),
-                        code_snippet=(code_snippet[:500] if code_snippet else None),
-                        recommendation=recommendation,
-                        risk_score=self._calculate_risk_score(rule_sev),
-                        status="open",
-                    )
-                    vulnerabilities.append(vuln)
-
-                    if debug_log_path:
-                        with open(debug_log_path, "a", encoding="utf-8") as f:
-                            f.write(
-                                f"   ✅ RULE MATCHED: {rule_name} | "
-                                f"hit={patterns_hit}/{len(patterns)} | cond={cond_type} | line={line_number} | "
-                                f"vars={matched_vars_str}\n"
-                            )
-
-                except Exception as e:
-                    logger.warning(f"Error applying rule {rule.get('name', 'Unknown')} to {file_path}: {e}")
-                    if debug_log_path:
-                        with open(debug_log_path, "a", encoding="utf-8") as f:
-                            f.write(f"   ❌ ERROR: {rule.get('name')}: {str(e)}\n")
-                    continue
+            # Convert dictionaries to SQLAlchemy ORM models for the local DB save
+            vulnerabilities = []
+            for vd in vuln_dicts:
+                vuln = Vulnerability(
+                    scan_id=scan_id,
+                    repository_id=vd["repository_id"],
+                    title=vd["title"],
+                    description=vd["description"],
+                    severity=vd["severity"],
+                    category=vd["category"],
+                    cwe_id=vd.get("cwe_id"),
+                    owasp_category=vd.get("owasp_category"),
+                    file_path=vd["file_path"],
+                    line_number=vd["line_number"],
+                    code_snippet=vd.get("code_snippet"),
+                    recommendation=vd["recommendation"],
+                    risk_score=vd["risk_score"],
+                    status="open",
+                    rule_id=vd["rule_id"]
+                )
+                vulnerabilities.append(vuln)
 
             if debug_log_path:
                 with open(debug_log_path, "a", encoding="utf-8") as f:
@@ -579,15 +479,12 @@ class CustomScannerService:
                 try:
                     self.db.add_all(vulnerabilities)
                     self.db.commit()
-
                     if debug_log_path:
                         with open(debug_log_path, "a", encoding="utf-8") as f:
                             f.write(f"   ✅ Saved {len(vulnerabilities)} vulnerabilities to database\n")
-
                 except Exception as e:
                     logger.error(f"Failed to save vulnerabilities for {file_path}: {e}")
                     self.db.rollback()
-
                     if debug_log_path:
                         with open(debug_log_path, "a", encoding="utf-8") as f:
                             f.write(f"   ❌ FAILED TO SAVE: {str(e)}\n")
@@ -600,14 +497,12 @@ class CustomScannerService:
 
         except Exception as e:
             logger.error(f"Error scanning {file_path}: {e}")
-
             if debug_log_path:
                 try:
                     with open(debug_log_path, "a", encoding="utf-8") as f:
                         f.write(f"   💥 EXCEPTION: {str(e)}\n")
                 except Exception:
                     pass
-
             return None
             
 
@@ -618,10 +513,6 @@ class CustomScannerService:
         scan_id: int,
         repository_id: int
     ) -> Dict[str, Any]:
-        """
-        Scan all files from local clone in batches
-        ✅ Fast - no API calls, reads from disk
-        """
         import time
         start_time = time.time()
         
@@ -629,10 +520,9 @@ class CustomScannerService:
         vulnerabilities_found = 0
         
         logger.info(f"Starting to scan {len(files)} files with {len(compiled_rules)} rules...")
-        logger.info(f"🎯 Language filtering:  ENABLED")
+        logger.info(f"🎯 Language filtering: ENABLED")
         logger.info(f"💾 Streaming saves: ENABLED")
         
-        # Process in batches of 5 files
         BATCH_SIZE = 5
         
         for i in range(0, len(files), BATCH_SIZE):
@@ -642,7 +532,6 @@ class CustomScannerService:
             
             logger.info(f"Processing batch {batch_num}/{total_batches}")
             
-            # Scan files in parallel
             batch_tasks = []
             for file_info in batch:
                 task = self._scan_single_file_local(
@@ -653,10 +542,8 @@ class CustomScannerService:
                 )
                 batch_tasks.append(task)
             
-            # Wait for batch to complete
             batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
             
-            # Process results
             for result in batch_results:
                 if isinstance(result, dict) and result: 
                     files_scanned += 1
@@ -664,7 +551,6 @@ class CustomScannerService:
                 elif isinstance(result, Exception):
                     logger.error(f"Batch task failed: {result}")
             
-            # Update scan progress in database
             try:
                 self.db.execute(
                     f"UPDATE scans SET total_files_scanned = {files_scanned}, total_vulnerabilities = {vulnerabilities_found} WHERE id = {scan_id}"
@@ -694,21 +580,15 @@ class CustomScannerService:
         user_id: int,
         use_llm_enhancement: bool = True
     ) -> Scan:
-        """
-        Execute complete security scan with rule-based detection + AI enhancement
-        ✅ WITH STREAMING SAVES (Production-grade approach)
-        """
         logger.info(f"🚀 Starting unified scan for repository {repository_id}")
         logger.info(f"📋 Using {len(rules)} rules (global + user custom)")
         logger.info(f"🎯 Language filtering: ENABLED (10x speed boost)")
         logger.info(f"💾 Streaming saves: ENABLED (Snyk/Aikido approach)")
         
-        # Get repository
         repository = self.db.query(Repository).filter(Repository.id == repository_id).first()
         if not repository:
             raise ValueError(f"Repository {repository_id} not found")
         
-        # Find pending scan
         scan = self.db.query(Scan).filter(
             Scan.repository_id == repository_id,
             Scan.status == "pending"
@@ -717,12 +597,10 @@ class CustomScannerService:
         if not scan:
             raise ValueError("No pending scan found")
         
-        # ✅ Store scan_id early to avoid session issues
         scan_id_value = scan.id
         repository_id_value = repository.id
         
         try:
-            # Update scan status
             scan.status = "running"
             scan.scan_metadata = scan.scan_metadata or {}
             scan.scan_metadata.update({
@@ -739,35 +617,28 @@ class CustomScannerService:
             self.db.refresh(scan)
             
             logger.info(f"✅ Scan {scan_id_value} status updated to 'running'")
-            
-            # Step 1: Get repository files (HYBRID: try clone first, fallback to API)
             logger.info("📁 Step 1: Fetching repository files...")
                     
             clone_dir = None
             file_tree = []
             scan_method = None
                     
-            # Try git clone first (fast path - like Snyk)
             if provider_type == "github":
                 repo_url = repository.clone_url or repository.html_url
-                
                 logger.info("🔄 Attempting git clone (fast method)...")
                 clone_dir = self._clone_repository(repo_url, access_token)
                 
                 if clone_dir:
-                    # Clone successful! Get files from local filesystem
                     logger.info("✅ Git clone successful, reading files from local clone")
                     file_tree = await self._get_all_repository_files_from_clone(clone_dir)
                     scan_method = 'local'
                 else:
-                    # Clone failed, fallback to API
                     logger.warning("⚠️ Git clone failed, falling back to API method")
                     file_tree = await self._get_all_repository_files(
                         access_token, repository.full_name, provider_type
                     )
                     scan_method = 'api'
             else: 
-                # For non-GitHub providers, use API method
                 logger.info("Using API method for non-GitHub provider")
                 file_tree = await self._get_all_repository_files(
                     access_token, repository.full_name, provider_type
@@ -780,54 +651,42 @@ class CustomScannerService:
             logger.info(f"✅ Using scan method: {scan_method}")
             logger.info(f"✅ Found {len(file_tree)} total files in repository")
             
-            # Step 2: Filter scannable files (liberal filtering)
             logger.info("🔍 Step 2: Filtering scannable files...")
             scannable_files = self._filter_scannable_files(file_tree)
             logger.info(f"✅ {len(scannable_files)} files are scannable")
             
-            # Step 3: Prioritize and select files to scan
             files_to_scan = scannable_files[:self.MAX_FILES_TO_SCAN]
             logger.info(f"🎯 Will scan {len(files_to_scan)} files (limit: {self.MAX_FILES_TO_SCAN})")
             
-            # Step 4: Compile all rule patterns (with caching)
             logger.info("⚙️ Step 4: Compiling rule patterns...")
             compiled_rules = self._compile_all_rules(rules)
             logger.info(f"✅ {len(compiled_rules)} rules compiled successfully")
             
-            # Log language distribution of rules
             language_stats = {}
             for rule in compiled_rules:
                 lang = rule.get('language', 'multi')
                 language_stats[lang] = language_stats.get(lang, 0) + 1
             logger.info(f"📊 Rule language distribution: {language_stats}")
             
-            # Step 5: Scan all files (use appropriate method based on how we got files)
             logger.info("🔬 Step 5: Scanning files with language-filtered rule engine...")
             logger.info("💾 Vulnerabilities will be saved in real-time as they're found")
 
             if scan_method == 'local':
-                # Fast path - scan from local filesystem
                 logger.info("⚡ Using LOCAL file scanning (fast)")
                 scan_results = await self._scan_all_files_from_local(
                     files_to_scan, compiled_rules, scan_id_value, repository_id_value
                 )
             else:
-                # Slow path - scan using API
                 logger.info("🐌 Using API file scanning (slower)")
                 scan_results = await self._scan_all_files_with_rules(
                     files_to_scan, access_token, repository.full_name,
                     provider_type, compiled_rules, scan_id_value, repository_id_value
                 )
             
-            # ✅ Flush any remaining vulnerabilities in buffer
             await self._flush_vulnerability_buffer(scan_id_value)
-            
             logger.info(f"✅ Scan completed: {scan_results['files_scanned']} files scanned")
             
-            # Step 6: Calculate final metrics from database (✅ vulnerabilities already saved)
             logger.info("📊 Step 6: Calculating security metrics from saved vulnerabilities...")
-            
-            # Count vulnerabilities from database
             vuln_counts = self.db.query(
                 Vulnerability.severity,
                 func.count(Vulnerability.id)
@@ -835,13 +694,10 @@ class CustomScannerService:
                 Vulnerability.scan_id == scan_id_value
             ).group_by(Vulnerability.severity).all()
             
-            # Convert to dict
             severity_map = {severity: count for severity, count in vuln_counts}
-            
             total_vulns = sum(severity_map.values())
             logger.info(f"✅ Total vulnerabilities saved: {total_vulns}")
             
-            # Step 7: AI Enhancement (if enabled and vulnerabilities exist)
             if use_llm_enhancement and total_vulns > 0:
                 logger.info("🤖 Step 7: Enhancing vulnerabilities with AI...")
                 await self._enhance_vulnerabilities_with_ai(
@@ -851,22 +707,17 @@ class CustomScannerService:
             else:
                 logger.info("⏭️ Step 7: Skipping AI enhancement")
             
-            # Step 8: Calculate security score
             logger.info("📊 Step 8: Calculating security score...")
             security_metrics = self._calculate_security_score_from_db(
                 scan_id_value, len(files_to_scan)
             )
             
-            # ✅ Refresh scan from database to avoid detached instance
             self.db.expire_all()
             scan = self.db.query(Scan).filter(Scan.id == scan_id_value).first()
             
-            # Update scan with final results
             current_time = datetime.now(timezone.utc)
             if self._check_if_scan_stopped(scan_id_value):
                 logger.info(f"⏹️ Scan {scan_id_value} was stopped by user during execution")
-                # Don't update status - keep it as "stopped"
-                # Just update the metadata and return
                 scan.scan_metadata.update({
                     'scan_stopped_early': True,
                     'files_scanned_before_stop': scan_results['files_scanned']
@@ -879,7 +730,6 @@ class CustomScannerService:
                 scan.total_files_scanned = scan_results['files_scanned']
                 scan.total_vulnerabilities = total_vulns
             
-            # Count by severity
             scan.critical_count = severity_map.get('critical', 0)
             scan.high_count = severity_map.get('high', 0)
             scan.medium_count = severity_map.get('medium', 0)
@@ -888,7 +738,6 @@ class CustomScannerService:
             scan.security_score = security_metrics['security_score']
             scan.code_coverage = security_metrics['code_coverage']
             
-            # Update metadata
             scan.scan_metadata.update({
                 'scan_completed': True,
                 'scan_end_time': current_time.isoformat(),
@@ -904,7 +753,6 @@ class CustomScannerService:
                 'file_scan_results': scan_results.get('file_results', [])
             })
             
-            # Calculate duration
             if scan.started_at.tzinfo is None:
                 start_time = scan.started_at.replace(tzinfo=timezone.utc)
             else:
@@ -922,7 +770,6 @@ class CustomScannerService:
             logger.info(f"📈 Code Coverage: {scan.code_coverage}%")
             logger.info(f"⏱️ Duration: {scan.scan_duration}")
             
-            # Log filtering efficiency
             if scan_results.get('total_rule_checks', 0) > 0:
                 efficiency = ((scan_results['total_rule_checks'] - scan_results['filtered_rule_checks']) / scan_results['total_rule_checks'] * 100)
                 logger.info(f"⚡ Language Filtering Saved {efficiency:.1f}% of rule checks!")
@@ -937,13 +784,11 @@ class CustomScannerService:
         except Exception as e:
             logger.error(f"❌ Scan failed: {e}", exc_info=True)
             
-            # Flush any buffered vulnerabilities before marking as failed
             try:
                 await self._flush_vulnerability_buffer(scan_id_value)
             except:
                 pass
             
-            # ✅ Refresh scan from database
             try:
                 self.db.expire_all()
                 scan = self.db.query(Scan).filter(Scan.id == scan_id_value).first()
@@ -968,7 +813,6 @@ class CustomScannerService:
             raise
         
         finally:
-            # ✅ CLEANUP: Delete cloned repository (CRITICAL!)
             if 'clone_dir' in locals() and clone_dir and os.path.exists(clone_dir):
                 try:
                     shutil.rmtree(clone_dir)
@@ -1169,74 +1013,6 @@ class CustomScannerService:
         logger.info(f"✅ Compiled {len(compiled_rules)} rules (from {len(rules)} total)")
         return compiled_rules
     
-    def _rule_requires_keywords_ok(self, compiled_rule: Dict[str, Any], content: str) -> bool:
-        meta = compiled_rule.get("meta") or {}
-        kw = meta.get("requires_keywords")
-        if not kw:
-            return True
-
-        # requires_keywords = "token,session,secret"
-        keywords = [k.strip().lower() for k in str(kw).split(",") if k.strip()]
-        if not keywords:
-            return True
-
-        lower = (content or "").lower()
-        return any(k in lower for k in keywords)
-
-    def _evaluate_rule_matches(
-        self,
-        compiled_rule: Dict[str, Any],
-        content_for_matching: str
-    ) -> Dict[str, Any]:
-        """
-        Return:
-        {
-            "matched": bool,
-            "match_count": int,
-            "matches": [ {pattern_variable, start, end, line} ... ],
-        }
-        """
-        patterns = compiled_rule.get("patterns") or []
-        condition = compiled_rule.get("condition") or {"type": "any", "n": None}
-
-        all_matches = []
-        patterns_hit = 0
-
-        for p in patterns:
-            cre = p.get("compiled")
-            if not cre:
-                continue
-
-            ms = list(cre.finditer(content_for_matching))
-            if ms:
-                patterns_hit += 1
-                for m in ms:
-                    all_matches.append({
-                        "variable": p.get("variable"),
-                        "start": m.start(),
-                        "end": m.end(),
-                        "line": content_for_matching[:m.start()].count("\n") + 1,
-                        "match": m.group(0)[:200],
-                    })
-
-        cond_type = condition.get("type", "any")
-        cond_n = condition.get("n")
-
-        if cond_type == "all":
-            matched = (patterns_hit == len(patterns)) if patterns else False
-        elif cond_type == "n_of_them":
-            n = int(cond_n or 1)
-            matched = patterns_hit >= n
-        else:
-            matched = patterns_hit > 0
-
-        return {
-            "matched": matched,
-            "match_count": len(all_matches),
-            "matches": all_matches,
-            "patterns_hit": patterns_hit,
-        }
-
     async def _scan_all_files_with_rules(
         self,
         files: List[Dict[str, Any]],
@@ -1353,7 +1129,7 @@ class CustomScannerService:
         provider_type: str,
         compiled_rules: List[Dict[str, Any]],
         repository_id: int,
-        scan_id: int  # ✅ NEW PARAMETER
+        scan_id: int  
     ) -> Dict[str, Any]:
         """
         Scan a single file with language-filtered rules
@@ -1399,13 +1175,14 @@ class CustomScannerService:
             # Scan with ONLY applicable rules (HUGE performance boost!)
             vulnerabilities_count = 0
             
-            for rule in applicable_rules:
-                matches = self._apply_rule_to_content(file_content, file_path, rule, repository_id)
-                
-                # ✅ SAVE IMMEDIATELY to buffer (micro-batching)
-                if matches:
-                    await self._add_to_vulnerability_buffer(scan_id, matches)
-                    vulnerabilities_count += len(matches)
+            vulnerabilities = self._evaluate_rules_on_content(
+                file_content, file_path, applicable_rules, repository_id
+            )
+            
+            # ✅ SAVE IMMEDIATELY to buffer (micro-batching)
+            if vulnerabilities:
+                await self._add_to_vulnerability_buffer(scan_id, vulnerabilities)
+                vulnerabilities_count += len(vulnerabilities)
             
             status = 'vulnerable' if vulnerabilities_count > 0 else 'clean'
             
@@ -1428,95 +1205,7 @@ class CustomScannerService:
                 'vulnerabilities_count': 0,
                 'total_rules_checked': 0,
                 'applicable_rules_count': 0
-            }
-    
-    def _apply_rule_to_content(
-        self,
-        content: str,
-        file_path: str,
-        rule: Dict[str, Any],
-        repository_id: int
-    ) -> List[Dict[str, Any]]:
-        """
-        Apply a single rule to file content and return vulnerabilities
-        Now includes triage to suppress obvious false positives.
-        """
-        vulnerabilities: List[Dict[str, Any]] = []
-
-        try:
-            pattern_matches = []
-
-            for pattern_info in rule["patterns"]:
-                compiled_pattern = pattern_info["compiled"]
-                matches = list(compiled_pattern.finditer(content))
-
-                if matches:
-                    pattern_matches.append({
-                        "variable": pattern_info["variable"],
-                        "matches": matches
-                    })
-
-            if not pattern_matches:
-                return vulnerabilities
-
-            first_match = pattern_matches[0]["matches"][0]
-            line_number = content[:first_match.start()].count("\n") + 1
-
-            lines = content.split("\n")
-            start_line = max(0, line_number - 4)
-            end_line = min(len(lines), line_number + 4)
-            context_snippet = "\n".join(lines[start_line:end_line])
-
-            # language is already inferred from file path extension in your codebase
-            language = detect_file_language(file_path)
-
-            # triage decision (false-positive reduction)
-            decision = self.triage.decide(
-                rule=rule,
-                file_path=file_path,
-                language=language,
-                matched_text=first_match.group(0) if first_match else "",
-                context_snippet=context_snippet,
-            )
-
-            if not decision.should_report:
-                # suppressed (don’t create vulnerability)
-                return []
-
-            vulnerability = {
-                "repository_id": repository_id,
-                "title": rule["name"],
-                "description": rule["description"],
-                "severity": rule["severity"],
-                "category": rule["category"],
-                "cwe_id": rule.get("cwe_id"),
-                "owasp_category": rule.get("owasp_category"),
-                "file_path": file_path,
-                "line_number": line_number,
-                "line_end_number": line_number,
-                "code_snippet": context_snippet[:500],
-                "recommendation": f"Review and fix the {rule['category']} issue in {file_path}",
-                "fix_suggestion": "Apply appropriate security controls and validation",
-                "risk_score": self._calculate_risk_score(rule["severity"]),
-                "exploitability": "medium",
-                "impact": rule["severity"],
-                "rule_id": rule["id"],
-                "pattern_matches_count": len(pattern_matches),
-                "ai_enhanced": False,
-                # traceability:
-                "triage": {
-                    "decision": "reported",
-                    "reason": decision.reason,
-                    "confidence": decision.confidence,
-                }
-            }
-
-            vulnerabilities.append(vulnerability)
-
-        except Exception as e:
-            logger.error(f"Error applying rule {rule.get('name')} to {file_path}: {e}")
-
-        return vulnerabilities
+            } 
     
     def _calculate_risk_score(self, severity: str) -> float:
         """Calculate numerical risk score from severity"""
@@ -1645,7 +1334,7 @@ class CustomScannerService:
                             user = self.db.query(User).filter(User.id == repo.owner_id).first() if repo else None
 
                             await slack_service.send_critical_vulnerability_alert(
-                                user=user,  # ✅ ADD THIS
+                                user=user,  # ✅ Keeps your Slack Integration fix intact!
                                 vulnerability_title=vuln_data.get('title', 'Unknown'),
                                 severity=vuln_data.get('severity', 'unknown'),
                                 repository_name=repo_name,

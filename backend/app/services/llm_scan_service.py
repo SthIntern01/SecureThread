@@ -8,6 +8,7 @@ import json
 import logging
 import time
 import shutil
+import concurrent.futures
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -78,7 +79,7 @@ class LLMScanService:
                 for filename in filenames:
                     if any(filename.endswith(ext) for ext in extensions):
                         file_path = os.path.join(root, filename)
-                        relative_path = os.path.relpath(file_path, repo_path)
+                        relative_path = os.path.relpath(file_path, repo_path).replace('\\', '/')
                         files.append(relative_path)
                         
                         if len(files) >= max_files:
@@ -256,6 +257,19 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             logger.error(f"Error saving vulnerability: {str(e)}")
             self.db.rollback()
             return None
+
+    def _fetch_llm_analysis_sync(self, repo_path: str, relative_file_path: str, priority: str) -> Tuple[str, List[Dict], int, int]:
+        """Helper to run LLM analysis in a separate thread"""
+        full_file_path = os.path.join(repo_path, relative_file_path)
+        file_content = self.read_file_content(full_file_path)
+        
+        if not file_content:
+            return relative_file_path, [], 0, 0
+            
+        vulnerabilities, prompt_tokens, completion_tokens = self.analyze_file_with_llm(
+            relative_file_path, file_content, priority
+        )
+        return relative_file_path, vulnerabilities, prompt_tokens, completion_tokens
     
     def perform_llm_scan(
         self,
@@ -326,51 +340,55 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
         logger.info(f"📁 Scanning {total_files} files...")
         
         try:
-            for idx, relative_file_path in enumerate(files_to_scan, 1):
-                full_file_path = os.path.join(repo_path, relative_file_path)
-                
-                # Read file content
-                file_content = self.read_file_content(full_file_path)
-                if not file_content:
-                    logger.debug(f"⏭️ Skipping file (no content): {relative_file_path}")
-                    continue
-                
-                logger.info(f"🔍 [{idx}/{total_files}] Analyzing: {relative_file_path}")
-                
-                # Analyze with LLM
-                vulnerabilities, prompt_tokens, completion_tokens = self.analyze_file_with_llm(
-                    relative_file_path,
-                    file_content,
-                    priority
-                )
-                
-                total_prompt_tokens += prompt_tokens
-                total_completion_tokens += completion_tokens
-                
-                # Save vulnerabilities
-                if vulnerabilities:
-                    logger.info(f"   ⚠️ Found {len(vulnerabilities)} vulnerabilities")
-                    
-                for vuln_data in vulnerabilities:
-                    vuln = self.save_vulnerability(
-                        scan_id,
-                        repository.id,
-                        relative_file_path,
-                        vuln_data
-                    )
-                    
-                    if vuln:
-                        total_vulnerabilities += 1
-                        severity = vuln.severity.lower()
-                        if severity in severity_counts:
-                            severity_counts[severity] += 1
-                            logger.debug(f"   📌 {severity.upper()}: {vuln.title}")
-                
-                # Update progress in database
-                scan.total_files_scanned = idx
-                scan.total_vulnerabilities = total_vulnerabilities
-                self.db.commit()
+            # ✅ Run up to 10 files in parallel instead of 1 by 1
+            MAX_WORKERS = 10 
+            scanned_count = 0
             
+            with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                # Submit all files to the thread pool
+                future_to_file = {
+                    executor.submit(self._fetch_llm_analysis_sync, repo_path, file_path, priority): file_path 
+                    for file_path in files_to_scan
+                }
+                
+                # As each file finishes scanning, process the results
+                for future in concurrent.futures.as_completed(future_to_file):
+                    file_path = future_to_file[future]
+                    scanned_count += 1
+                    
+                    try:
+                        relative_path, vulnerabilities, p_tokens, c_tokens = future.result()
+                        
+                        total_prompt_tokens += p_tokens
+                        total_completion_tokens += c_tokens
+                        
+                        logger.info(f"🔍 [{scanned_count}/{total_files}] Completed LLM Analysis: {relative_path}")
+                        
+                        # Note: We do DB saves in the main thread to prevent SQLite/SQLAlchemy locking issues!
+                        if vulnerabilities:
+                            logger.info(f"   ⚠️ Found {len(vulnerabilities)} vulnerabilities in {relative_path}")
+                            
+                            for vuln_data in vulnerabilities:
+                                vuln = self.save_vulnerability(
+                                    scan_id, repository.id, relative_path, vuln_data
+                                )
+                                
+                                if vuln:
+                                    total_vulnerabilities += 1
+                                    severity = vuln.severity.lower()
+                                    if severity in severity_counts:
+                                        severity_counts[severity] += 1
+                                        logger.debug(f"   📌 {severity.upper()}: {vuln.title}")
+                                        
+                        # Update progress incrementally
+                        if scanned_count % 5 == 0 or scanned_count == total_files:
+                            scan.total_files_scanned = scanned_count
+                            scan.total_vulnerabilities = total_vulnerabilities
+                            self.db.commit()
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Error processing future for {file_path}: {e}")
+
             # Calculate final metrics
             total_tokens = total_prompt_tokens + total_completion_tokens
             estimated_cost = self.calculate_cost(total_prompt_tokens, total_completion_tokens)
@@ -399,6 +417,18 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             scan.estimated_cost = estimated_cost
             scan.scan_duration_seconds = scan_duration
             scan.llm_model_used = self.model
+            
+            # ✅ FIX: Provide empty metadata so the frontend UI can render "Scanning OK" for safe files
+            scan.scan_metadata = {
+                'scan_type': 'llm_based',
+                'file_scan_results': [
+                    {
+                        "file_path": fp,
+                        "status": "scanned",
+                        "reason": "Analyzed by AI"
+                    } for fp in files_to_scan
+                ]
+            }
             
             self.db.commit()
             
