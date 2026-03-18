@@ -92,9 +92,9 @@ Always prioritize security best practices and help users improve their security 
             
             for scan in recent_scans:
                 if scan.status == "completed":
-                    total_vulnerabilities += scan.total_vulnerabilities
-                    critical_count += scan.critical_count
-                    high_count += scan.high_count
+                    total_vulnerabilities += scan.total_vulnerabilities or 0
+                    critical_count += scan.critical_count or 0
+                    high_count += scan.high_count or 0
                     if scan.security_score:
                         security_scores.append(scan.security_score)
             
@@ -167,7 +167,7 @@ Always prioritize security best practices and help users improve their security 
             # Generate AI response based on analysis
             user_context = await self.get_user_context(user)
             ai_response = await self._generate_file_analysis_response(
-                message, file_analyses, total_vulnerabilities, user_context, conversation_history
+                user, message, file_analyses, total_vulnerabilities, user_context, conversation_history
             )
             
             # Clean up temporary files
@@ -192,6 +192,7 @@ Always prioritize security best practices and help users improve their security 
     
     async def _generate_file_analysis_response(
         self,
+        user: User,
         user_message: str,
         file_analyses: List[Dict[str, Any]],
         total_vulnerabilities: int,
@@ -228,7 +229,7 @@ Be specific about the vulnerabilities found and provide actionable guidance."""
         messages = [
             {
                 "role": "system", 
-                "content": self._get_system_prompt(User(), user_context)
+                "content": self._get_system_prompt(user, user_context)
             }
         ]
         

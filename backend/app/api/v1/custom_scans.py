@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 import tempfile
+import asyncio
 import subprocess
 import shutil
 import os
@@ -291,6 +292,74 @@ def cleanup_temp_directory(temp_dir: str, scan_id: int):
     except Exception as e:
         logger.warning(f"⚠️ Could not delete temp directory {temp_dir}: {e}")
 
+
+async def run_llm_scan_background(
+    db: Session,
+    scan_id: int,
+    repository_id: int,
+    user_id: int,
+    max_files: int,
+    priority_level: str,
+    temp_dir: str
+):
+    try:
+        logger.info(f"🚀 Starting background LLM scan for scan_id={scan_id}")
+        user = db.query(User).filter(User.id == user_id).first()
+        repository = db.query(Repository).filter(Repository.id == repository_id).first()
+
+        # 1. Send Slack Started Notification
+        if user and user.slack_bot_token and repository:
+            try:
+                await slack_service.send_scan_started_notification(
+                    user=user,
+                    scan_id=scan_id,
+                    repository_name=repository.full_name,
+                    scan_type="llm_based",
+                    priority_level=priority_level,
+                    max_files=max_files
+                )
+            except Exception as slack_error:
+                logger.error(f"Failed to send Slack LLM started notification: {slack_error}")
+
+        # 2. Run the LLM Scan (offload synchronous work to thread pool)
+        llm_service = LLMScanService(db)
+        result = await asyncio.to_thread(
+            llm_service.perform_llm_scan,
+            scan_id,
+            repository,
+            max_files,
+            priority_level,
+            temp_dir
+        )
+
+        # 3. Send Slack Completed Notification
+        if user and user.slack_bot_token and repository and result.get('success'):
+            scan = db.query(Scan).filter(Scan.id == scan_id).first()
+            if scan:
+                try:
+                    duration_str = f"{scan.scan_duration_seconds:.1f}s" if scan.scan_duration_seconds else "N/A"
+                    await slack_service.send_scan_complete_notification(
+                        user=user,
+                        scan_id=scan.id,
+                        repository_id=repository.id,
+                        repository_name=repository.full_name,
+                        status=scan.status,
+                        total_vulnerabilities=scan.total_vulnerabilities or 0,
+                        critical_count=scan.critical_count or 0,
+                        high_count=scan.high_count or 0,
+                        medium_count=scan.medium_count or 0,
+                        low_count=scan.low_count or 0,
+                        security_score=scan.security_score or 0.0,
+                        scan_duration=duration_str
+                    )
+                except Exception as slack_error:
+                    logger.error(f"Failed to send Slack LLM complete notification: {slack_error}")
+
+    except Exception as e:
+        logger.error(f"❌ Background LLM scan {scan_id} failed: {e}", exc_info=True)
+    finally:
+        # Always cleanup the temp directory
+        cleanup_temp_directory(temp_dir, scan_id)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SCAN MANAGEMENT ENDPOINTS
@@ -873,8 +942,11 @@ async def initiate_llm_scan(
         llm_service = LLMScanService(db)
         estimated_time = llm_service.estimate_scan_time(config.max_files, config.priority_level)
         
-        background_tasks.add_task(llm_service.perform_llm_scan, scan.id, repository, config.max_files, config.priority_level, temp_dir)
-        background_tasks.add_task(cleanup_temp_directory, temp_dir, scan.id)
+        # ADD THIS INSTEAD:
+        background_tasks.add_task(
+            run_llm_scan_background,
+            db, scan.id, repository.id, current_user.id, config.max_files, config.priority_level, temp_dir
+        )
         
         return LLMScanResponse(
             scan_id=scan.id, message="LLM-based scan initiated successfully", repository_id=repository.id,

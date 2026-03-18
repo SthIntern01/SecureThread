@@ -878,17 +878,19 @@ const ProjectCard = ({
   };
 
   const totalVulnerabilities = project.vulnerabilities
-    ?  project.vulnerabilities.critical +
-      project.vulnerabilities.high +
-      project.vulnerabilities. medium +
-      project.vulnerabilities.low
-    : null;
+      ? project.vulnerabilities.critical +
+        project.vulnerabilities.high +
+        project.vulnerabilities.medium +
+        project.vulnerabilities.low
+      : null;
 
-  const hasScanned =
-    project.vulnerabilities !== null && project.coverage !== null;
-  const isScanning =
-    project.latest_scan?. status === "running" ||
-    project.latest_scan?. status === "pending";
+    // Replace `hasScanned` with these two lines:
+    const hasVulnerabilities = project.vulnerabilities !== null;
+    const hasCoverage = project.coverage !== null && project.coverage !== undefined;
+
+    const isScanning =
+      project.latest_scan?.status === "running" ||
+      project.latest_scan?.status === "pending";
 
   return (
     <div className="bg-white dark: bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-white/20 hover:shadow-xl hover:border-[#003D6B] dark:hover:border-orange-500 transition-all">
@@ -982,23 +984,24 @@ const ProjectCard = ({
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <div className="text-xs text-gray-600 dark:text-white/70 mb-1">Vulnerabilities</div>
-          {hasScanned ?  (
+          {/* Change hasScanned to hasVulnerabilities */}
+          {hasVulnerabilities ? (
             <>
               <div className="text-lg font-semibold text-gray-900 dark:text-white">
                 {totalVulnerabilities}
               </div>
-              {totalVulnerabilities && totalVulnerabilities > 0 && (
+              {totalVulnerabilities !== null && totalVulnerabilities > 0 && (
                 <div className="flex space-x-1 mt-1">
-                  {project.vulnerabilities! .critical > 0 && (
+                  {project.vulnerabilities!.critical > 0 && (
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities! .high > 0 && (
+                  {project.vulnerabilities!.high > 0 && (
                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities! .medium > 0 && (
+                  {project.vulnerabilities!.medium > 0 && (
                     <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
                   )}
-                  {project.vulnerabilities! .low > 0 && (
+                  {project.vulnerabilities!.low > 0 && (
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                   )}
                 </div>
@@ -1007,13 +1010,14 @@ const ProjectCard = ({
           ) : (
             <>
               <div className="text-lg font-semibold text-gray-400 dark:text-white/40">N/A</div>
-              <div className="text-xs text-gray-500 dark: text-white/50">Scan to get details</div>
+              <div className="text-xs text-gray-500 dark:text-white/50">Scan to get details</div>
             </>
           )}
         </div>
         <div>
           <div className="text-xs text-gray-600 dark:text-white/70 mb-1">Coverage</div>
-          {hasScanned ? (
+          {/* Change hasScanned to hasCoverage */}
+          {hasCoverage ? (
             <>
               <div className="text-lg font-semibold text-gray-900 dark:text-white">
                 {project.coverage}%
@@ -1028,7 +1032,7 @@ const ProjectCard = ({
           ) : (
             <>
               <div className="text-lg font-semibold text-gray-400 dark:text-white/40">N/A</div>
-              <div className="text-xs text-gray-500 dark:text-white/50">Scan to get details</div>
+              <div className="text-xs text-gray-500 dark:text-white/50">Not calculated</div>
             </>
           )}
         </div>

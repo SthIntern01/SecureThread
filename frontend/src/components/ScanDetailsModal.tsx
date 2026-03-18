@@ -842,9 +842,9 @@ const ScanDetailsModal: React.FC<ScanDetailsModalProps> = ({
                                 <Badge className={`text-xs ${getFileStatusColor(file.status)}`}>
                                   {file. status}
                                 </Badge>
-                                {file.vulnerabilities. length > 0 && (
+                                {file.vulnerabilities?.length > 0 && (
                                   <Badge variant="destructive" className="text-xs bg-red-500 dark:bg-red-600">
-                                    {file. vulnerabilities.length} issues
+                                    {file.vulnerabilities.length} issues
                                   </Badge>
                                 )}
                               </div>

@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from app.core.database import get_db
+from app.core.settings import settings
 from app.api.deps import get_current_active_user
+from fastapi.responses import StreamingResponse
 from app.models.user import User
 from app.models.repository import Repository
 from app.models.vulnerability import Vulnerability
@@ -20,6 +22,7 @@ from app.schemas.ai_chat import (
 from pydantic import BaseModel
 import logging
 import json
+import asyncio
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -186,6 +189,68 @@ async def chat_with_ai(
             detail=f"AI service temporarily unavailable: {str(e)}"
         )
 
+
+@router.post("/chat/stream")
+async def chat_with_ai_stream(
+    chat_request: ChatRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Stream chat responses from SecureThread AI"""
+    async def event_generator():
+        try:
+            # 1. Create/Get Session (Logic from your existing chat endpoint)
+            session = None
+            if chat_request.session_id:
+                session = db.query(ChatSession).filter(ChatSession.id == chat_request.session_id).first()
+            
+            if not session:
+                session = ChatSession(user_id=current_user.id, title=f"Stream {datetime.now().strftime('%H:%M')}")
+                db.add(session)
+                db.commit()
+                db.refresh(session)
+
+            # Send session ID to frontend first
+            yield f"data: {json.dumps({'type': 'session', 'session_id': session.id})}\n\n"
+
+            ai_service = AIChatService(db)
+            
+            # 2. Call the AI Service
+            # Note: If your AIChatService doesn't support streaming yet, 
+            # we simulate it here by getting the full response and chunking it
+            # so your frontend doesn't crash.
+            result = await ai_service.chat_completion(
+                user=current_user,
+                message=chat_request.message,
+                conversation_history=[{"role": m.role, "content": m.content} for m in chat_request.conversation_history] if chat_request.conversation_history else []
+            )
+            
+            full_response = result["response"]
+            
+            # Simulate streaming by chunking the text
+            # (In a real production app, you'd use deepseek's stream=True)
+            words = full_response.split(' ')
+            for word in words:
+                yield f"data: {json.dumps({'type': 'chunk', 'content': word + ' '})}\n\n"
+                await asyncio.sleep(0.02) # Small delay for smooth UI feel
+
+            # 3. Save to DB and send 'done' signal
+            ai_message = ChatMessageModel(
+                session_id=session.id,
+                user_id=current_user.id,
+                role="assistant",
+                content=full_response,
+                message_type="text"
+            )
+            db.add(ai_message)
+            db.commit()
+            
+            yield f"data: {json.dumps({'type': 'done', 'message_id': ai_message.id})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/chat-with-files", response_model=ChatResponse)
 async def chat_with_files(

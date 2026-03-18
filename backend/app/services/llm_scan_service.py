@@ -394,6 +394,9 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             estimated_cost = self.calculate_cost(total_prompt_tokens, total_completion_tokens)
             scan_duration = time.time() - start_time
             
+            weighted_score = (severity_counts['critical'] * 15) + (severity_counts['high'] * 10) + (severity_counts['medium'] * 5) + (severity_counts['low'] * 2)
+            security_score = max(0, 100 - weighted_score)
+
             logger.info(f"✅ Scan completed successfully!")
             logger.info(f"📊 Files scanned: {total_files}")
             logger.info(f"⚠️ Vulnerabilities found: {total_vulnerabilities}")
@@ -413,19 +416,22 @@ If no vulnerabilities found, return: {{"vulnerabilities": []}}
             scan.high_count = severity_counts['high']
             scan.medium_count = severity_counts['medium']
             scan.low_count = severity_counts['low']
+            scan.security_score = security_score
             scan.total_tokens_used = total_tokens
             scan.estimated_cost = estimated_cost
             scan.scan_duration_seconds = scan_duration
             scan.llm_model_used = self.model
             
-            # ✅ FIX: Provide empty metadata so the frontend UI can render "Scanning OK" for safe files
+            
+
             scan.scan_metadata = {
                 'scan_type': 'llm_based',
                 'file_scan_results': [
                     {
                         "file_path": fp,
                         "status": "scanned",
-                        "reason": "Analyzed by AI"
+                        "reason": "Analyzed by AI",
+                        "vulnerabilities": []  # <--- ADD THIS LINE!
                     } for fp in files_to_scan
                 ]
             }

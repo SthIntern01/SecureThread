@@ -10,15 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Sparkles, AlertCircle, DollarSign, Clock } from "lucide-react";
+import { Sparkles, AlertCircle } from "lucide-react";
 
 interface LLMScanModalProps {
   isOpen: boolean;
@@ -38,89 +30,34 @@ export const LLMScanModal: React.FC<LLMScanModalProps> = ({
   onStartScan,
   repositoryName,
 }) => {
-  const [maxFiles, setMaxFiles] = useState<number>(50);
-  const [priorityLevel, setPriorityLevel] = useState<string>('all');
+  // Allow empty string to fix the typing/backspace bug
+  const [maxFiles, setMaxFiles] = useState<number | ''>(50);
   const [isScanning, setIsScanning] = useState(false);
-
-  const priorityOptions = [
-    {
-      value: 'critical',
-      label: 'Critical Only',
-      description: 'RCE, SQL Injection, Authentication Bypass',
-      color: 'text-red-600 dark:text-red-400',
-    },
-    {
-      value: 'high',
-      label: 'Critical & High',
-      description: 'XSS, CSRF, Sensitive Data Exposure',
-      color: 'text-orange-600 dark:text-orange-400',
-    },
-    {
-      value: 'medium',
-      label: 'Critical, High & Medium',
-      description: 'Input Validation, Session Management',
-      color: 'text-yellow-600 dark:text-yellow-400',
-    },
-    {
-      value: 'low',
-      label: 'All Severity Levels',
-      description: 'Includes informational issues',
-      color: 'text-blue-600 dark:text-blue-400',
-    },
-    {
-      value: 'all',
-      label: 'Complete Analysis',
-      description: 'Full security audit + best practices',
-      color: 'text-purple-600 dark:text-purple-400',
-    },
-  ];
-
-  // Cost and time estimation
-  const estimateCost = () => {
-    const baseTokensPerFile = 2000; // Average tokens per file
-    const totalTokens = maxFiles * baseTokensPerFile;
-    const costPerMillionTokens = 0.14; // DeepSeek pricing
-    return ((totalTokens / 1000000) * costPerMillionTokens).toFixed(4);
-  };
-
-  const estimateTime = () => {
-    const secondsPerFile = 3;
-    const priorityMultiplier = {
-      critical: 0.5,
-      high: 0.7,
-      medium: 1.0,
-      low: 1.2,
-      all: 1.5,
-    };
-    const multiplier = priorityMultiplier[priorityLevel as keyof typeof priorityMultiplier] || 1.0;
-    const totalSeconds = Math.ceil(maxFiles * secondsPerFile * multiplier);
-    
-    if (totalSeconds < 60) return `~${totalSeconds}s`;
-    const minutes = Math.ceil(totalSeconds / 60);
-    return `~${minutes}min`;
-  };
 
   const handleStartScan = () => {
     setIsScanning(true);
     onStartScan({
-      max_files: maxFiles,
-      priority_level: priorityLevel,
+      max_files: typeof maxFiles === 'number' ? maxFiles : 50,
+      priority_level: 'all', // Fallback as priority is removed from UI but still in interface
     });
   };
 
-  const selectedPriority = priorityOptions.find(p => p.value === priorityLevel);
+  // Helper to validate scan capability
+  const isValidFileCount = typeof maxFiles === 'number' && maxFiles >= 1 && maxFiles <= 500;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px] bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-gray-200/50 dark:border-white/10 shadow-2xl">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-100 to-orange-50 dark:from-orange-500/20 dark:to-orange-900/20 border border-orange-200/50 dark:border-orange-500/20 flex items-center justify-center shadow-sm">
+              <Sparkles className="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <DialogTitle className="text-xl">LLM-Based Scan Configuration</DialogTitle>
-              <DialogDescription className="text-sm">
+              <DialogTitle className="text-xl text-gray-900 dark:text-white">
+                LLM-Based Scan Configuration
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-600 dark:text-white/70 mt-1">
                 {repositoryName}
               </DialogDescription>
             </div>
@@ -129,8 +66,8 @@ export const LLMScanModal: React.FC<LLMScanModalProps> = ({
 
         <div className="space-y-6 py-4">
           {/* Max Files */}
-          <div className="space-y-2">
-            <Label htmlFor="max-files" className="text-sm font-medium">
+          <div className="space-y-3">
+            <Label htmlFor="max-files" className="text-sm font-medium text-gray-900 dark:text-white">
               Maximum Files to Scan
             </Label>
             <Input
@@ -139,88 +76,49 @@ export const LLMScanModal: React.FC<LLMScanModalProps> = ({
               min={1}
               max={500}
               value={maxFiles}
-              onChange={(e) => setMaxFiles(parseInt(e.target.value) || 50)}
-              className="w-full"
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setMaxFiles('');
+                } else {
+                  const num = parseInt(val, 10);
+                  if (!isNaN(num)) setMaxFiles(num);
+                }
+              }}
+              className="w-full bg-white/50 dark:bg-white/5 border-gray-300/50 dark:border-white/20 focus:border-orange-500 dark:focus:border-orange-500 transition-colors text-gray-900 dark:text-white"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Limit: 1-500 files. More files = longer scan time and higher cost.
+            <p className="text-xs text-gray-500 dark:text-white/50">
+              Limit: 1-500 files. More files = longer scan time.
             </p>
           </div>
 
-          {/* Priority Level */}
-          <div className="space-y-2">
-            <Label htmlFor="priority" className="text-sm font-medium">
-              Scan Priority Level
-            </Label>
-            <Select value={priorityLevel} onValueChange={setPriorityLevel}>
-              <SelectTrigger id="priority">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {priorityOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <div className="flex flex-col items-start py-1">
-                      <span className={`font-medium ${option.color}`}>
-                        {option.label}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {option.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedPriority && (
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                <span className={selectedPriority.color}>Selected: {selectedPriority.label}</span>
-                {' - '}
-                {selectedPriority.description}
-              </p>
-            )}
-          </div>
-
-          {/* Estimates */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Estimated Time</p>
-                <p className="text-sm font-semibold">{estimateTime()}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Estimated Cost</p>
-                <p className="text-sm font-semibold">${estimateCost()}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Info Alert */}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              <strong>AI-Powered Analysis:</strong> This scan uses DeepSeek AI to provide
-              comprehensive security analysis with detailed explanations and code fix examples.
-              Results may take longer but provide deeper insights.
-            </AlertDescription>
-          </Alert>
+          <div className="rounded-xl border border-blue-200/60 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-500/5 backdrop-blur-md p-4 flex gap-3">
+            <AlertCircle className="h-5 w-5 text-[#003D6B] dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+              <strong className="text-gray-900 dark:text-white font-semibold">AI-Powered Analysis:</strong> This scan uses DeepSeek AI to provide comprehensive security analysis with detailed explanations and code fix examples. Results may take longer but provide deeper insights.
+            </p>
+          </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isScanning}>
+        <DialogFooter className="border-t border-gray-200/60 dark:border-white/10 pt-4 mt-2">
+          <Button 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isScanning}
+            className="border-gray-300 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-white/10 dark:hover:text-white transition-colors"
+          >
             Cancel
           </Button>
           <Button
             onClick={handleStartScan}
-            disabled={isScanning || maxFiles < 1 || maxFiles > 500}
-            className="bg-purple-600 hover:bg-purple-700 dark:bg-purple-600 dark:hover:bg-purple-700"
+            disabled={isScanning || !isValidFileCount}
+            style={{ color: 'white' }}
+            className="bg-orange-500 hover:bg-orange-600 dark:bg-orange-500 dark:hover:bg-orange-600 shadow-md transition-all"
           >
             {isScanning ? (
               <>
-                <span className="animate-spin mr-2">⚡</span>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                 Starting Scan...
               </>
             ) : (
