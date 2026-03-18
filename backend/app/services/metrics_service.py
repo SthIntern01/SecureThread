@@ -61,13 +61,15 @@ class MetricsService:
     ) -> Dict[str, Any]:
         """Calculate comprehensive security metrics - WITH EMPTY STATE HANDLING"""
         
-        # Get repositories with proper filtering
-        repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
-
-        if self.workspace_repo_ids:
-            repo_query = repo_query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: The "Ghost Town" Bug
+        # If we are in a workspace, show ALL repos in that workspace regardless of who imported them.
+        if self.workspace_repo_ids is not None:
+            repo_query = self.db.query(Repository).filter(Repository.id.in_(self.workspace_repo_ids))
             logger.info(f"📦 WORKSPACE FILTERING: {len(self.workspace_repo_ids)} repositories in workspace")
-
+        else:
+            # Fallback for users with no workspace
+            repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
+        
         if repository_id:
             repo_query = repo_query.filter(Repository.id == repository_id)
             logger.info(f"🎯 FILTERING BY REPOSITORY ID: {repository_id}")
@@ -385,18 +387,6 @@ class MetricsService:
         # Final security score
         security_score = max(5.0, min(100.0, 100.0 - final_penalty))
         
-        logger.info(f"🔐 DYNAMIC SECURITY SCORE CALCULATION:")
-        logger.info(f"- Repository: {scan.repository.name if scan.repository else 'Unknown'}")
-        logger.info(f"- Language: {repo_language} (risk multiplier: {language_risk_multiplier:.2f})")
-        logger.info(f"- Files scanned: {total_files}")
-        logger.info(f"- Vulnerability density: {vulnerability_density:.2f} vulns/file")
-        logger.info(f"- Severity distribution: C:{critical_ratio:.1%} H:{high_ratio:.1%} M:{medium_ratio:.1%} L:{low_ratio:.1%}")
-        logger.info(f"- Dynamic weights: C:{critical_weight:.1f} H:{high_weight:.1f} M:{medium_weight:.1f} L:{low_weight:.1f}")
-        logger.info(f"- Base penalty: {base_penalty:.1f}")
-        logger.info(f"- Density multiplier: {density_multiplier:.2f}")
-        logger.info(f"- Final penalty: {final_penalty:.1f}")
-        logger.info(f"- Final security score: {security_score:.1f}%")
-        
         return security_score
 
     def _get_language_risk_multiplier(self, language: str) -> float:
@@ -459,12 +449,12 @@ class MetricsService:
     ) -> Dict[str, Any]:
         """Calculate code quality and technical debt metrics - WITH EMPTY STATE HANDLING"""
         
-        # Get repositories with filtering
-        repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
-
-        if self.workspace_repo_ids:
-            repo_query = repo_query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            repo_query = self.db.query(Repository).filter(Repository.id.in_(self.workspace_repo_ids))
             logger.info(f"📦 WORKSPACE FILTERING: {len(self.workspace_repo_ids)} repositories in workspace")
+        else:
+            repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
 
         if repository_id:
             repo_query = repo_query.filter(Repository.id == repository_id)
@@ -648,15 +638,18 @@ class MetricsService:
     ) -> Dict[str, Any]:
         """Calculate vulnerability trends and patterns - FIXED TO USE SCAN DATES"""
         
-        # ✅ Get scans instead of vulnerabilities directly
-        scan_query = self.db.query(Scan).join(Repository).filter(
-            Repository.owner_id == self.user_id,
-            Scan.status == 'completed'
-        )
-
-        if self.workspace_repo_ids:
-            scan_query = scan_query.filter(Scan.repository_id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            scan_query = self.db.query(Scan).join(Repository).filter(
+                Scan.repository_id.in_(self.workspace_repo_ids),
+                Scan.status == 'completed'
+            )
             logger.info(f"📦 WORKSPACE FILTERING: {len(self.workspace_repo_ids)} repositories in workspace")
+        else:
+            scan_query = self.db.query(Scan).join(Repository).filter(
+                Repository.owner_id == self.user_id,
+                Scan.status == 'completed'
+            )
         
         if repository_id: 
             scan_query = scan_query.filter(Scan.repository_id == repository_id)
@@ -822,24 +815,17 @@ class MetricsService:
             'has_data': len(monthly_trends) > 0
         }
         
-        logger.info(f"✅ VULNERABILITY TRENDS RESULT:")
-        logger.info(f"- Monthly trends: {len(monthly_trends)} months")
-        logger.info(f"- Top vuln types: {len(top_vuln_types)}")
-        logger.info(f"- Security hotspots: {len(security_hotspots)}")
-        logger.info(f"- Risk distribution: C:{total_critical} H:{total_high} M:{total_medium} L:{total_low}")
-        
         return result
     
     async def calculate_compliance_scores(self, repository_id: Optional[int], time_filter: Optional[datetime]) -> Dict[str, Any]:
         """Calculate compliance scores for various standards - FIXED"""
         
-        # 🔧 FIX: Initialize repo_query FIRST
-        repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
-        
-        # 🔧 FIX: Then apply workspace filter
-        if self.workspace_repo_ids:
-            repo_query = repo_query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            repo_query = self.db.query(Repository).filter(Repository.id.in_(self.workspace_repo_ids))
             logger.info(f"📦 WORKSPACE FILTERING: {len(self.workspace_repo_ids)} repositories")
+        else:
+            repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
         
         if repository_id:
             repo_query = repo_query.filter(Repository.id == repository_id)
@@ -886,13 +872,12 @@ class MetricsService:
     async def calculate_team_metrics(self, repository_id: Optional[int], time_filter: Optional[datetime]) -> Dict[str, Any]:
         """Calculate team productivity and security awareness metrics - FIXED"""
         
-        # 🔧 FIX: Initialize repo_query FIRST
-        repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
-        
-        # 🔧 FIX: Then apply workspace filter
-        if self.workspace_repo_ids:
-            repo_query = repo_query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            repo_query = self.db.query(Repository).filter(Repository.id.in_(self.workspace_repo_ids))
             logger.info(f"📦 WORKSPACE FILTERING: {len(self.workspace_repo_ids)} repositories")
+        else:
+            repo_query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
         
         if repository_id: 
             repo_query = repo_query.filter(Repository.id == repository_id)
@@ -1018,12 +1003,15 @@ class MetricsService:
     
     async def _get_filtered_vulnerabilities(self, repository_id: Optional[int], time_filter: Optional[datetime]) -> List[Vulnerability]: 
         """Get filtered vulnerabilities"""
-        query = self.db.query(Vulnerability).join(Scan).join(Repository).filter(
-            Repository.owner_id == self.user_id
-        )
-        
-        if self.workspace_repo_ids:
-            query = query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            query = self.db.query(Vulnerability).join(Scan).join(Repository).filter(
+                Repository.id.in_(self.workspace_repo_ids)
+            )
+        else:
+            query = self.db.query(Vulnerability).join(Scan).join(Repository).filter(
+                Repository.owner_id == self.user_id
+            )
         
         if repository_id:
             query = query.filter(Scan.repository_id == repository_id)
@@ -1034,12 +1022,15 @@ class MetricsService:
     
     async def _get_filtered_scans(self, repository_id: Optional[int], time_filter: Optional[datetime]) -> List[Scan]:
         """Get filtered scans"""
-        query = self.db.query(Scan).join(Repository).filter(
-            Repository.owner_id == self.user_id
-        )
-        
-        if self.workspace_repo_ids:
-            query = query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            query = self.db.query(Scan).join(Repository).filter(
+                Repository.id.in_(self.workspace_repo_ids)
+            )
+        else:
+            query = self.db.query(Scan).join(Repository).filter(
+                Repository.owner_id == self.user_id
+            )
         
         if repository_id:
             query = query.filter(Scan.repository_id == repository_id)
@@ -1050,10 +1041,11 @@ class MetricsService:
     
     async def _get_filtered_repositories(self, repository_id: Optional[int]) -> List[Repository]:
         """Get filtered repositories"""
-        query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
-        
-        if self.workspace_repo_ids:
-            query = query.filter(Repository.id.in_(self.workspace_repo_ids))
+        # ✅ FIX: Workspace bug
+        if self.workspace_repo_ids is not None:
+            query = self.db.query(Repository).filter(Repository.id.in_(self.workspace_repo_ids))
+        else:
+            query = self.db.query(Repository).filter(Repository.owner_id == self.user_id)
         
         if repository_id:
             query = query.filter(Repository.id == repository_id)

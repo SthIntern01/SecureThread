@@ -331,6 +331,34 @@ class WorkspaceService {
     }
   }
 
+  // Leave workspace
+  async leaveWorkspace(workspaceId: string): Promise<void> {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        throw new Error('No access token found');
+      }
+
+      // Note: team_id is passed as a query parameter to match the backend FastAPI implementation
+      const response = await fetch(`${this.API_URL}/api/v1/teams/leave?team_id=${workspaceId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to leave workspace');
+      }
+    } catch (error: any) {
+      console.error('❌ Error leaving workspace:', error);
+      throw new Error(error.message || 'Failed to leave workspace');
+    }
+  }
+
   // Update workspace name
   async updateWorkspace(workspaceId: string, data: { name: string }): Promise<Workspace> {
     try {

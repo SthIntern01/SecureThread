@@ -331,21 +331,44 @@ class TeamService:
             raise e
     
     def update_member_role(self, member_id: int, new_role: MemberRole, updated_by: int) -> TeamMember:
-        """Update team member role"""
+        """Update team member role with RBAC enforcement"""
         try:
             member = self.db.query(TeamMember).filter(TeamMember.id == member_id).first()
             if not member:
                 raise ValueError("Member not found")
             
-            # Don't allow changing owner role
-            if member.role == MemberRole.owner:
-                raise ValueError("Cannot change owner role")
+            updater = self.db.query(TeamMember).filter(
+                TeamMember.team_id == member.team_id,
+                TeamMember.user_id == updated_by
+            ).first()
+
+            if not updater:
+                raise ValueError("You are not a member of this team")
+
+            # ✅ RBAC: The Hierarchy Rules
+            if updater.role not in [MemberRole.owner, MemberRole.admin]:
+                raise ValueError("Only Owners and Admins can update roles")
+            
+            if updater.role == MemberRole.admin and member.role == MemberRole.owner:
+                raise ValueError("Admins cannot modify Owner roles")
+                
+            if updater.role == MemberRole.admin and new_role == MemberRole.owner:
+                raise ValueError("Admins cannot promote users to Owner")
+            
+            if member.role == MemberRole.owner and new_role != MemberRole.owner:
+                # The Last Owner Rule
+                owner_count = self.db.query(TeamMember).filter(
+                    TeamMember.team_id == member.team_id, 
+                    TeamMember.role == MemberRole.owner
+                ).count()
+                if owner_count <= 1:
+                    raise ValueError("Cannot demote the last remaining Owner. You must promote someone else first.")
             
             member.role = new_role
             self.db.commit()
             self.db.refresh(member)
             
-            logger.info(f"Updated member {member_id} role to {new_role}")
+            logger.info(f"Updated member {member_id} role to {new_role} by user {updated_by}")
             return member
             
         except Exception as e:
@@ -354,23 +377,74 @@ class TeamService:
             raise e
     
     def remove_member(self, member_id: int, removed_by: int) -> bool:
-        """Remove team member"""
+        """Remove team member with RBAC enforcement"""
         try:
             member = self.db.query(TeamMember).filter(TeamMember.id == member_id).first()
             if not member:
                 raise ValueError("Member not found")
             
-            # Don't allow removing owner
+            remover = self.db.query(TeamMember).filter(
+                TeamMember.team_id == member.team_id,
+                TeamMember.user_id == removed_by
+            ).first()
+
+            if not remover:
+                raise ValueError("You are not a member of this team")
+
+            # ✅ RBAC Rules
+            if remover.role not in [MemberRole.owner, MemberRole.admin]:
+                raise ValueError("Only Owners and Admins can remove members")
+                
+            if remover.role == MemberRole.admin and member.role == MemberRole.owner:
+                raise ValueError("Admins cannot remove an Owner")
+
             if member.role == MemberRole.owner:
-                raise ValueError("Cannot remove team owner")
+                # Extra protection just in case an Owner is trying to remove another Owner
+                owner_count = self.db.query(TeamMember).filter(
+                    TeamMember.team_id == member.team_id,
+                    TeamMember.role == MemberRole.owner
+                ).count()
+                if owner_count <= 1:
+                    raise ValueError("Cannot remove the last remaining Owner. They must leave or delete the workspace.")
             
             self.db.delete(member)
             self.db.commit()
             
-            logger.info(f"Removed member {member_id} from team")
+            logger.info(f"Removed member {member_id} from team by user {removed_by}")
             return True
             
         except Exception as e:
             logger.error(f"Error removing member: {str(e)}")
+            self.db.rollback()
+            raise e
+
+    def leave_workspace(self, team_id: int, user_id: int) -> bool:
+        """Allow a user to voluntarily leave a workspace"""
+        try:
+            member = self.db.query(TeamMember).filter(
+                TeamMember.team_id == team_id,
+                TeamMember.user_id == user_id
+            ).first()
+            
+            if not member:
+                raise ValueError("You are not a member of this workspace")
+                
+            # ✅ The Last Owner Rule
+            if member.role == MemberRole.owner:
+                owner_count = self.db.query(TeamMember).filter(
+                    TeamMember.team_id == team_id,
+                    TeamMember.role == MemberRole.owner
+                ).count()
+                if owner_count <= 1:
+                    raise ValueError("You are the last Owner. You must promote someone else to Owner before leaving, or delete the workspace entirely.")
+            
+            self.db.delete(member)
+            self.db.commit()
+            
+            logger.info(f"User {user_id} successfully left workspace {team_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error leaving workspace: {str(e)}")
             self.db.rollback()
             raise e

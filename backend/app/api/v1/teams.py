@@ -280,3 +280,30 @@ async def accept_invitation(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/leave")
+async def leave_workspace(
+    team_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Leave the specified workspace"""
+    try:
+        team_service = TeamService(db)
+        success = team_service.leave_workspace(team_id, current_user.id)
+        
+        if success:
+            # If they left their currently active workspace, clear it
+            if current_user.active_team_id == team_id:
+                current_user.active_team_id = None
+                db.add(current_user)
+                db.commit()
+                
+            return {"message": "Successfully left the workspace"}
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error leaving workspace: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

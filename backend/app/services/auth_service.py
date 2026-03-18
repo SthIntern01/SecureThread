@@ -5,8 +5,9 @@ from app.schemas.user import UserCreate
 from app.core.security import create_access_token
 from app.services.github_service import GitHubService
 from app.services.gitlab_services import GitLabService  
-from app.services.google_service import GoogleService  # ADD THIS IMPORT
+from app.services.google_service import GoogleService
 from app.services.bitbucket_services import BitbucketService
+from app.services.team_service import TeamService  # ✅ ADDED THIS IMPORT
 from datetime import timedelta
 from app.config.settings import settings
 import logging
@@ -18,7 +19,7 @@ class AuthService:
         self.db = db
         self.github_service = GitHubService()
         self.gitlab_service = GitLabService()
-        self.google_service = GoogleService()  # ADD THIS LINE
+        self.google_service = GoogleService()
 
     async def authenticate_github(self, code: str) -> Optional[dict]:
         """Authenticate user with GitHub OAuth and link accounts if email exists."""
@@ -51,20 +52,23 @@ class AuthService:
                 github_access_token=access_token
             )
             user = self.create_user(user_create)
-            user.github_token = access_token  # ← ADD THIS
+            user.github_token = access_token
             self.db.commit()
             self.db.refresh(user)
         else:
             user.github_id = github_id_str
             user.github_username = github_user["login"]
             user.github_access_token = access_token
-            user.github_token = access_token  # ← ADD THIS
+            user.github_token = access_token
             if github_user.get("name"):
                 user.full_name = github_user.get("name")
             if github_user.get("avatar_url"):
                 user.avatar_url = github_user.get("avatar_url")
             self.db.commit()
             self.db.refresh(user)
+
+        # ✅ NEW: Ensure the user has a personal workspace
+        self._ensure_user_workspace(user)
 
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         jwt_token = create_access_token(
@@ -106,8 +110,6 @@ class AuthService:
                 logger.error("No email found in GitLab user info")
                 return None
             
-            # --- MODIFIED LOGIC TO PREVENT DUPLICATE USERS ---
-            
             # 1. First, try to find the user by their unique GitLab ID.
             user = self.db.query(User).filter(User.gitlab_id == str(gitlab_user["id"])).first()
             
@@ -139,7 +141,8 @@ class AuthService:
                 self.db.commit()
                 self.db.refresh(user)
             
-            # --- END OF MODIFIED LOGIC ---
+            # ✅ NEW: Ensure the user has a personal workspace
+            self._ensure_user_workspace(user)
             
             # Create JWT token
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -155,8 +158,8 @@ class AuthService:
                     "email": user.email,
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
-                    "bitbucket_username": user.bitbucket_username,  # ← ADDED THIS
-                    "google_email": user.google_email,  # ← ADDED THIS
+                    "bitbucket_username": user.bitbucket_username,
+                    "google_email": user.google_email,
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
                 }
@@ -166,7 +169,6 @@ class AuthService:
             logger.error(f"Error in authenticate_gitlab: {str(e)}")
             return None
 
-    # ADD THIS NEW METHOD FOR GOOGLE AUTHENTICATION
     async def authenticate_google(self, code: str) -> Optional[dict]:
         """Authenticate user with Google OAuth and link accounts if email exists."""
         try:
@@ -189,8 +191,6 @@ class AuthService:
             if not email:
                 logger.error("No email found in Google user info")
                 return None
-            
-            # --- MODIFIED LOGIC TO PREVENT DUPLICATE USERS ---
             
             # 1. First, try to find the user by their unique Google ID.
             user = self.db.query(User).filter(User.google_id == str(google_user["id"])).first()
@@ -225,7 +225,8 @@ class AuthService:
                 self.db.commit()
                 self.db.refresh(user)
             
-            # --- END OF MODIFIED LOGIC ---
+            # ✅ NEW: Ensure the user has a personal workspace
+            self._ensure_user_workspace(user)
             
             # Create JWT token
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -241,7 +242,7 @@ class AuthService:
                     "email": user.email,
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
-                    "bitbucket_username": user.bitbucket_username,  # ← ADDED THIS
+                    "bitbucket_username": user.bitbucket_username,
                     "google_email": user.google_email,
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
@@ -271,8 +272,6 @@ class AuthService:
             
             # Get email (fallback if no email available)
             email = bitbucket_user.get("email")
-            
-            # --- MODIFIED LOGIC TO PREVENT DUPLICATE USERS (like other methods) ---
             
             # 1. First, try to find the user by their unique Bitbucket ID.
             user = self.db.query(User).filter(User.bitbucket_user_id == bitbucket_user.get("uuid")).first()
@@ -305,9 +304,10 @@ class AuthService:
                 self.db.commit()
                 self.db.refresh(user)
             
-            # --- END OF MODIFIED LOGIC ---
+            # ✅ NEW: Ensure the user has a personal workspace
+            self._ensure_user_workspace(user)
             
-            # Create JWT token (FIXED: use same pattern as other methods)
+            # Create JWT token
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
             jwt_token = create_access_token(
                 data={"sub": str(user.id)}, expires_delta=access_token_expires
@@ -322,7 +322,7 @@ class AuthService:
                     "github_username": user.github_username,
                     "gitlab_username": user.gitlab_username,
                     "bitbucket_username": user.bitbucket_username,
-                    "google_email": user.google_email,  # ← ADDED THIS
+                    "google_email": user.google_email,
                     "full_name": user.full_name,
                     "avatar_url": user.avatar_url,
                 }
@@ -331,6 +331,7 @@ class AuthService:
         except Exception as e:
             logger.error(f"Error in authenticate_bitbucket: {str(e)}")
             return None
+            
     def create_user(self, user_create: UserCreate) -> User:
         """Create new user - updated to handle GitHub, GitLab, Google, and Bitbucket"""
         db_user = User(
@@ -392,3 +393,24 @@ class AuthService:
     def get_user_by_bitbucket_id(self, bitbucket_user_id: str) -> Optional[User]:
         """Get user by Bitbucket user ID"""
         return self.db.query(User).filter(User.bitbucket_user_id == bitbucket_user_id).first()
+
+    # ✅ ADDED NEW METHOD: Ensure a user always has a workspace
+    def _ensure_user_workspace(self, user: User):
+        """Ensure the user has a default workspace and it is set as active."""
+        try:
+            # If the user doesn't have an active team set (like a brand new signup or someone who deleted all teams)
+            if not user.active_team_id:
+                team_service = TeamService(self.db)
+                
+                # get_or_create_default_team handles creating one if they literally have zero teams
+                default_team = team_service.get_or_create_default_team(user.id)
+                
+                # Force update the user's active team to the default team
+                user.active_team_id = default_team.id
+                self.db.add(user)
+                self.db.commit()
+                self.db.refresh(user)
+                
+                logger.info(f"✅ Auto-assigned default workspace {default_team.id} to user {user.id}")
+        except Exception as e:
+            logger.error(f"❌ Error ensuring default workspace for user {user.id}: {e}")

@@ -52,6 +52,7 @@ import {
   AlertCircle,
   ExternalLink,
   CheckCircle2,
+  LogOut
 } from "lucide-react";
 import { IconUser } from "@tabler/icons-react";
 
@@ -88,7 +89,7 @@ const InviteMembersModal = ({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && inviteMethod === "link" && currentWorkspace?. id) {
+    if (isOpen && inviteMethod === "link" && currentWorkspace?.id) {
       generateInviteLink();
     }
   }, [isOpen, inviteMethod, role, currentWorkspace?.id]);
@@ -116,7 +117,7 @@ const InviteMembersModal = ({
   };
 
   const handleSendInvites = async () => {
-    if (!emails. trim() || !currentWorkspace?.id) return;
+    if (!emails.trim() || !currentWorkspace?.id) return;
 
     const workspaceId = String(currentWorkspace.id);
 
@@ -125,7 +126,7 @@ const InviteMembersModal = ({
       const emailList = workspaceService.parseEmails(emails);
       const validation = workspaceService.validateEmails(emailList);
       
-      if (! validation.valid) {
+      if (!validation.valid) {
         alert(validation.errors.join("\n"));
         return;
       }
@@ -270,10 +271,12 @@ const MemberRow = ({
   member,
   onRemove,
   onChangeRole,
+  currentUserRole
 }:  { 
   member: TeamMember;
   onRemove: (id: number) => void;
   onChangeRole: (id:  number, role: string) => void;
+  currentUserRole: string;
 }) => {
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -300,6 +303,10 @@ const MemberRow = ({
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  // ✅ RBAC Logic: Only Owners and Admins can manage members. Admins cannot manage Owners.
+  const canManageMembers = currentUserRole === "Owner" || currentUserRole === "Admin";
+  const canModifyThisMember = canManageMembers && !(currentUserRole === "Admin" && member.role === "Owner");
 
   return (
     <div className="flex items-center justify-between py-4 border-b theme-border last:border-b-0">
@@ -333,7 +340,7 @@ const MemberRow = ({
           <div>Joined: {new Date(member.dateJoined).toLocaleDateString()}</div>
         </div>
 
-        {member.role !== "Owner" && (
+        {canModifyThisMember && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-2 hover:bg-gray-100/80 dark:bg-white/10 rounded-lg transition-colors">
@@ -341,14 +348,24 @@ const MemberRow = ({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onChangeRole(member.id, "Admin")}>
-                <Shield className="w-4 h-4 mr-2" />
-                Make Admin
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onChangeRole(member. id, "Member")}>
-                <Users className="w-4 h-4 mr-2" />
-                Make Member
-              </DropdownMenuItem>
+              {member.role !== "Admin" && (
+                <DropdownMenuItem onClick={() => onChangeRole(member.id, "Admin")}>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Make Admin
+                </DropdownMenuItem>
+              )}
+              {member.role !== "Member" && (
+                <DropdownMenuItem onClick={() => onChangeRole(member.id, "Member")}>
+                  <Users className="w-4 h-4 mr-2" />
+                  Make Member
+                </DropdownMenuItem>
+              )}
+              {currentUserRole === "Owner" && member.role !== "Owner" && (
+                 <DropdownMenuItem onClick={() => onChangeRole(member.id, "Owner")}>
+                 <Crown className="w-4 h-4 mr-2" />
+                 Make Owner
+               </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => onRemove(member.id)}
@@ -509,10 +526,17 @@ const WorkspaceSettings = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [workspaceName, setWorkspaceName] = useState(currentWorkspace?.name || "");
+  
+  // Deletion States
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  
+  // Leaving States
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+
   const [showEditWorkspaceDialog, setShowEditWorkspaceDialog] = useState(false);
   const [editWorkspaceName, setEditWorkspaceName] = useState("");
   const navigate = useNavigate();
@@ -530,12 +554,7 @@ const WorkspaceSettings = () => {
 
   useEffect(() => {
     if (currentWorkspace) {
-      setWorkspaceName(currentWorkspace. name);
-    }
-  }, [currentWorkspace]);
-
-  useEffect(() => {
-    if (currentWorkspace) {
+      setWorkspaceName(currentWorkspace.name);
       loadMembers();
     }
   }, [currentWorkspace]);
@@ -557,7 +576,7 @@ const WorkspaceSettings = () => {
       const membersData = await workspaceService.getWorkspaceMembers(workspaceId);
       
       const teamMembers:  TeamMember[] = membersData.map(m => ({
-        id: m. id,
+        id: m.id,
         user_id: m.user_id,
         name: m.name,
         email: m.email,
@@ -577,29 +596,30 @@ const WorkspaceSettings = () => {
     }
   };
 
+  // ✅ RBAC Logic Variables
+  const currentUserMember = members.find(m => m.user_id === user?.id);
+  const currentUserRole = currentUserMember?.role || "Member";
+  const isOwner = currentUserRole === "Owner";
+  const isAdmin = currentUserRole === "Admin";
+  const canManageWorkspace = isOwner || isAdmin;
+
   const handleRemoveMember = async (id: number) => {
     if (!currentWorkspace) return;
-    
-    const workspaceId = String(currentWorkspace.id);
-    
     try {
-      await workspaceService.removeMember(workspaceId, id);
+      await workspaceService.removeMember(String(currentWorkspace.id), id);
       await loadMembers();
-    } catch (error) {
-      alert("Failed to remove member");
+    } catch (error: any) {
+      alert(error.message || "Failed to remove member");
     }
   };
 
   const handleChangeRole = async (id: number, newRole: string) => {
     if (!currentWorkspace) return;
-    
-    const workspaceId = String(currentWorkspace.id);
-    
     try {
-      await workspaceService.updateMemberRole(workspaceId, id, newRole);
+      await workspaceService.updateMemberRole(String(currentWorkspace.id), id, newRole);
       await loadMembers();
-    } catch (error) {
-      alert("Failed to update member role");
+    } catch (error: any) {
+      alert(error.message || "Failed to update member role");
     }
   };
 
@@ -624,6 +644,19 @@ const WorkspaceSettings = () => {
       console.error('Error deleting workspace:', error);
       setDeleteError(error.message || 'Failed to delete workspace');
       setIsDeleting(false);
+    }
+  };
+
+  const handleLeaveWorkspace = async () => {
+    if (!currentWorkspace) return;
+    try {
+      setIsLeaving(true);
+      await workspaceService.leaveWorkspace(String(currentWorkspace.id));
+      navigate('/');
+      window.location.reload();
+    } catch (error: any) {
+      alert(error.message || "Failed to leave workspace");
+      setIsLeaving(false);
     }
   };
 
@@ -715,7 +748,8 @@ const WorkspaceSettings = () => {
                     <h1 className="text-3xl lg:text-4xl font-bold theme-text mb-2">
                       {currentWorkspace?.name || workspaceName}
                     </h1>
-                    <p className="theme-text-secondary">
+                    <p className="theme-text-secondary flex items-center gap-2">
+                      <Badge variant="outline" className="bg-gray-200/50 dark:bg-black/20">{currentUserRole}</Badge>
                       Manage your workspace settings and preferences
                     </p>
                   </div>
@@ -760,19 +794,22 @@ const WorkspaceSettings = () => {
                             <label className="block text-sm font-medium theme-text">
                               Name
                             </label>
-                            <button
-                              onClick={() => {
-                                setEditWorkspaceName(currentWorkspace?. name || workspaceName);
-                                setShowEditWorkspaceDialog(true);
-                              }}
-                              className="flex items-center space-x-1 text-sm text-accent hover:text-accent/80 transition-colors"
-                              title="Edit workspace name"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
+                            {/* Only Owners and Admins can edit the workspace name */}
+                            {canManageWorkspace && (
+                              <button
+                                onClick={() => {
+                                  setEditWorkspaceName(currentWorkspace?.name || workspaceName);
+                                  setShowEditWorkspaceDialog(true);
+                                }}
+                                className="flex items-center space-x-1 text-sm text-accent hover:text-accent/80 transition-colors"
+                                title="Edit workspace name"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                           <div className="text-base theme-text">
-                            {currentWorkspace?. name || workspaceName}
+                            {currentWorkspace?.name || workspaceName}
                           </div>
                         </div>
                         <div>
@@ -799,7 +836,7 @@ const WorkspaceSettings = () => {
                             You have 2 days left on SecureThread's full featured free trial
                           </p>
                         </div>
-                        <Button className="bg-accent hover:bg-accent/90">
+                        <Button className="bg-accent hover:bg-accent/90" disabled={!canManageWorkspace}>
                           Upgrade Plan
                         </Button>
                       </div>
@@ -820,13 +857,17 @@ const WorkspaceSettings = () => {
                           className="pl-10 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text placeholder:text-white/50"
                         />
                       </div>
-                      <Button
-                        onClick={() => setShowInviteModal(true)}
-                        className="bg-accent hover: bg-accent/90"
-                      >
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Invite Members
-                      </Button>
+                      
+                      {/* Hide invite button for Members/Viewers */}
+                      {canManageWorkspace && (
+                        <Button
+                          onClick={() => setShowInviteModal(true)}
+                          className="bg-accent hover: bg-accent/90"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          Invite Members
+                        </Button>
+                      )}
                     </div>
 
                     <div className="theme-bg-subtle rounded-2xl border theme-border p-6">
@@ -850,6 +891,7 @@ const WorkspaceSettings = () => {
                               member={member}
                               onRemove={handleRemoveMember}
                               onChangeRole={handleChangeRole}
+                              currentUserRole={currentUserRole}
                             />
                           ))}
                         </div>
@@ -871,7 +913,7 @@ const WorkspaceSettings = () => {
                     <p className="text-white/70 mb-6">
                       Harden your cloud infrastructure by finding misconfigurations in production
                     </p>
-                    <Button className="bg-accent hover:bg-accent/90">
+                    <Button className="bg-accent hover:bg-accent/90" disabled={!canManageWorkspace}>
                       <Plus className="w-4 h-4 mr-2" />
                       Connect Cloud
                     </Button>
@@ -887,7 +929,7 @@ const WorkspaceSettings = () => {
                     <p className="text-white/70 mb-6">
                       Connect your container registries to scan for vulnerabilities
                     </p>
-                    <Button className="bg-accent hover:bg-accent/90">
+                    <Button className="bg-accent hover:bg-accent/90" disabled={!canManageWorkspace}>
                       <Plus className="w-4 h-4 mr-2" />
                       Connect Container Registry
                     </Button>
@@ -903,7 +945,7 @@ const WorkspaceSettings = () => {
                     <p className="text-white/70 mb-6">
                       Monitor your domains and APIs for security vulnerabilities
                     </p>
-                    <Button className="bg-accent hover:bg-accent/90">
+                    <Button className="bg-accent hover:bg-accent/90" disabled={!canManageWorkspace}>
                       <Plus className="w-4 h-4 mr-2" />
                       Add Domain or API
                     </Button>
@@ -935,7 +977,6 @@ const WorkspaceSettings = () => {
                             <span>Checking connection status...</span>
                           </div>
                         ) : hasGithubPat ? (
-                          /* --- ACTIVE TOKEN STATE --- */
                           <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-start justify-between">
                             <div className="flex items-start space-x-3">
                               <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
@@ -951,6 +992,7 @@ const WorkspaceSettings = () => {
                             <Button 
                               variant="outline" 
                               onClick={handleDeletePat}
+                              disabled={!canManageWorkspace}
                               className="border-red-500/50 text-red-500 hover:bg-red-500/10 transition-colors"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
@@ -958,7 +1000,6 @@ const WorkspaceSettings = () => {
                             </Button>
                           </div>
                         ) : (
-                          /* --- NO TOKEN STATE --- */
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium theme-text mb-2">
@@ -970,11 +1011,12 @@ const WorkspaceSettings = () => {
                                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                                   value={githubPat}
                                   onChange={(e) => setGithubPat(e.target.value)}
+                                  disabled={!canManageWorkspace}
                                   className="flex-1 bg-gray-100/80 dark:bg-white/10 border-white/20 theme-text"
                                 />
                                 <Button 
                                   onClick={handleSavePat}
-                                  disabled={!githubPat.trim() || isSavingPat}
+                                  disabled={!githubPat.trim() || isSavingPat || !canManageWorkspace}
                                   className="bg-accent hover:bg-accent/90 min-w-[120px]"
                                 >
                                   {isSavingPat ? "Saving..." : "Save Token"}
@@ -982,7 +1024,6 @@ const WorkspaceSettings = () => {
                               </div>
                             </div>
 
-                            {/* --- HOW TO GUIDE --- */}
                             <div className="pt-2">
                               <button 
                                 onClick={() => setShowPatGuide(!showPatGuide)}
@@ -1040,32 +1081,62 @@ const WorkspaceSettings = () => {
                   </div>
                 )}
 
+                {/* Advanced Tab - Danger Zone & Leave Workspace */}
                 {activeTab === "advanced" && (
                   <div className="space-y-6">
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
-                      <h3 className="text-xl font-semibold text-red-400 mb-4">
-                        Danger Zone
-                      </h3>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between py-4">
-                          <div>
-                            <h4 className="font-semibold theme-text">
+                    {/* Owner sees Delete, Everyone else sees Leave */}
+                    {isOwner ? (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
+                        <h3 className="text-xl font-semibold text-red-400 mb-4">
+                          Danger Zone
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between py-4">
+                            <div>
+                              <h4 className="font-semibold theme-text">
+                                Delete Workspace
+                              </h4>
+                              <p className="text-sm text-white/70">
+                                Permanently delete this workspace and all its data
+                              </p>
+                            </div>
+                            <Button
+                              onClick={() => setShowDeleteModal(true)}
+                              variant="outline"
+                              className="border-red-500 text-red-500 hover: bg-red-500/10"
+                            >
                               Delete Workspace
-                            </h4>
-                            <p className="text-sm text-white/70">
-                              Permanently delete this workspace and all its data
-                            </p>
+                            </Button>
                           </div>
-                          <Button
-                            onClick={() => setShowDeleteModal(true)}
-                            variant="outline"
-                            className="border-red-500 text-red-500 hover: bg-red-500/10"
-                          >
-                            Delete Workspace
-                          </Button>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-6">
+                        <h3 className="text-xl font-semibold text-yellow-500 mb-4">
+                          Account Actions
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between py-4">
+                            <div>
+                              <h4 className="font-semibold theme-text">
+                                Leave Workspace
+                              </h4>
+                              <p className="text-sm text-white/70">
+                                Remove yourself from this workspace. You will lose access to all repositories.
+                              </p>
+                            </div>
+                            <Button
+                              onClick={() => setShowLeaveModal(true)}
+                              variant="outline"
+                              className="border-yellow-500 text-yellow-500 hover: bg-yellow-500/10"
+                            >
+                              <LogOut className="w-4 h-4 mr-2" />
+                              Leave Workspace
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1141,7 +1212,7 @@ const WorkspaceSettings = () => {
         </DialogContent>
       </Dialog>
        
-      {/* Delete Workspace Modal */}
+      {/* Delete Workspace Modal (Owner Only) */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white dark: bg-neutral-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-red-500/20">
@@ -1216,6 +1287,61 @@ const WorkspaceSettings = () => {
                     setDeleteError('');
                   }}
                   disabled={isDeleting}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Workspace Modal (Members/Admins) */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white dark: bg-neutral-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-yellow-500/20">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
+                <LogOut className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Leave Workspace? 
+              </h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4">
+                <p className="text-sm text-yellow-900 dark:text-yellow-100 font-medium">
+                  Are you sure you want to leave <strong>{currentWorkspace?.name}</strong>?
+                </p>
+                <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-2">
+                  You will lose access to all repositories, scans, and settings immediately. An Admin will have to re-invite you if you want to come back.
+                </p>
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <Button
+                  onClick={handleLeaveWorkspace}
+                  disabled={isLeaving}
+                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 disabled:cursor-not-allowed text-white"
+                >
+                  {isLeaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Leaving... 
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Leave Workspace
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setShowLeaveModal(false)}
+                  disabled={isLeaving}
                   variant="outline"
                   className="flex-1"
                 >

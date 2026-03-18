@@ -12,6 +12,8 @@ import ScanMethodModal from "../components/ScanMethodModal";
 import { useAuth } from "../contexts/AuthContext";
 import FileScanStatus from "../components/FileScanStatus";
 import { ProjectsSkeleton } from "@/components/skeletons/ProjectsSkeleton";
+import { useWorkspace } from "../contexts/WorkspaceContext";
+import { workspaceService } from "../services/workspaceService";
 import {
   Select,
   SelectContent,
@@ -1133,8 +1135,34 @@ const Projects = () => {
   const [scanningProjects, setScanningProjects] = useState<Set<number>>(
     new Set()
   );
+  
   const { user } = useAuth();
   const [authProvider, setAuthProvider] = useState<'github' | 'bitbucket' | null>(null);
+
+  // ✅ NEW: Workspace Role Logic
+  const { currentWorkspace } = useWorkspace();
+  const [currentUserRole, setCurrentUserRole] = useState<string>("Member");
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      if (currentWorkspace && user) {
+        try {
+          const members = await workspaceService.getWorkspaceMembers(String(currentWorkspace.id));
+          const me = members.find(m => m.user_id === user.id);
+          if (me) {
+            setCurrentUserRole(me.role);
+          }
+        } catch (e) {
+          console.error("Failed to fetch role", e);
+        }
+      }
+    };
+    fetchRole();
+  }, [currentWorkspace, user]);
+
+  // If there is no current workspace, they are on their personal account and CAN manage.
+  // Otherwise, they must be an Owner or Admin.
+  const canManageWorkspace = !currentWorkspace || currentUserRole === "Owner" || currentUserRole === "Admin";
 
   useEffect(() => {
     if (user) {
@@ -1883,46 +1911,50 @@ const Projects = () => {
                       Manage and monitor your security projects
                     </p>
                   </div>
-                  <div className="mt-6 lg:mt-0 relative">
-                    <Button
-                      onClick={handleImportClick}
-                      style={{ color: 'white' }}
-                      className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
-                    >
-                      {getAuthProvider() ?  (
-                        <>
-                          {getProviderIcon(getAuthProvider())}
-                          Import from {getProviderName(getAuthProvider())}
-                        </>
-                      ) : (
-                        <>
-                          <Github className="w-4 h-4 mr-2" />
-                          Import Repository
-                        </>
+                  
+                  {/* ✅ Wrap the entire import button block with the RBAC check */}
+                  {canManageWorkspace && (
+                    <div className="mt-6 lg:mt-0 relative">
+                      <Button
+                        onClick={handleImportClick}
+                        style={{ color: 'white' }}
+                        className="bg-[#003D6B] hover:bg-[#002A4D] dark:bg-orange-500 dark:hover:bg-orange-600"
+                      >
+                        {getAuthProvider() ?  (
+                          <>
+                            {getProviderIcon(getAuthProvider())}
+                            Import from {getProviderName(getAuthProvider())}
+                          </>
+                        ) : (
+                          <>
+                            <Github className="w-4 h-4 mr-2" />
+                            Import Repository
+                          </>
+                        )}
+                      </Button>
+                      
+                      {showImportDropdown && (
+                        <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-white/20 py-2 z-50">
+                          <button
+                            onClick={() => handleProviderSelection('github')}
+                            className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark: text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                          >
+                            <Github className="w-4 h-4" />
+                            <span>Import from GitHub</span>
+                          </button>
+                          <button
+                            onClick={() => handleProviderSelection('bitbucket')}
+                            className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
+                            </svg>
+                            <span>Import from Bitbucket</span>
+                          </button>
+                        </div>
                       )}
-                    </Button>
-                    
-                    {showImportDropdown && (
-                      <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-white/20 py-2 z-50">
-                        <button
-                          onClick={() => handleProviderSelection('github')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark: text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
-                        >
-                          <Github className="w-4 h-4" />
-                          <span>Import from GitHub</span>
-                        </button>
-                        <button
-                          onClick={() => handleProviderSelection('bitbucket')}
-                          className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-white/10 transition-colors"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M. 778 1.213a. 768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z" />
-                          </svg>
-                          <span>Import from Bitbucket</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2037,7 +2069,9 @@ const Projects = () => {
               ? "Get started by importing your first repository."
               : "Try adjusting your search or filter criteria."}
           </p>
-          {projects.length === 0 && (
+          
+          {/* ✅ Check if the user is allowed to import before rendering this button */}
+          {projects.length === 0 && canManageWorkspace && (
             <Button
               onClick={handleImportClick}
               style={{ color: 'white' }}

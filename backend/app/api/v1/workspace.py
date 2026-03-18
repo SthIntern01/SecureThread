@@ -1,15 +1,14 @@
 # backend/app/api/v1/workspace.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core. database import get_db
+from app.core.database import get_db
 from app.models.user import User
 from app.api.deps import get_current_user
 from app.services.workspace_service import WorkspaceService
 from pydantic import BaseModel
 from typing import List, Optional
-from app.models.team import Team, TeamMember, MemberStatus
-from app.models.team_repository import TeamRepository
 from app.models.team import Team, TeamMember, MemberStatus, TeamInvitation 
+from app.models.team_repository import TeamRepository
 import traceback
 import logging
 from datetime import datetime
@@ -37,14 +36,14 @@ class WorkspaceCallbackResponse(BaseModel):
 
 class CreateWorkspaceRequest(BaseModel):
     name: str
-    repository_ids:  List[int]
+    repository_ids: List[int]
 
 
 class CreateWorkspaceResponse(BaseModel):
     workspace_id: int
     workspace_name: str
     repository_count: int
-    message:  str
+    message: str
 
 
 class SwitchWorkspaceRequest(BaseModel):
@@ -58,7 +57,7 @@ class UpdateWorkspaceRequest(BaseModel):
 
 @router.get("/list")
 async def get_user_workspaces(
-    current_user:  User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -74,7 +73,7 @@ async def get_user_workspaces(
         }
         
     except Exception as e:
-        logger. error(f"Error fetching workspaces: {e}")
+        logger.error(f"Error fetching workspaces: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch workspaces"
@@ -83,7 +82,7 @@ async def get_user_workspaces(
 
 @router.post("/switch")
 async def switch_workspace(
-    request:  SwitchWorkspaceRequest,
+    request: SwitchWorkspaceRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -160,11 +159,11 @@ async def get_user_repositories(
         if not current_user.github_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No GitHub token found.  Please login with GitHub first."
+                detail="No GitHub token found. Please login with GitHub first."
             )
         
         workspace_service = WorkspaceService(db)
-        repositories = workspace_service. get_user_repositories(current_user)
+        repositories = workspace_service.get_user_repositories(current_user)
         
         return repositories
         
@@ -176,14 +175,14 @@ async def get_user_repositories(
     except Exception as e:
         logger.error(f"Error fetching repositories: {e}")
         raise HTTPException(
-            status_code=status. HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch repositories from GitHub"
         )
 
 
 @router.post("/create")
 async def create_workspace_with_repos(
-    request:  CreateWorkspaceRequest,
+    request: CreateWorkspaceRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -191,7 +190,7 @@ async def create_workspace_with_repos(
     Create a new workspace with selected repositories.
     """
     try:
-        if not request. repository_ids:
+        if not request.repository_ids:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one repository must be selected"
@@ -200,7 +199,7 @@ async def create_workspace_with_repos(
         if not current_user.github_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="GitHub token not found.  Please login with GitHub first."
+                detail="GitHub token not found. Please login with GitHub first."
             )
         
         workspace_service = WorkspaceService(db)
@@ -208,7 +207,7 @@ async def create_workspace_with_repos(
         result = workspace_service.create_workspace_with_repositories(
             user_id=current_user.id,
             workspace_name=request.name,
-            repository_ids=request. repository_ids,
+            repository_ids=request.repository_ids,
             github_token=current_user.github_token
         )
         
@@ -217,7 +216,7 @@ async def create_workspace_with_repos(
     except HTTPException:
         raise
     except Exception as e:
-        logger. error(f"Error creating workspace:  {e}")
+        logger.error(f"Error creating workspace: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create workspace: {str(e)}"
@@ -236,7 +235,7 @@ async def get_workspace_repositories(
     try:
         workspace_service = WorkspaceService(db)
         
-        repositories = workspace_service. get_workspace_repositories(
+        repositories = workspace_service.get_workspace_repositories(
             workspace_id=workspace_id,
             user_id=current_user.id
         )
@@ -266,7 +265,7 @@ async def update_workspace(
 ):
     """Update workspace name (only owner and admin can update)"""
     try:
-        logger.info(f"📝 User {current_user. id} attempting to update workspace {workspace_id}")
+        logger.info(f"📝 User {current_user.id} attempting to update workspace {workspace_id}")
         
         # Get the team/workspace
         team = db.query(Team).filter(Team.id == workspace_id).first()
@@ -276,7 +275,7 @@ async def update_workspace(
         
         # Check if user is owner or admin
         member = db.query(TeamMember).filter(
-            TeamMember. team_id == workspace_id,
+            TeamMember.team_id == workspace_id,
             TeamMember.user_id == current_user.id,
             TeamMember.status == MemberStatus.active
         ).first()
@@ -288,7 +287,7 @@ async def update_workspace(
             )
         
         # Only Owner or Admin can update
-        if member.role. value not in ["Owner", "Admin"]:
+        if member.role.value not in ["Owner", "Admin"]:
             raise HTTPException(
                 status_code=403,
                 detail="Only workspace owners and admins can update workspace name"
@@ -302,7 +301,7 @@ async def update_workspace(
             )
         
         # Update the workspace name
-        team.name = request.name. strip()
+        team.name = request.name.strip()
         team.updated_at = datetime.utcnow()
         
         db.add(team)
@@ -319,14 +318,14 @@ async def update_workspace(
             TeamMember.status == MemberStatus.active
         ).count()
         
-        logger. info(f"✅ Workspace {workspace_id} name updated to '{team.name}'")
+        logger.info(f"✅ Workspace {workspace_id} name updated to '{team.name}'")
         
         return {
             "id": team.id,
             "name": team.name,
             "owner_id": team.created_by,
-            "created_at": team.created_at. isoformat() if team.created_at else None,
-            "updated_at":  team.updated_at.isoformat() if team.updated_at else None,
+            "created_at": team.created_at.isoformat() if team.created_at else None,
+            "updated_at": team.updated_at.isoformat() if team.updated_at else None,
             "plan": "Pro Trial",
             "member_count": member_count,
             "repository_count": repo_count
@@ -336,7 +335,7 @@ async def update_workspace(
         db.rollback()
         raise
     except Exception as e:
-        logger.error(f"❌ Error updating workspace:  {str(e)}")
+        logger.error(f"❌ Error updating workspace: {str(e)}")
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -374,7 +373,7 @@ async def delete_workspace(
         if len(user_workspaces) <= 1:
             raise HTTPException(
                 status_code=400,
-                detail="Cannot delete your last workspace.  Create another workspace first."
+                detail="Cannot delete your last workspace. Create another workspace first."
             )
         
         # ✅ Delete related data in order
@@ -423,6 +422,7 @@ async def delete_workspace(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     
+
 @router.get("/{workspace_id}/available-repositories")
 async def get_available_repositories(
     workspace_id: int,
@@ -454,6 +454,19 @@ async def add_repository_to_workspace(
 ):
     """Add a repository to workspace"""
     try:
+        # ✅ NEW: RBAC Check for adding repositories
+        member = db.query(TeamMember).filter(
+            TeamMember.team_id == workspace_id,
+            TeamMember.user_id == current_user.id,
+            TeamMember.status == MemberStatus.active
+        ).first()
+        
+        if not member or member.role.value not in ["Owner", "Admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only workspace Owners and Admins can add repositories."
+            )
+
         repository_id = request.get('repository_id')
         if not repository_id:
             raise HTTPException(status_code=400, detail="repository_id is required")
@@ -465,6 +478,8 @@ async def add_repository_to_workspace(
             user_id=current_user.id
         )
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

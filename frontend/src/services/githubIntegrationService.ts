@@ -1,5 +1,3 @@
-// frontend/src/services/githubIntegrationService.ts - COMPLETE FILE
-
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -103,7 +101,6 @@ export interface PRHistoryResponse {
 // Helper to get auth token
 const getAuthToken = (): string => {
   const token = localStorage.getItem('access_token');
-  // FIXED: Removed space between ! and token
   if (!token) {
     throw new Error('Authentication token not found');
   }
@@ -113,6 +110,16 @@ const getAuthToken = (): string => {
 // API Service
 export const githubIntegrationService = {
   
+  // ✅ FIX: Added the missing PAT Status Check function
+  async checkPATStatus(): Promise<PATStatusResponse> {
+    const response = await axios.get(`${API_BASE_URL}/github-integration/pat/status`, {
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+    });
+    return response.data;
+  },
+
   // File Content
   async fetchFileContent(request: FileContentRequest): Promise<FileContentResponse> {
     const response = await axios.post(
@@ -180,7 +187,6 @@ export const githubIntegrationService = {
 
   async getPRHistory(repository_id?: number): Promise<PRHistoryResponse> {
     const params = repository_id ? { repository_id } : {};
-    // FIXED: Removed space in 'axios.get'
     const response = await axios.get(`${API_BASE_URL}/github/pr/history`, {
       params,
       headers: {
