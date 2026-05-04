@@ -118,6 +118,86 @@ class LLMService:
         except Exception as e:
             logger.error(f"💥 Error in API call: {e}", exc_info=True)
             return None
+            
+    async def analyze_code_for_vulnerabilities(
+        self,
+        content: str,
+        file_path: str,
+        file_extension: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Analyze code directly for security vulnerabilities using LLM
+        """
+        try:
+            if not self.api_key:
+                logger.error("❌ Cannot analyze code: DEEPSEEK_API_KEY not configured")
+                return []
+                
+            # Truncate content if it's too large to avoid token limits
+            if len(content) > 15000:
+                content = content[:15000] + "\n... (truncated)"
+                
+            prompt = f"""
+SECURITY CODE REVIEW REQUEST:
+
+File: {file_path}
+Language: {file_extension}
+
+Code to analyze:
+```
+{content}
+```
+
+Please analyze this code for security vulnerabilities.
+Return ONLY a JSON array of objects with this EXACT format for each vulnerability found:
+[
+  {{
+    "title": "Short descriptive title",
+    "severity": "critical", "high", "medium", or "low",
+    "line_number": 10,
+    "description": "Detailed technical explanation",
+    "recommendation": "Specific, actionable steps to fix"
+  }}
+]
+
+If no vulnerabilities are found, return an empty array: []
+Do not include any text outside the JSON array.
+"""
+            
+            logger.info(f"🚀 Sending code analysis request for {file_path}")
+            
+            ai_response = await self._call_deepseek_api(prompt, max_tokens=3000)
+            
+            if not ai_response:
+                logger.error("❌ No response from DeepSeek API for code analysis")
+                return []
+                
+            # Find JSON array in the response
+            ai_response = ai_response.strip()
+            json_start = ai_response.find('[')
+            json_end = ai_response.rfind(']') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_content = ai_response[json_start:json_end]
+                try:
+                    vulnerabilities = json.loads(json_content)
+                    if isinstance(vulnerabilities, list):
+                        # Ensure fields exist
+                        for v in vulnerabilities:
+                            if "severity" not in v: v["severity"] = "medium"
+                            if "title" not in v: v["title"] = "Security Issue"
+                        return vulnerabilities
+                except json.JSONDecodeError:
+                    pass
+            
+            # If JSON parsing failed but there's content, we could return a generic warning
+            # But normally we expect valid JSON. Let's return empty if parse fails.
+            logger.warning("❌ Failed to parse code analysis response as JSON array")
+            return []
+            
+        except Exception as e:
+            logger.error(f"💥 Error analyzing code for vulnerabilities: {e}")
+            return []
     
     async def enhance_vulnerabilities(
         self, 

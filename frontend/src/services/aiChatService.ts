@@ -111,7 +111,8 @@ async sendMessageStream(
   conversationHistory: ChatMessage[] = [],
   onChunk: (chunk: string) => void,
   onComplete: (sessionId: number, messageId: number) => void,
-  onError: (error:  string) => void
+  onError: (error:  string) => void,
+  abortSignal?: AbortSignal
 ): Promise<void> {
   try {
     const response = await fetch(`${this.baseURL}/api/v1/ai-chat/chat/stream`, {
@@ -120,6 +121,7 @@ async sendMessageStream(
         "Content-Type": "application/json",
         ... this.getAuthHeaders(),
       },
+      signal: abortSignal,
       body: JSON.stringify({
         message,
         conversation_history:  conversationHistory,
@@ -173,10 +175,44 @@ async sendMessageStream(
         }
       }
     }
-  } catch (error) {
-    onError(error instanceof Error ? error.message : "Unknown error");
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      onError("Request was aborted");
+    } else {
+      onError(error instanceof Error ? error.message : "Unknown error");
+    }
   }
 }
+
+  async getChatSessions(): Promise<any[]> {
+    const response = await fetch(`${this.baseURL}/api/v1/ai-chat/sessions`, {
+      method: "GET",
+      headers: {
+        ...this.getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch chat sessions: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getSessionMessages(sessionId: number): Promise<any[]> {
+    const response = await fetch(`${this.baseURL}/api/v1/ai-chat/sessions/${sessionId}/messages`, {
+      method: "GET",
+      headers: {
+        ...this.getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch session messages: ${response.status}`);
+    }
+
+    return response.json();
+  }
 
 
   async uploadFilesForAnalysis(files: File[]): Promise<FileUploadResponse> {

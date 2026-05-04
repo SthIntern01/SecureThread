@@ -70,6 +70,53 @@ class RecommendationsRequest(BaseModel):
     focus_area: Optional[str] = None  # "vulnerabilities", "compliance", "general"
 
 
+@router.get("/sessions", response_model=List[ChatSessionResponse])
+async def get_chat_sessions(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all chat sessions for the current user"""
+    sessions = db.query(ChatSession).filter(
+        ChatSession.user_id == current_user.id,
+        ChatSession.is_active == True
+    ).order_by(ChatSession.updated_at.desc()).all()
+    
+    # Calculate message count for each session
+    response = []
+    for s in sessions:
+        msg_count = db.query(ChatMessageModel).filter(ChatMessageModel.session_id == s.id).count()
+        response.append({
+            "id": s.id,
+            "title": s.title,
+            "created_at": s.created_at,
+            "updated_at": s.updated_at or s.created_at,
+            "is_active": s.is_active,
+            "message_count": msg_count
+        })
+    return response
+
+@router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
+async def get_session_messages(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all messages for a specific chat session"""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id,
+        ChatSession.is_active == True
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+        
+    messages = db.query(ChatMessageModel).filter(
+        ChatMessageModel.session_id == session_id
+    ).order_by(ChatMessageModel.created_at.asc()).all()
+    
+    return messages
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_ai(
     chat_request: ChatRequest,

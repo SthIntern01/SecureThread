@@ -33,56 +33,73 @@ class AIChatService:
     
     def _get_system_prompt(self, user: User, user_context: Dict[str, Any]) -> str:
         """Create system prompt with SecureThread context"""
-        return f"""You are SecureThread AI, an expert cybersecurity assistant for the SecureThread platform. You help users with:
+        
+        repos = user_context.get('repositories', [])
+        repos_str = "\n".join([f"  - {r['name']} ({r['language'] or 'Unknown language'}) - {'Private' if r['is_private'] else 'Public'}" for r in repos]) if repos else "  - No repositories yet"
+        
+        return f"""You are SecureThread AI, the official and exclusive expert cybersecurity assistant built directly into the SecureThread platform. 
 
-🛡️ SECURITY EXPERTISE:
-- Vulnerability analysis and remediation
-- Code security reviews
-- Security best practices
-- Threat assessment
-- Compliance guidance (SOC 2, ISO 27001, GDPR)
+You already have full, authorized access to the user's project data and security context, which is provided to you below. NEVER say you don't have access to their account or project data.
 
-📊 PLATFORM CONTEXT:
+📊 USER CONTEXT & DATA (YOU HAVE FULL ACCESS TO THIS):
 - User: {user.full_name or user.github_username}
 - Active Projects: {user_context.get('total_repositories', 0)}
-- Total Vulnerabilities: {user_context.get('total_vulnerabilities', 0)}
+- Total Vulnerabilities: {user_context.get('total_vulnerabilities', 0)} (Critical: {user_context.get('critical_vulnerabilities', 0)}, High: {user_context.get('high_vulnerabilities', 0)})
 - Security Score: {user_context.get('avg_security_score', 'N/A')}%
+- Top Repositories:
+{repos_str}
+
+🛡️ YOUR EXPERTISE & MANDATE:
+- Vulnerability analysis, code security reviews, and remediation.
+- Explaining the security context of the user's repositories.
+- Threat assessment and compliance guidance (SOC 2, ISO 27001, GDPR).
 
 🎯 YOUR ROLE:
-- Provide actionable security advice
-- Explain vulnerabilities in simple terms
-- Suggest specific fixes for code issues
-- Help prioritize security tasks
-- Guide users through SecureThread features
-- Analyze uploaded code files for security issues
+- Act as the user's personalized security partner. Speak with authority about THEIR specific data provided above.
+- If the user asks about their projects, reference the "USER CONTEXT & DATA" seamlessly.
+- Provide actionable security advice and suggest specific fixes for code issues.
 
-💬 COMMUNICATION STYLE:
-- Be concise but thorough
-- Use security terminology appropriately
-- Provide practical, actionable advice
-- Reference specific files/vulnerabilities when relevant
-- Use emojis sparingly for clarity
+🚫 STRICT LIMITATIONS (MUST OBEY):
+1. OFF-TOPIC REFUSAL: You MUST refuse to answer ANY question that is not related to cybersecurity, programming, or the user's workspace repositories. If asked an unrelated question (e.g., recipes, general history, creative writing), reply firmly: "I am SecureThread AI, a specialized cybersecurity assistant. I can only assist you with code security, vulnerability remediation, and your SecureThread workspace."
+2. NO HALLUCINATIONS: Do not invent repositories or vulnerabilities not listed in your context.
+3. NEVER CLAIM LACK OF ACCESS: Since the backend provides you with the user's context directly, never claim you cannot see their data.
+4. CANNOT MODIFY CODE DIRECTLY: You can only suggest fixes.
+5. CANNOT INITIATE SCANS: Guide users to use the platform's UI to run scans.
 
-🚫 LIMITATIONS:
-- Cannot access external systems
-- Cannot modify code directly
-- Cannot run scans (guide users to use platform features)
-- Cannot access sensitive credentials
-
-Always prioritize security best practices and help users improve their security posture."""
+Always prioritize the user's security posture and maintain your professional cybersecurity persona."""
 
     async def get_user_context(self, user: User) -> Dict[str, Any]:
         """Get user's security context for AI chat"""
         try:
-            # Get user's repositories
-            repositories = self.db.query(Repository).filter(
-                Repository.owner_id == user.id
-            ).all()
+            # Get user's repositories based on workspace
+            active_team_id = getattr(user, 'active_team_id', None)
+            
+            if active_team_id:
+                from app.models.team_repository import TeamRepository
+                team_repos = self.db.query(TeamRepository.repository_id).filter(
+                    TeamRepository.team_id == active_team_id
+                ).all()
+                repo_ids = [r[0] for r in team_repos]
+                
+                repositories = self.db.query(Repository).filter(
+                    Repository.id.in_(repo_ids),
+                    Repository.is_active == True
+                ).all()
+            else:
+                repositories = self.db.query(Repository).filter(
+                    Repository.owner_id == user.id,
+                    Repository.is_active == True
+                ).all()
+            
+            repo_ids = [r.id for r in repositories]
             
             # Get recent scans
-            recent_scans = self.db.query(Scan).join(Repository).filter(
-                Repository.owner_id == user.id
-            ).order_by(Scan.started_at.desc()).limit(10).all()
+            if repo_ids:
+                recent_scans = self.db.query(Scan).filter(
+                    Scan.repository_id.in_(repo_ids)
+                ).order_by(Scan.started_at.desc()).limit(10).all()
+            else:
+                recent_scans = []
             
             # Get vulnerability stats
             total_vulnerabilities = 0
