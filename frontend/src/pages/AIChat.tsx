@@ -553,6 +553,8 @@ const AIChat = () => {
                 )}
               </div>
             </form>
+          </div>
+          
           {/* History Sidebar */}
           <div 
             className={`fixed top-0 right-0 h-full w-80 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-l border-gray-200 dark:border-white/10 shadow-2xl transition-transform duration-300 z-50 flex flex-col ${historyOpen ? 'translate-x-0' : 'translate-x-full'}`}
